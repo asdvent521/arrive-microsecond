@@ -95,7 +95,19 @@ input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;
 #codeIn{width:8em;text-transform:uppercase;font-variant-numeric:tabular-nums}
 #records{margin:0;padding-left:1.2em} #records li{margin:4px 0}
 .tag{font-size:.74rem;padding:1px 7px;border-radius:999px;background:var(--teal-soft);color:var(--teal)}
-.tag.shelve{background:var(--rose-soft);color:var(--rose)}
+.tag.shelve,.tag.exit,.tag.dispute{background:var(--rose-soft);color:var(--rose)}
+.tag.open,.tag.doing,.tag.judging{background:var(--brass-soft);color:var(--brass)}
+.tag.done,.tag.meet{background:var(--teal-soft);color:var(--teal)}
+.fus{border:1px solid var(--line);border-radius:var(--r-m);background:var(--panel);padding:12px;margin:0 0 12px}
+.fus.mine{border-color:var(--brass)}
+.fus h3{font-family:var(--serif);font-size:1rem;margin:0 0 4px}
+.fus .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.9rem;margin:6px 0}
+.fus .kv dt{color:var(--muted)} .fus .kv dd{margin:0;min-width:0}
+.fus .log{font-size:.8rem;color:var(--muted);margin:6px 0 0;padding-left:1.2em}
+.fus input[type=text]{width:16em;max-width:100%}
+.fus input[type=number]{width:6em}
+.fus s{color:var(--muted)}
+#sheetMsg{margin-top:8px}
 
 /* 分頁列 */
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;align-items:flex-end;background:var(--panel2);border-top:1px solid var(--line);
@@ -131,6 +143,7 @@ input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;
     <div class="hud-bottom">
       <button class="btn pri" id="btnCircle" hidden>繞一圈</button>
       <button class="btn" id="btnReset">重走</button>
+      <button class="btn" id="btnOpen" hidden>打開融合</button>
       <button class="btn" id="btnHome" hidden>回自己的世界</button>
     </div>
   </div>
@@ -157,8 +170,20 @@ input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;
     <p class="sheet-desc">功能固定，外觀自由。改外觀、換顏色、搬位置，走法表記的是物件本身，代號照樣有效。</p>
     <div class="tw"><table><thead><tr><th>名稱</th><th>功能</th><th>外觀</th><th>顏色</th><th>x</th><th>z</th><th></th></tr></thead><tbody id="tblObjects"></tbody></table></div>
   </section>
+  <section id="fusionBox">
+    <div class="sheet-head"><span class="no">Ⅳ</span><h2>融合</h2></div>
+    <p class="sheet-desc">相遇之後的關卡：約下一個出發點（就是期限）、拆成階段（全員同意才成立，構思者得題點）、認領執行、至少兩人共判（有人判未完成就是爭議，全員同意才能改判）、所有階段完成後每個人填熱量，全部填完才算可處理。動作都是以「我是」的角色做的。</p>
+    <div id="fusions"></div>
+    <div class="msg" id="sheetMsg" hidden></div>
+  </section>
   <section>
-    <div class="sheet-head"><span class="no">Ⅳ</span><h2>紀錄</h2></div>
+    <div class="sheet-head"><span class="no">Ⅴ</span><h2>點數紀錄</h2></div>
+    <p class="sheet-desc">題點在階段全員同意時發出，戰點在判定完成時發出；每筆都記發出者、拿到的人、當時的規則版本，事後不能取消。這一輪還不做兌換。</p>
+    <div id="pointsSum" class="row"></div>
+    <div class="tw"><table><thead><tr><th>時間</th><th>種類</th><th>發出者</th><th>拿到</th><th>數量</th><th>規則版本</th><th>階段</th></tr></thead><tbody id="tblPoints"></tbody></table></div>
+  </section>
+  <section>
+    <div class="sheet-head"><span class="no">Ⅵ</span><h2>紀錄</h2></div>
     <ul id="records"></ul>
     <div class="tools"><button class="btn sm" id="btnDefault">全部還原成預設</button></div>
   </section>
@@ -170,6 +195,6 @@ input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;
   <h2>到達那微秒</h2>
   <p id="meetText"></p>
   <p class="muted small" id="meetProblems"></p>
-  <p class="muted small">接下來是融合、拆解、分工，原型先到這裡。</p>
-  <div class="tools"><button class="btn pri" id="meetClose">回自己的世界</button></div>
+  <p class="muted small">接下來：約下一個出發點、拆成階段、分工、判定、填熱量。</p>
+  <div class="tools"><button class="btn pri" id="meetOpen">打開融合</button><button class="btn" id="meetClose">回自己的世界</button></div>
 </div></div>

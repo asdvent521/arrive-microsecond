@@ -96,7 +96,19 @@ input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;
 #codeIn{width:8em;text-transform:uppercase;font-variant-numeric:tabular-nums}
 #records{margin:0;padding-left:1.2em} #records li{margin:4px 0}
 .tag{font-size:.74rem;padding:1px 7px;border-radius:999px;background:var(--teal-soft);color:var(--teal)}
-.tag.shelve{background:var(--rose-soft);color:var(--rose)}
+.tag.shelve,.tag.exit,.tag.dispute{background:var(--rose-soft);color:var(--rose)}
+.tag.open,.tag.doing,.tag.judging{background:var(--brass-soft);color:var(--brass)}
+.tag.done,.tag.meet{background:var(--teal-soft);color:var(--teal)}
+.fus{border:1px solid var(--line);border-radius:var(--r-m);background:var(--panel);padding:12px;margin:0 0 12px}
+.fus.mine{border-color:var(--brass)}
+.fus h3{font-family:var(--serif);font-size:1rem;margin:0 0 4px}
+.fus .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.9rem;margin:6px 0}
+.fus .kv dt{color:var(--muted)} .fus .kv dd{margin:0;min-width:0}
+.fus .log{font-size:.8rem;color:var(--muted);margin:6px 0 0;padding-left:1.2em}
+.fus input[type=text]{width:16em;max-width:100%}
+.fus input[type=number]{width:6em}
+.fus s{color:var(--muted)}
+#sheetMsg{margin-top:8px}
 
 /* 分頁列 */
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;align-items:flex-end;background:var(--panel2);border-top:1px solid var(--line);
@@ -132,6 +144,7 @@ input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;
     <div class="hud-bottom">
       <button class="btn pri" id="btnCircle" hidden>繞一圈</button>
       <button class="btn" id="btnReset">重走</button>
+      <button class="btn" id="btnOpen" hidden>打開融合</button>
       <button class="btn" id="btnHome" hidden>回自己的世界</button>
     </div>
   </div>
@@ -158,8 +171,20 @@ input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;
     <p class="sheet-desc">功能固定，外觀自由。改外觀、換顏色、搬位置，走法表記的是物件本身，代號照樣有效。</p>
     <div class="tw"><table><thead><tr><th>名稱</th><th>功能</th><th>外觀</th><th>顏色</th><th>x</th><th>z</th><th></th></tr></thead><tbody id="tblObjects"></tbody></table></div>
   </section>
+  <section id="fusionBox">
+    <div class="sheet-head"><span class="no">Ⅳ</span><h2>融合</h2></div>
+    <p class="sheet-desc">相遇之後的關卡：約下一個出發點（就是期限）、拆成階段（全員同意才成立，構思者得題點）、認領執行、至少兩人共判（有人判未完成就是爭議，全員同意才能改判）、所有階段完成後每個人填熱量，全部填完才算可處理。動作都是以「我是」的角色做的。</p>
+    <div id="fusions"></div>
+    <div class="msg" id="sheetMsg" hidden></div>
+  </section>
   <section>
-    <div class="sheet-head"><span class="no">Ⅳ</span><h2>紀錄</h2></div>
+    <div class="sheet-head"><span class="no">Ⅴ</span><h2>點數紀錄</h2></div>
+    <p class="sheet-desc">題點在階段全員同意時發出，戰點在判定完成時發出；每筆都記發出者、拿到的人、當時的規則版本，事後不能取消。這一輪還不做兌換。</p>
+    <div id="pointsSum" class="row"></div>
+    <div class="tw"><table><thead><tr><th>時間</th><th>種類</th><th>發出者</th><th>拿到</th><th>數量</th><th>規則版本</th><th>階段</th></tr></thead><tbody id="tblPoints"></tbody></table></div>
+  </section>
+  <section>
+    <div class="sheet-head"><span class="no">Ⅵ</span><h2>紀錄</h2></div>
     <ul id="records"></ul>
     <div class="tools"><button class="btn sm" id="btnDefault">全部還原成預設</button></div>
   </section>
@@ -171,8 +196,8 @@ input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;
   <h2>到達那微秒</h2>
   <p id="meetText"></p>
   <p class="muted small" id="meetProblems"></p>
-  <p class="muted small">接下來是融合、拆解、分工，原型先到這裡。</p>
-  <div class="tools"><button class="btn pri" id="meetClose">回自己的世界</button></div>
+  <p class="muted small">接下來：約下一個出發點、拆成階段、分工、判定、填熱量。</p>
+  <div class="tools"><button class="btn pri" id="meetOpen">打開融合</button><button class="btn" id="meetClose">回自己的世界</button></div>
 </div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -305,6 +330,25 @@ var DATA = (function () {
           circles: [{ object: 'hill', letter: 'J' }],
           moves: [{ from: 'rule', to: 'goal', digit: '1' }, { from: 'rule', to: 'problem', digit: '2' }]
         }
+      },
+      {
+        serial: '00000000003', name: '小樂', color: '#9C4450',
+        departUs: null,
+        rules: [{ text: '週末不排任何事。', visible: 'all' }],
+        problems: [{ text: '答應的事太多，每件都做一半。', status: 'open' }],
+        start: [0, 9],
+        objects: [
+          { id: 'rule',    name: '規則塔', func: 'rule',    pos: [-6, 0],  look: '塔', parts: look('塔', '#B07A82') },
+          { id: 'problem', name: '難題霧', func: 'problem', pos: [0, -5],  look: '球', parts: [{ shape: 'sphere', size: [3, 3, 3], color: '#C9CED4', offset: [0, 1.5, 0] }] },
+          { id: 'goal',    name: '終點台', func: 'goal',    pos: [6, 0],   look: '台', parts: look('台', '#D9A0A8') },
+          { id: 'fusion',  name: '融合井', func: 'fusion',  pos: [5, 7],   look: '井', parts: look('井', '#8A8F96') },
+          { id: 'stage',   name: '工坊',   func: 'stage',   pos: [-5, 7],  look: '工坊', parts: look('工坊', '#7A6A72') }
+        ],
+        path: [[0, 9], [6, 0]],
+        walk: {
+          circles: [{ object: 'goal', letter: 'J' }],
+          moves: [{ from: 'rule', to: 'problem', digit: '1' }, { from: 'problem', to: 'fusion', digit: '2' }, { from: 'fusion', to: 'stage', digit: '3' }]
+        }
       }
     ];
   }
@@ -396,7 +440,7 @@ var DATA = (function () {
   }
   function cleanText(t, what) {
     obj(t, what);
-    return { text: str(t.text, LIMITS.text, what), visible: t.visible === 'self' ? 'self' : 'all', status: t.status === 'shelved' ? 'shelved' : 'open' };
+    return { text: str(t.text, LIMITS.text, what), visible: t.visible === 'self' ? 'self' : 'all', status: ['shelved', 'fused', 'exited'].indexOf(t.status) >= 0 ? t.status : 'open' };
   }
   function cleanWorld(w) {
     obj(w, '世界');
@@ -450,7 +494,7 @@ var DATA = (function () {
 
   /* ---------- 存檔：只存資料 ---------- */
   var KEY = 'arrive-v5';
-  function fresh() { return { v: 5, me: 0, roles: defaultRoles(), records: [] }; }
+  function fresh() { return { v: 5, me: 0, roles: defaultRoles(), records: [], fusions: [], points: [] }; }
   function load() {
     try {
       var s = localStorage.getItem(KEY);
@@ -459,10 +503,17 @@ var DATA = (function () {
         if (j && j.v === 5 && Array.isArray(j.roles) && j.roles.length) {
           var roles = j.roles.map(cleanWorld);          // 存檔也是外來資料，一樣洗過
           var recs = list(j.records || [], 500, '紀錄').map(function (r) {
-            return { kind: r.kind === 'meet' ? 'meet' : 'shelve', at: num(r.at, '紀錄時間'), text: str(r.text, LIMITS.text, '紀錄') };
+            return { kind: ['meet', 'shelve', 'exit'].indexOf(r.kind) >= 0 ? r.kind : 'shelve', at: num(r.at, '紀錄時間'), text: str(r.text, LIMITS.text, '紀錄') };
+          });
+          // 融合與點數：存檔是自己寫的，這裡只確認形狀；正式版點數還要驗簽章
+          var fusions = list(j.fusions || [], 200, '融合').map(function (f) { obj(f, '融合'); if (!Array.isArray(f.members) || !Array.isArray(f.stages)) bad('融合格式錯'); return JSON.parse(JSON.stringify(f)); });
+          var points = list(j.points || [], 5000, '點數').map(function (p) {
+            obj(p, '點數'); if (p.kind !== 'idea' && p.kind !== 'battle') bad('點數種類錯');
+            return { id: str(p.id, 60, '點數'), kind: p.kind, from: str(p.from, 11, '點數'), to: str(p.to, 11, '點數'), amount: num(p.amount, '點數'),
+                     atUs: num(p.atUs, '點數'), fusion: str(p.fusion || '', 60, '點數'), stage: str(p.stage || '', 60, '點數'), ruleVersion: str(p.ruleVersion || '', 10, '點數'), sig: p.sig == null ? null : str(p.sig, 200, '簽章') };
           });
           var me = (typeof j.me === 'number' && j.me >= 0 && j.me < roles.length) ? j.me : 0;
-          return { v: 5, me: me, roles: roles, records: recs };
+          return { v: 5, me: me, roles: roles, records: recs, fusions: fusions, points: points };
         }
       }
     } catch (e) { /* 壞掉或沒有儲存空間：用預設 */ }
@@ -484,6 +535,215 @@ var DATA = (function () {
   };
 })();
 if (typeof module !== 'undefined') module.exports = DATA;
+
+/* ===== 融合流程：規則與資料，不碰畫面 =====
+ * 相遇之後的關卡：融合 → 約下一個出發點 → 拆成階段（全員同意）→ 執行 → 判定 → 填熱量 → 可處理。
+ * 每個函式都只改傳進來的 state，不合規則就丟出錯誤（訊息給玩家看）。
+ */
+var FUSION = (function () {
+  'use strict';
+  var RULES = { version: '1', ratios: { idea: 1, battle: 1 } };   // 點數比例版本：每筆點數都記下當時的版本
+  var seq = 0;
+  function id(p) { return p + '_' + Date.now().toString(36) + '_' + (seq++).toString(36); }
+  function bad(m) { throw new Error(m); }
+  function nowUs() { return Date.now() * 1000; }
+
+  function active(f) { return f.members.filter(function (m) { return f.exits.indexOf(m) < 0; }); }
+  function isMember(f, s) { return active(f).indexOf(s) >= 0; }
+  function need(f, s) { if (!isMember(f, s)) bad('不是這個融合的參與者'); }
+  function stage(f, sid) { var st = f.stages.find(function (x) { return x.id === sid; }); if (!st) bad('沒有這個階段'); return st; }
+  function allAgree(f, list) { return active(f).every(function (m) { return list.indexOf(m) >= 0; }); }
+
+  /* ---------- 點數：綁定發出者，事後不能取消 ---------- */
+  // 格式：{id, kind:'idea'|'battle', from, to, amount, atUs, fusion, stage, ruleVersion, sig}
+  // sig 先留空：正式版由發出者簽章，沒人能冒用別人發點數。
+  function issue(state, f, kind, to, sid, atUs) {
+    active(f).forEach(function (from) {
+      if (from === to) return;
+      state.points.push({ id: id('pt'), kind: kind, from: from, to: to, amount: RULES.ratios[kind], atUs: atUs,
+                          fusion: f.id, stage: sid, ruleVersion: RULES.version, sig: null });
+    });
+  }
+
+  /* ---------- 建立：相遇的那一微秒 ---------- */
+  function create(state, roles, atUs) {
+    if (roles.length < 2) bad('至少兩個角色才能融合');
+    var f = {
+      id: id('fu'), createdUs: atUs, status: 'open',            // open | done | shelved
+      members: roles.map(function (r) { return r.serial; }), exits: [],
+      problems: roles.map(function (r) { return { serial: r.serial, text: (r.problems[0] || {}).text || '' }; }),
+      text: roles.map(function (r) { return (r.problems[0] || {}).text || ''; }).join('＋'),
+      nextUs: null, nextProposal: null,                          // 下一個出發點 = 期限
+      stages: [], calories: {}, log: []
+    };
+    roles.forEach(function (r) { if (r.problems[0]) r.problems[0].status = 'fused'; f.calories[r.serial] = null; });
+    log(f, atUs, roles.map(function (r) { return r.name; }).join('、') + ' 相遇，難題融合');
+    state.fusions.push(f);
+    return f;
+  }
+  function log(f, atUs, text) { f.log.push({ atUs: atUs, text: text }); }
+
+  /* ---------- 下一個出發點：全員同意才算約好；約好後每個參與者的終點都算數 ---------- */
+  function proposeNext(state, f, s, us) {
+    need(f, s); if (f.status !== 'open') bad('這個融合已經結束');
+    if (us <= nowUs()) bad('出發點要在未來');
+    f.nextProposal = { us: us, by: s, agreed: [s] };
+    settleNext(state, f, s);
+  }
+  function agreeNext(state, f, s) {
+    need(f, s); if (!f.nextProposal) bad('還沒有人提出發點');
+    if (f.nextProposal.agreed.indexOf(s) < 0) f.nextProposal.agreed.push(s);
+    settleNext(state, f, s);
+  }
+  function settleNext(state, f, s) {
+    if (!allAgree(f, f.nextProposal.agreed)) return false;
+    f.nextUs = f.nextProposal.us; f.nextProposal = null;
+    // 每個參與者的出發點都寫成同一微秒：第三個人到任何一位參與者的終點都算有人來
+    state.roles.forEach(function (r) { if (isMember(f, r.serial)) { r.departUs = f.nextUs; r.departDone = false; } });
+    log(f, nowUs(), '約好下一個出發點');
+    return true;
+  }
+
+  /* ---------- 階段：提出 → 全員同意（發題點）→ 認領執行 → 交判 → 判定 ---------- */
+  function proposeStage(state, f, s, text) {
+    need(f, s); if (f.status !== 'open') bad('這個融合已經結束');
+    if (!text || !String(text).trim()) bad('階段要寫內容');
+    var st = { id: id('st'), text: String(text).trim(), by: s, status: 'proposed', agreed: [s], owner: null, judges: {}, dispute: {} };
+    f.stages.push(st);
+    settleStage(state, f, st);
+    return st;
+  }
+  function agreeStage(state, f, sid, s) {
+    need(f, s); var st = stage(f, sid);
+    if (st.status !== 'proposed') bad('這個階段不在等同意');
+    if (st.agreed.indexOf(s) < 0) st.agreed.push(s);
+    settleStage(state, f, st);
+  }
+  function settleStage(state, f, st) {
+    if (!allAgree(f, st.agreed)) return;
+    st.status = 'agreed';
+    issue(state, f, 'idea', st.by, st.id, nowUs());          // 構思者得題點，其他參與者各發一份；退出也逃不掉
+    log(f, nowUs(), '階段「' + st.text + '」全員同意');
+  }
+  function claimStage(state, f, sid, s) {
+    need(f, s); var st = stage(f, sid);
+    if (st.status !== 'agreed') bad('這個階段不能認領');
+    st.status = 'doing'; st.owner = s;
+  }
+  function submitStage(state, f, sid, s) {
+    var st = stage(f, sid);
+    if (st.status !== 'doing' || st.owner !== s) bad('只有執行者能交判');
+    st.status = 'judging'; st.judges = {};
+  }
+  // 判定：至少兩個人判；有人判未完成就變爭議
+  function judge(state, f, sid, s, ok) {
+    need(f, s); var st = stage(f, sid);
+    if (st.status !== 'judging') bad('這個階段不在判定中');
+    st.judges[s] = !!ok;
+    var votes = Object.keys(st.judges);
+    if (votes.some(function (k) { return st.judges[k] === false; })) { st.status = 'dispute'; st.dispute = {}; log(f, nowUs(), '階段「' + st.text + '」有爭議'); return; }
+    if (votes.length >= 2 && allAgree(f, votes)) finish(state, f, st);
+  }
+  // 爭議：全員同意才能改判完成，或退回執行中
+  function disputeVote(state, f, sid, s, to) {
+    need(f, s); var st = stage(f, sid);
+    if (st.status !== 'dispute') bad('這個階段沒有爭議');
+    if (to !== 'done' && to !== 'back') bad('只能判完成或退回');
+    st.dispute[s] = to;
+    var ks = Object.keys(st.dispute);
+    if (!allAgree(f, ks)) return;
+    if (ks.every(function (k) { return st.dispute[k] === 'done'; })) finish(state, f, st);
+    else if (ks.every(function (k) { return st.dispute[k] === 'back'; })) { st.status = 'doing'; st.judges = {}; st.dispute = {}; log(f, nowUs(), '階段「' + st.text + '」退回執行'); }
+    // 意見不一致：爭議繼續，等大家改票
+  }
+  function finish(state, f, st) {
+    st.status = 'done';
+    issue(state, f, 'battle', st.owner, st.id, nowUs());     // 執行者得戰點
+    log(f, nowUs(), '階段「' + st.text + '」判定完成');
+  }
+  function allStagesDone(f) { return f.stages.length > 0 && f.stages.every(function (s) { return s.status === 'done'; }); }
+
+  /* ---------- 完成：所有階段判定完成後才能填熱量；每個人都填了才算可處理 ---------- */
+  function setCalories(state, f, s, kcal) {
+    need(f, s); if (f.status !== 'open') bad('這個融合已經結束');
+    if (!allStagesDone(f)) bad('所有階段都判定完成後才能填熱量');
+    if (typeof kcal !== 'number' || !(kcal >= 0)) bad('熱量要是數字');
+    f.calories[s] = kcal;
+    if (active(f).every(function (m) { return typeof f.calories[m] === 'number'; })) {
+      f.status = 'done';
+      log(f, nowUs(), '每個人都填了熱量，難題可處理');
+    }
+  }
+
+  /* ---------- 退出：不懲罰，只留紀錄 ---------- */
+  function exit(state, f, s) {
+    need(f, s);
+    f.exits.push(s);
+    f.stages.forEach(function (st) {
+      if (st.owner === s && (st.status === 'doing' || st.status === 'judging' || st.status === 'dispute')) { st.status = 'agreed'; st.owner = null; st.judges = {}; st.dispute = {}; }  // 變回沒人負責，不發戰點
+      if (st.status === 'proposed') settleStage(state, f, st);                                    // 少了一個人，剩下的人可能已經全員同意
+    });
+    if (f.nextProposal) settleNext(state, f, s);
+    var r = state.roles.find(function (x) { return x.serial === s; });
+    if (r && r.problems[0]) r.problems[0].status = 'exited';
+    log(f, nowUs(), (r ? r.name : s) + ' 退出');
+    state.records.push({ kind: 'exit', at: nowUs(), text: (r ? r.name : s) + ' 退出融合「' + f.text + '」，已發的點數照舊。' });
+  }
+
+  /* ---------- 期限：下一個出發點那一微秒 ---------- */
+  // arrivals：那一微秒站在任一參與者終點上的角色序號
+  function deadline(state, f, atUs, arrivals) {
+    if (f.status === 'shelved' || f.nextUs == null || atUs < f.nextUs) return null;
+    var result;
+    if (f.status === 'done') result = 'done';                   // 已經可處理：完成
+    else if (arrivals.length) {
+      var joined = [];
+      arrivals.forEach(function (s) {
+        if (isMember(f, s)) return;
+        var r = state.roles.find(function (x) { return x.serial === s; });
+        if (!r) return;
+        f.members.push(s); f.calories[s] = null;
+        f.problems.push({ serial: s, text: (r.problems[0] || {}).text || '' });
+        if (r.problems[0]) { r.problems[0].status = 'fused'; f.text += '＋' + r.problems[0].text; }
+        joined.push(r.name);
+      });
+      f.nextUs = null;                                          // 要再約下一個出發點
+      log(f, atUs, joined.length ? joined.join('、') + ' 加入融合，再約下一個出發點' : '有人到了，再約下一個出發點');
+      result = joined.length ? 'joined' : 'again';
+    } else {
+      f.status = 'shelved';
+      state.roles.forEach(function (r) { if (f.members.indexOf(r.serial) >= 0 && r.problems[0] && r.problems[0].status === 'fused') r.problems[0].status = 'shelved'; });
+      log(f, atUs, '出發點一個人都沒來，融合難題和原難題一起擱置');
+      state.records.push({ kind: 'shelve', at: atUs, text: '融合「' + f.text + '」的出發點沒有人到終點，連同原難題一起擱置。' });
+      result = 'shelved';
+    }
+    state.roles.forEach(function (r) { if (f.members.indexOf(r.serial) >= 0 && r.departUs != null && r.departUs <= atUs) r.departDone = true; });
+    return result;
+  }
+
+  // 找角色 s 目前參與、還在進行的融合
+  function openFor(state, s) {
+    return state.fusions.find(function (f) { return f.status === 'open' && isMember(f, s); }) || null;
+  }
+  // 哪個融合把這個出發點當期限
+  function byDepart(state, us) {
+    return state.fusions.find(function (f) { return f.status === 'open' && f.nextUs === us; }) || null;
+  }
+  function pointsOf(state, s) {
+    var got = { idea: 0, battle: 0 }, gave = { idea: 0, battle: 0 };
+    state.points.forEach(function (p) { if (p.to === s) got[p.kind] += p.amount; if (p.from === s) gave[p.kind] += p.amount; });
+    return { got: got, gave: gave };
+  }
+
+  var STATUS = { proposed: '等同意', agreed: '沒人負責', doing: '執行中', judging: '判定中', dispute: '爭議', done: '完成' };
+  var FSTATUS = { open: '進行中', done: '可處理', shelved: '擱置' };
+
+  return { RULES: RULES, create: create, proposeNext: proposeNext, agreeNext: agreeNext, proposeStage: proposeStage, agreeStage: agreeStage,
+           claimStage: claimStage, submitStage: submitStage, judge: judge, disputeVote: disputeVote, setCalories: setCalories, exit: exit,
+           deadline: deadline, openFor: openFor, byDepart: byDepart, active: active, isMember: isMember, allStagesDone: allStagesDone,
+           pointsOf: pointsOf, STATUS: STATUS, FSTATUS: FSTATUS };
+})();
+if (typeof module !== 'undefined') module.exports = FUSION;
 
 /* ===== 畫面層：Three.js 照資料蓋世界 =====
  * 只讀資料、畫畫面、回報事件（靠近、到達、繞圈、點到傳送門）。規則都在 data.js。
@@ -979,14 +1239,21 @@ var WORLD = (function () {
   }
   function drawNear(o) {
     var box = $('hudNear');
+    $('btnOpen').hidden = true;
     if (!o) { box.hidden = true; $('btnCircle').hidden = true; return; }
     var f = DATA.FUNCS[o.func] || DATA.FUNCS.none;
     var r = cur.role, body = '';
     if (o.func === 'rule') body = visibleTo(r.rules, f) ;
     else if (o.func === 'problem') body = visibleTo(r.problems, f);
     else if (o.func === 'goal') body = '出發點：' + DATA.fmtUs(r.departUs);
-    else if (o.func === 'fusion') body = cur.visiting ? '只有參與者看得到。' : (state.records.filter(function (x) { return x.kind === 'meet'; }).slice(-1)[0] || {}).text || '還沒有融合紀錄。';
-    else if (o.func === 'stage') body = cur.visiting ? '只有參與者看得到。' : '還沒有階段。';
+    else if (o.func === 'fusion' || o.func === 'stage') {
+      var fo = FUSION.openFor(state, r.serial);
+      if (!fo) body = '還沒有融合。';
+      else if (!FUSION.isMember(fo, me.serial)) body = '只有參與者看得到。';
+      else if (o.func === 'fusion') body = '融合難題：' + fo.text + '\n下一個出發點：' + (fo.nextUs == null ? '還沒約' : DATA.fmtUs(fo.nextUs));
+      else body = fo.stages.length ? fo.stages.map(function (st) { return '・' + st.text + '（' + FUSION.STATUS[st.status] + '）'; }).join('\n') : '還沒有階段。';
+      $('btnOpen').hidden = !fo || !FUSION.isMember(fo, me.serial);
+    }
     else body = '純地標，沒有功能。';
     $('hudNearTitle').textContent = '這裡是' + f.label + '：' + o.name;
     $('hudNearBody').textContent = body;
@@ -1048,6 +1315,9 @@ var WORLD = (function () {
     drawWhere(); drawNear(null); msg('');
   }
   $('btnHome').addEventListener('click', goHome);
+  function openFusion() { showTab('sheet'); $('fusionBox').scrollIntoView(); }
+  $('btnOpen').addEventListener('click', openFusion);
+  $('meetOpen').addEventListener('click', function () { $('meet').hidden = true; goHome(); openFusion(); });
   $('btnReset').addEventListener('click', function () { dec.reset(); drawCode(); WORLD.hidePortal(); portalRole = null; msg('重走'); });
   $('btnCircle').addEventListener('click', function () { if (nearObj) WORLD.circleAround(nearObj.id); });
   $('hudTarget').addEventListener('change', function () { target = $('hudTarget').value; drawRoute(); });
@@ -1076,6 +1346,13 @@ var WORLD = (function () {
     $('clock').textContent = DATA.fmtUs(DATA.nowUs());
     var now0 = DATA.nowUs();
     // 每個角色自己的出發點：那一微秒過了、沒人在他的終點（不是正在被拜訪的那個），就擱置
+    // 融合的期限：不在任何參與者的世界時，就是沒人來
+    state.fusions.forEach(function (fz) {
+      if (fz.status === 'shelved' || fz.nextUs == null || now0 < fz.nextUs) return;
+      if (cur.visiting && FUSION.isMember(fz, cur.role.serial) && !resolved) return;   // 正在參與者的世界，由下面判
+      var res = FUSION.deadline(state, fz, now0, []);
+      if (res) { DATA.save(state); renderRoles(); renderFusions(); renderRecords(); msg(res === 'shelved' ? '融合「' + fz.text + '」的出發點沒人來，擱置。' : '融合「' + fz.text + '」完成。', true); }
+    });
     state.roles.forEach(function (x) {
       if (x.departUs == null || x.departDone || now0 < x.departUs) return;
       if (cur.visiting && cur.role === x) return;        // 正在他的世界，由下面判
@@ -1090,21 +1367,32 @@ var WORLD = (function () {
     if (r.departUs == null) { $('hudGoal').textContent = '對方還沒寫出發點'; return; }
     if (r.departDone && !resolved) { $('hudGoal').textContent = '這個出發點已經過了'; return; }
     if (resolved) return;
+    var fz = FUSION.byDepart(state, r.departUs);
     if (now < r.departUs) {
-      $('hudGoal').textContent = '離出發點還有 ' + ((r.departUs - now) / 1e6).toFixed(1) + ' 秒' + (onIt ? '，你在終點上' : '');
+      $('hudGoal').textContent = '離出發點還有 ' + ((r.departUs - now) / 1e6).toFixed(1) + ' 秒' + (onIt ? '，你在終點上' : '') + (fz ? '（融合的期限）' : '');
       return;
     }
     resolved = true;
+    if (fz) {
+      // 這個出發點是融合難題的期限：第三個人到任何一位參與者的終點都算有人來
+      var res = FUSION.deadline(state, fz, now, onIt ? [me.serial] : []);
+      DATA.save(state); renderRoles(); renderFusions(); renderRecords();
+      var tx = { done: '融合難題已經可處理，完成。', joined: '你加入了這個融合，大家要再約下一個出發點。', again: '有人到了，融合繼續，再約下一個出發點。', shelved: '沒有人到終點，融合難題和原難題一起擱置。' }[res] || '';
+      $('hudGoal').textContent = res === 'shelved' ? '錯過了，擱置' : '到了';
+      msg(tx, true); $('btnOpen').hidden = res === 'shelved';
+      return;
+    }
     if (onIt) {
       var t = DATA.abbrev(me.serial) + ' 與 ' + DATA.abbrev(r.serial) + ' ' + r.name + ' 在 ' + DATA.fmtUs(r.departUs) + ' 相遇，兩個難題融合了。';
       r.departDone = true; me.departDone = true;
       if (r.problems[0]) r.problems[0].status = 'fused';
       if (me.problems[0]) me.problems[0].status = 'fused';
       record('meet', t);
-      renderRoles();
+      var fu = FUSION.create(state, [me, r], r.departUs);
+      DATA.save(state); renderRoles(); renderFusions();
       $('hudGoal').textContent = '相遇了';
       $('meetText').textContent = t;
-      $('meetProblems').textContent = '「' + (me.problems[0] || {}).text + '」＋「' + (r.problems[0] || {}).text + '」';
+      $('meetProblems').textContent = '融合難題：' + fu.text;
       $('meet').hidden = false;
     } else {
       var t2 = shelve(r, ' 沒有人到終點');
@@ -1121,7 +1409,7 @@ var WORLD = (function () {
 
   function renderRoles() {
     $('tblRoles').innerHTML = state.roles.map(function (r, i) {
-      var st = (r.problems[0] || {}).status, stTag = st === 'shelved' ? '<span class="tag shelve">擱置</span> ' : st === 'fused' ? '<span class="tag meet">融合</span> ' : '';
+      var st = (r.problems[0] || {}).status, stTag = st === 'shelved' ? '<span class="tag shelve">擱置</span> ' : st === 'fused' ? '<span class="tag meet">融合</span> ' : st === 'exited' ? '<span class="tag exit">退出</span> ' : '';
       return '<tr><td><label class="me"><input type="radio" name="meIs" value="' + i + '"' + (r === me ? ' checked' : '') + '> ' + (r === me ? '我' : '') + '</label></td>' +
         '<td class="num">' + r.serial + '</td><td class="num"><b>' + DATA.abbrev(r.serial) + '</b></td>' +
         '<td><input type="text" data-role="' + i + '" data-k="name" value="' + esc(r.name) + '" aria-label="名字"></td>' +
@@ -1135,7 +1423,7 @@ var WORLD = (function () {
     dec = new DATA.Decoder(me.walk); target = null;
     DATA.save(state);
     $('walkWho').textContent = '我的世界 ' + DATA.abbrev(me.serial) + ' ' + me.name;
-    renderRoles(); renderWalk(); goHome();
+    renderRoles(); renderWalk(); renderFusions(); renderPoints(); goHome();
   }
   $('tblRoles').addEventListener('change', function (e) {
     var t = e.target;
@@ -1149,6 +1437,7 @@ var WORLD = (function () {
   $('tblRoles').addEventListener('click', function (e) {
     var b = e.target.closest('[data-dep]'); if (!b) return;
     var r = state.roles[+b.dataset.dep], s = +b.dataset.s;
+    if (FUSION.openFor(state, r.serial)) { sheetMsg(r.name + ' 在融合裡，出發點要在融合區全員約定。'); return; }
     r.departUs = s ? DATA.nowUs() + s * 1e6 + Math.floor(Math.random() * 1000) : null;
     r.departDone = false;
     if (r.problems[0] && r.problems[0].status !== 'open') r.problems[0] = { text: r.problems[0].text, status: 'open', visible: 'all' };  // 重創難題
@@ -1234,12 +1523,93 @@ var WORLD = (function () {
     me = state.roles[0]; dec = new DATA.Decoder(me.walk); target = null; DATA.save(state);
     editRole = 0; $('walkWho').textContent = '我的世界 ' + DATA.abbrev(me.serial) + ' ' + me.name; renderAll(); goHome();
   });
+  /* ---------- 融合區：動作都以「我是」做 ---------- */
+  function roleName(serial) { var r = state.roles.find(function (x) { return x.serial === serial; }); return r ? DATA.abbrev(serial) + ' ' + r.name : serial; }
+  function renderFusions() {
+    var box = $('fusions');
+    if (!state.fusions.length) { box.innerHTML = '<p class="muted">還沒有融合。到別人的世界，在他的出發點那一微秒站在終點上。</p>'; return; }
+    box.innerHTML = state.fusions.slice().reverse().map(function (f) {
+      var mine = FUSION.isMember(f, me.serial), act = FUSION.active(f), open = f.status === 'open';
+      var members = f.members.map(function (m) { return f.exits.indexOf(m) >= 0 ? '<s>' + esc(roleName(m)) + '</s>' : esc(roleName(m)); }).join('、');
+      var next;
+      if (f.nextUs != null) next = '<span class="num">' + DATA.fmtUs(f.nextUs) + '</span>';
+      else if (f.nextProposal) {
+        next = esc(roleName(f.nextProposal.by)) + ' 提議 <span class="num">' + DATA.fmtUs(f.nextProposal.us) + '</span>，同意的：' + f.nextProposal.agreed.map(roleName).map(esc).join('、') +
+          (mine && open && f.nextProposal.agreed.indexOf(me.serial) < 0 ? ' <button class="btn sm pri" data-f="' + f.id + '" data-act="agreeNext">同意</button>' : '');
+      } else next = '還沒約' + (mine && open ? ' <button class="btn sm" data-f="' + f.id + '" data-act="proposeNext" data-s="60">60 秒後</button> <button class="btn sm" data-f="' + f.id + '" data-act="proposeNext" data-s="180">3 分鐘後</button>' : '');
+      var stages = f.stages.map(function (st) {
+        var a = '';
+        if (mine && open) {
+          if (st.status === 'proposed' && st.agreed.indexOf(me.serial) < 0) a = btn(f, st, 'agreeStage', '同意', 'pri');
+          else if (st.status === 'proposed') a = '<span class="muted small">等其他人同意</span>';
+          else if (st.status === 'agreed') a = btn(f, st, 'claimStage', '我來執行');
+          else if (st.status === 'doing' && st.owner === me.serial) a = btn(f, st, 'submitStage', '做完了，交判');
+          else if (st.status === 'judging' && st.judges[me.serial] == null) a = btn(f, st, 'judgeOk', '判完成', 'pri') + ' ' + btn(f, st, 'judgeNo', '判未完成');
+          else if (st.status === 'judging') a = '<span class="muted small">等其他人判</span>';
+          else if (st.status === 'dispute') a = (st.dispute[me.serial] ? '<span class="muted small">你投了：' + (st.dispute[me.serial] === 'done' ? '完成' : '退回') + '</span> ' : '') + btn(f, st, 'disputeDone', '改判完成') + ' ' + btn(f, st, 'disputeBack', '退回執行');
+        }
+        return '<tr><td style="white-space:normal;min-width:12em">' + esc(st.text) + '</td><td>' + esc(roleName(st.by)) + '</td><td><span class="tag ' + st.status + '">' + FUSION.STATUS[st.status] + '</span></td><td>' + (st.owner ? esc(roleName(st.owner)) : '—') + '</td><td>' + a + '</td></tr>';
+      }).join('');
+      var kcal = FUSION.allStagesDone(f)
+        ? act.map(function (m) { var v = f.calories[m]; return '<label class="me">' + esc(roleName(m)) + '：' + (m === me.serial && open ? '<input type="number" min="0" step="10" data-f="' + f.id + '" data-act="kcal" value="' + (v == null ? '' : v) + '" aria-label="熱量"> 大卡' : (v == null ? '<span class="muted">還沒填</span>' : '<span class="num">' + v + ' 大卡</span>')) + '</label>'; }).join(' ')
+        : '<span class="muted small">所有階段判定完成後才能填。</span>';
+      return '<div class="fus' + (mine ? ' mine' : '') + '" data-fid="' + f.id + '">' +
+        '<h3><span class="tag ' + f.status + '">' + FUSION.FSTATUS[f.status] + '</span> ' + esc(f.text) + '</h3>' +
+        '<dl class="kv"><dt>參與者</dt><dd>' + members + '</dd><dt>下一個出發點</dt><dd>' + next + '</dd><dt>熱量</dt><dd>' + kcal + '</dd></dl>' +
+        '<div class="tw"><table><thead><tr><th>階段</th><th>構思</th><th>狀態</th><th>執行者</th><th></th></tr></thead><tbody>' + (stages || '<tr><td colspan="5" class="muted">還沒有階段。</td></tr>') + '</tbody></table></div>' +
+        (mine && open ? '<div class="tools"><input type="text" data-stage-in="' + f.id + '" placeholder="拆一個階段，例如：訂出開工時間" aria-label="新階段"><button class="btn sm" data-f="' + f.id + '" data-act="proposeStage">提出階段</button><button class="btn sm" data-f="' + f.id + '" data-act="exit" style="margin-left:auto">退出</button></div>' : '') +
+        '<ul class="log">' + f.log.slice(-4).map(function (l) { return '<li>' + esc(l.text) + '</li>'; }).join('') + '</ul></div>';
+    }).join('');
+  }
+  function btn(f, st, act, label, cls) { return '<button class="btn sm' + (cls ? ' ' + cls : '') + '" data-f="' + f.id + '" data-st="' + st.id + '" data-act="' + act + '">' + label + '</button>'; }
+  function sheetMsg(t) { var el = $('sheetMsg'); el.textContent = t; el.hidden = false; setTimeout(function () { el.hidden = true; }, 3000); }
+  function fusionAction(f, act, sid, el) {
+    var me0 = me.serial;
+    switch (act) {
+      case 'proposeNext': FUSION.proposeNext(state, f, me0, DATA.nowUs() + (+el.dataset.s) * 1e6 + Math.floor(Math.random() * 1000)); break;
+      case 'agreeNext': FUSION.agreeNext(state, f, me0); break;
+      case 'proposeStage': var inp = document.querySelector('[data-stage-in="' + f.id + '"]'); FUSION.proposeStage(state, f, me0, inp.value); inp.value = ''; break;
+      case 'agreeStage': FUSION.agreeStage(state, f, sid, me0); break;
+      case 'claimStage': FUSION.claimStage(state, f, sid, me0); break;
+      case 'submitStage': FUSION.submitStage(state, f, sid, me0); break;
+      case 'judgeOk': FUSION.judge(state, f, sid, me0, true); break;
+      case 'judgeNo': FUSION.judge(state, f, sid, me0, false); break;
+      case 'disputeDone': FUSION.disputeVote(state, f, sid, me0, 'done'); break;
+      case 'disputeBack': FUSION.disputeVote(state, f, sid, me0, 'back'); break;
+      case 'kcal': FUSION.setCalories(state, f, me0, +el.value); break;
+      case 'exit': FUSION.exit(state, f, me0); break;
+    }
+  }
+  var fusionBusy = false;   // 重畫會讓輸入框失焦、再觸發 change，用旗標擋掉套疊
+  function onFusionEvent(e) {
+    if (fusionBusy) return;
+    var el = e.target.closest('[data-act]'); if (!el) return;
+    if (e.type === 'change' && el.dataset.act !== 'kcal') return;
+    if (e.type === 'click' && el.dataset.act === 'kcal') return;
+    var f = state.fusions.find(function (x) { return x.id === el.dataset.f; }); if (!f) return;
+    fusionBusy = true;
+    try {
+      try { fusionAction(f, el.dataset.act, el.dataset.st, el); }
+      catch (err) { sheetMsg(err.message); return; }
+      DATA.save(state); renderFusions(); renderPoints(); renderRoles(); renderRecords(); drawNear(nearObj);
+    } finally { fusionBusy = false; }
+  }
+  $('fusions').addEventListener('click', onFusionEvent);
+  $('fusions').addEventListener('change', onFusionEvent);
+  function renderPoints() {
+    var mine = FUSION.pointsOf(state, me.serial);
+    $('pointsSum').innerHTML = '<span class="tag meet">我拿到 題點 ' + mine.got.idea + '・戰點 ' + mine.got.battle + '</span><span class="tag open">我發出 題點 ' + mine.gave.idea + '・戰點 ' + mine.gave.battle + '</span>';
+    $('tblPoints').innerHTML = state.points.length ? state.points.slice().reverse().map(function (p) {
+      var f = state.fusions.find(function (x) { return x.id === p.fusion; }), st = f && f.stages.find(function (x) { return x.id === p.stage; });
+      return '<tr><td class="num">' + DATA.fmtUs(p.atUs) + '</td><td>' + (p.kind === 'idea' ? '題點' : '戰點') + '</td><td>' + esc(roleName(p.from)) + '</td><td>' + esc(roleName(p.to)) + '</td><td class="num">' + p.amount + '</td><td class="num">' + esc(p.ruleVersion) + '</td><td style="white-space:normal">' + esc(st ? st.text : '') + '</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="muted">還沒有點數。</td></tr>';
+  }
   function renderRecords() {
     $('records').innerHTML = state.records.length ? state.records.slice().reverse().map(function (x) {
-      return '<li><span class="tag ' + x.kind + '">' + (x.kind === 'meet' ? '相遇' : '擱置') + '</span> ' + esc(x.text) + '</li>';
+      return '<li><span class="tag ' + x.kind + '">' + ({ meet: '相遇', shelve: '擱置', exit: '退出' }[x.kind] || x.kind) + '</span> ' + esc(x.text) + '</li>';
     }).join('') : '<li class="muted">還沒有紀錄。</li>';
   }
-  function renderAll() { renderRoles(); renderWalk(); renderObjects(); renderRecords(); }
+  function renderAll() { renderRoles(); renderWalk(); renderObjects(); renderFusions(); renderPoints(); renderRecords(); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   /* ---------- 分頁 ---------- */
@@ -1268,7 +1638,7 @@ var WORLD = (function () {
   showTab(location.hash === '#sheet' ? 'sheet' : 'world');
   window.APP = { state: function () { return state; }, dec: function () { return dec; }, cur: function () { return cur; }, showTab: showTab,
     enterPortal: function () { if (portalRole) teleport(portalRole); }, save: function () { DATA.save(state); },
-    teleportTo: teleport, me: function () { return me; } };
+    teleportTo: teleport, me: function () { return me; }, becomeMe: becomeMe };
 })();
 
 </script>
