@@ -3,7 +3,9 @@
  */
 var WORLD = (function () {
   'use strict';
-  var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl;
+  var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl, wallGroup;
+  var stack = [];            // 進門的層：[{objects, pos}]，最多 3 層
+  var sceneInfo = { depth: 0, visiting: false };
   var objects = [];          // [{data, mesh, radius, top, pos:Vector3, label, inside, arrived, angle, startAngle, turned, count}]
   var waypoints = [];
   var handlers = {};
@@ -51,6 +53,7 @@ var WORLD = (function () {
 
     objGroup = new THREE.Group(); scene.add(objGroup);
     pathGroup = new THREE.Group(); scene.add(pathGroup);
+    wallGroup = new THREE.Group(); scene.add(wallGroup);   // 內部空間的地板與牆（只是畫面）
 
     // 角色：圓柱身體 + 球頭
     player = new THREE.Group();
@@ -189,12 +192,28 @@ var WORLD = (function () {
   // world：角色的世界資料（已經過純資料檢查）；opts.visiting：傳送過去逛，畫出對方設定的路
   function loadWorld(world, opts) {
     opts = opts || {};
-    clear(objGroup); clear(pathGroup);
+    stack = [];
+    sceneInfo = { depth: 0, visiting: !!opts.visiting };
+    loadScene(world.objects, world.start || [0, 0], world.path, opts.visiting);
+  }
+  // 一層場景：外部或某扇門裡面
+  function loadScene(objs, start, path, visiting) {
+    clear(objGroup); clear(pathGroup); clear(wallGroup);
     labelLayer.innerHTML = '';
-    objects = world.objects.map(function (o) { var e = makeEntry(o); objGroup.add(e.mesh); return e; });
-    if (opts.visiting && world.path && world.path.length > 1) {
-      for (var i = 0; i < world.path.length - 1; i++) {
-        var a = world.path[i], b = world.path[i + 1];
+    var inner = sceneInfo.depth > 0;
+    objects = objs.map(function (o) { var e = makeEntry(o); objGroup.add(e.mesh); return e; });
+    if (inner) {
+      // 內部：一塊地板和四面矮牆，讓人知道在屋裡
+      var floor = new THREE.Mesh(new THREE.BoxGeometry(26, 0.1, 26), new THREE.MeshLambertMaterial({ color: 0xb8ad9c }));
+      floor.position.y = 0.02; wallGroup.add(floor);
+      [[0, -13], [0, 13], [-13, 0], [13, 0]].forEach(function (p, i) {
+        var w = new THREE.Mesh(new THREE.BoxGeometry(i < 2 ? 26 : 0.6, 2.4, i < 2 ? 0.6 : 26), new THREE.MeshLambertMaterial({ color: 0xa79c8b }));
+        w.position.set(p[0], 1.2, p[1]); wallGroup.add(w);
+      });
+    }
+    if (!inner && visiting && path && path.length > 1) {
+      for (var i = 0; i < path.length - 1; i++) {
+        var a = path[i], b = path[i + 1];
         var dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
         var seg = new THREE.Mesh(new THREE.BoxGeometry(len, 0.06, 1.2), new THREE.MeshLambertMaterial({ color: 0xf3e9d2 }));
         seg.position.set((a[0] + b[0]) / 2, 0.03, (a[1] + b[1]) / 2);
@@ -202,18 +221,41 @@ var WORLD = (function () {
         pathGroup.add(seg);
       }
     }
-    var st = world.start || [0, 0];
-    player.position.set(st[0], 0, st[1]);
+    player.position.set(start[0], 0, start[1]);
     waypoints = [];
     hidePortal();
     arc.visible = false;
     detect.lastNear = undefined;
-    player.children[0].material.color = new THREE.Color(opts.visiting ? 0x5c6670 : 0x2d5a86);
-    scene.background = new THREE.Color(opts.visiting ? 0xe4e0d6 : 0xdfe6ec);
+    objects.forEach(function (o) { o.arrived = false; o.inside = false; });
+    player.children[0].material.color = new THREE.Color(sceneInfo.visiting ? 0x5c6670 : 0x2d5a86);
+    scene.background = new THREE.Color(inner ? 0xcfc6b6 : sceneInfo.visiting ? 0xe4e0d6 : 0xdfe6ec);
     scene.fog.color = scene.background;
+    scene.fog.near = inner ? 30 : 40; scene.fog.far = inner ? 60 : 90;
+    ground.visible = !inner;
     camera.position.copy(player.position).add(camOffset());
     camera.lookAt(player.position);
   }
+  // 進門：換到那個物件的內部場景；門開不開由接線層先判
+  function enter(id) {
+    var o = objects.find(function (x) { return x.data.id === id; });
+    if (!o || !o.data.door) return false;
+    if (stack.length >= 3) return false;
+    stack.push({ objects: objects.map(function (x) { return x.data; }), pos: [player.position.x, player.position.z] });
+    sceneInfo.depth = stack.length;
+    loadScene(o.data.door.objects, o.data.door.start || [0, 4], null, sceneInfo.visiting);
+    emit('scene', sceneInfo.depth);
+    return true;
+  }
+  // 出門：回到上一層，站在門口
+  function leave() {
+    var prev = stack.pop();
+    if (!prev) return false;
+    sceneInfo.depth = stack.length;
+    loadScene(prev.objects, prev.pos, null, sceneInfo.visiting);
+    emit('scene', sceneInfo.depth);
+    return true;
+  }
+  function depth() { return sceneInfo.depth; }
 
   function refreshObject(id) {
     var i = objects.findIndex(function (x) { return x.data.id === id; });
@@ -421,7 +463,7 @@ var WORLD = (function () {
     return objects.some(function (o) { return Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) < o.radius + AVOID - 0.05; });
   }
 
-  return { init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround,
+  return { init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
            stop: stop, showPortal: showPortal, hidePortal: hidePortal, flash: flash, setArcFilter: setArcFilter,
            playerPos: playerPos, isMoving: isMoving, distanceTo: distanceTo, insideAny: insideAny, resize: resize,
            camera: cam, zoomTo: zoomTo };

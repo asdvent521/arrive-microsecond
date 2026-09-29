@@ -21,8 +21,8 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   var tab = async function (k) { await pg.click('#tabs a[data-s="' + k + '"]'); await pg.waitForTimeout(150); };
 
   // 分頁順序
-  var tabs = await pg.evaluate("[...document.querySelectorAll('#tabs a')].map(function(a){return a.textContent.replace(/^[裡ⅠⅡⅢⅣⅤⅥⅦⅧⅨ]/,'')})");
-  assert(tabs.join('｜') === '裡世界｜下一步｜角色｜難題｜規則｜世界｜走法｜出發點｜融合｜點數｜紀錄', '分頁順序：' + tabs.join('｜'));
+  var tabs = await pg.evaluate("[...document.querySelectorAll('#tabs a')].map(function(a){return a.textContent.replace(/^[裡ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]/,'')})");
+  assert(tabs.join('｜') === '裡世界｜下一步｜角色｜難題｜規則｜世界｜走法｜出發點｜融合｜點數｜兌換｜紀錄', '分頁順序：' + tabs.join('｜'));
   await tab('next');
   assert((await sheet()) === 'next' && !(await pg.isHidden('#fxbar')), '表世界打開，名稱方塊列出現');
   var rows = await pg.evaluate("[...document.querySelectorAll('#main tr[data-row]')].map(function(t){return t.querySelector('td[data-c=\"0\"]').textContent})");
@@ -90,9 +90,9 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   await tab('world');
   await pg.selectOption('select[data-ed="worldRole"]', '00000000001'); await pg.waitForTimeout(150);
   await pg.fill('#addObjName', '大石頭'); await jsClick('[data-act="addObj"]');
-  assert((await pg.evaluate("APP.me().objects.length")) === 6 && (await pg.evaluate("APP.me().objects[5].name")) === '大石頭', '新增地標');
+  assert((await pg.evaluate("APP.me().objects.length")) === 7 && (await pg.evaluate("APP.me().objects[6].name")) === '大石頭', '新增地標');
   await jsClick('[data-act="delObj"][data-id="rule"]');
-  assert((await pg.evaluate("APP.me().objects.length")) === 5 && (await pg.evaluate("APP.me().walk.circles.length")) === 0, '刪規則屋，繞圈走法一起刪');
+  assert((await pg.evaluate("APP.me().objects.length")) === 6 && (await pg.evaluate("APP.me().walk.circles.length")) === 0, '刪規則屋，繞圈走法一起刪');
   // 世界頁的走法連結
   await jsClick('#main tr[data-row][data-id="00000000001:problem"] [data-act="jump"][data-s="walk"]');
   assert((await sheet()) === 'walk', '世界頁「走法用到」連到走法頁');

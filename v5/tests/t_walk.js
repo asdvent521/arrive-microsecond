@@ -69,7 +69,7 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   await pg.waitForTimeout(200);
   var rule = await pg.textContent('#hudNearBody');
   assert(rule.indexOf('九點') >= 0, '看得到對方的規則：' + rule);
-  await pg.evaluate("(function(){APP.state().roles[1].departUs = DATA.nowUs() + 4e6; APP.save();})()");
+  await pg.evaluate("(function(){APP.state().roles[1].departUs = DATA.nowUs() + 6e6; APP.save();})()");
   await pg.evaluate("WORLD.walkTo({x:7, z:-1})");
   await pg.waitForFunction("WORLD.distanceTo('goal') < 1", null, { timeout: 8000 });
   await pg.waitForTimeout(300);
@@ -109,7 +109,7 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   await pg.evaluate("APP.dec().reset(); WORLD.hidePortal()");
   // 標籤：每個功能點頭上有名字
   var labels = await pg.evaluate("[...document.querySelectorAll('.label')].map(l=>l.textContent)");
-  assert(labels.indexOf('難題碑') >= 0 && labels.length === 5, '名稱標籤：' + labels.join('/'));
+  assert(labels.indexOf('難題碑') >= 0 && labels.length === 6, '名稱標籤：' + labels.join('/'));
   // 路線教學
   var route = await pg.textContent('#hudRouteText');
   assert(route.indexOf('要去 J2：繞') === 0 && route.indexOf('走到難題碑') > 0 && route.indexOf('融合殿') > 0, '路線教學：' + route);

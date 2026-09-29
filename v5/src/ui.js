@@ -36,7 +36,7 @@
     target = cur0;
     var box = $('hudRoute');
     if (!target) { box.hidden = true; return; }
-    var rt = DATA.route(me.walk, me.objects, target);
+    var rt = DATA.route(me.walk, DATA.allObjects(me).map(function (x) { return x.o; }), target);
     var doneN = dec.code().length;
     if (rt.missing) { $('hudRouteText').textContent = '要去 ' + target + '：' + rt.missing + '，到表世界改走法表。'; }
     else {
@@ -53,7 +53,9 @@
   }
   function drawWhere() {
     var r = cur.role;
-    $('hudWhere').textContent = cur.visiting ? '在 ' + DATA.abbrev(r.serial) + ' ' + r.name + ' 的世界' : '自己的世界 ' + DATA.abbrev(r.serial);
+    var d = WORLD.depth ? WORLD.depth() : 0;
+    $('hudWhere').textContent = (cur.visiting ? '在 ' + DATA.abbrev(r.serial) + ' ' + r.name + ' 的世界' : '自己的世界 ' + DATA.abbrev(r.serial)) + (d ? '，內部第 ' + d + ' 層' : '');
+    $('btnLeave').hidden = !d;
     $('btnHome').hidden = !cur.visiting;
     $('hudCodeBox').hidden = cur.visiting;
     $('hudRoute').hidden = cur.visiting;
@@ -63,14 +65,21 @@
   function canCircle(o) {
     return !cur.visiting && !!o && me.walk.circles.some(function (c) { return c.object === o.id; });
   }
+  var openTarget = null;   // 「打開」按鈕要去哪一頁
   function drawNear(o) {
     var box = $('hudNear');
-    $('btnOpen').hidden = true;
+    $('btnOpen').hidden = true; $('btnEnter').hidden = true;
     if (!o) { box.hidden = true; $('btnCircle').hidden = true; return; }
     var f = DATA.FUNCS[o.func] || DATA.FUNCS.none;
     var r = cur.role, body = '';
-    if (o.func === 'rule') body = visibleTo(DATA.currentRules(r).items, f);
-    else if (o.func === 'problem') { var p = DATA.activeProblem(r); body = p ? p.text : '（還沒立難題）'; }
+    if (o.func === 'rule') body = visibleTo(DATA.currentRules(r).items);
+    else if (o.func === 'problem') { var p = DATA.activeProblem(r); body = !p ? '（還沒立難題）' : DATA.canSee(state, r.serial, me.serial, p.visible) ? p.text : '主人沒有開放給你看。'; }
+    else if (o.func === 'market') {
+      if (!cur.visiting) { var hs = EXCHANGE.holdings(state, me.serial); body = '我今天還能發出 ' + EXCHANGE.remainingToday(state, me.serial, DATA.nowUs()) + ' 大卡。\n手上有 ' + hs.reduce(function (n, g) { return n + g.points.length; }, 0) + ' 點可以拿去換。'; }
+      else { var offs = EXCHANGE.offers(state, me.serial, r.serial); body = offs.length ? offs.map(function (x) { return (x.kind === 'idea' ? '題點' : '戰點') + ' ' + x.n + ' 點，值 ' + x.kcal + ' 大卡' + (x.resources.filter(function (q) { return q.enough; }).length ? '，換得到：' + x.resources.filter(function (q) { return q.enough; }).map(function (q) { return q.name; }).join('、') : ''); }).join('\n') + '\n' + r.name + ' 今天還能發出 ' + EXCHANGE.remainingToday(state, r.serial, DATA.nowUs()) + ' 大卡。' : '你手上沒有 ' + r.name + ' 發的點數。'; }
+      openTarget = { sheet: 'exchange', id: cur.visiting ? r.serial + ':' : null };
+      $('btnOpen').hidden = false; $('btnOpen').textContent = '打開兌換';
+    }
     else if (o.func === 'goal') body = '出發點：' + DATA.fmtUs(r.departUs);
     else if (o.func === 'fusion' || o.func === 'stage') {
       var fo = FUSION.openFor(state, r.serial);
@@ -78,21 +87,25 @@
       else if (!FUSION.isMember(fo, me.serial)) body = '只有參與者看得到。';
       else if (o.func === 'fusion') body = '融合難題：' + fo.text + '\n下一個出發點：' + (fo.nextUs == null ? '還沒約' : DATA.fmtUs(fo.nextUs));
       else body = fo.stages.length ? fo.stages.map(function (st) { return '・' + st.text + '（' + FUSION.STATUS[st.status] + '）'; }).join('\n') : '還沒有階段。';
-      $('btnOpen').hidden = !fo || !FUSION.isMember(fo, me.serial);
+      openTarget = { sheet: 'fusion', id: fo ? fo.id : null };
+      $('btnOpen').hidden = !fo || !FUSION.isMember(fo, me.serial); $('btnOpen').textContent = '打開融合';
     }
     else body = '純地標，沒有功能。';
+    // 門：可見條件管得到；看不到的人只看到門關著
+    if (o.door) {
+      var open = DATA.canSee(state, r.serial, me.serial, o.door.visible);
+      body += (body ? '\n' : '') + (open ? '有一扇門。' : '有一扇門，關著。');
+      $('btnEnter').hidden = !open || WORLD.depth() >= 3;
+    }
     $('hudNearTitle').textContent = '這裡是' + f.label + '：' + o.name;
     $('hudNearBody').textContent = body;
     box.hidden = false;
     $('btnCircle').hidden = !canCircle(o);
   }
-  function visibleTo(list, f) {
+  function visibleTo(list) {
     if (!list || !list.length) return '（空的）';
-    if (cur.visiting && f.visible === 'cond') {
-      var open = list.filter(function (x) { return x.visible !== 'self'; });
-      return open.length ? open.map(function (x) { return x.text; }).join('\n') : '主人沒有開放。';
-    }
-    return list.map(function (x) { return x.text; }).join('\n');
+    var open = list.filter(function (x) { return DATA.canSee(state, cur.role.serial, me.serial, x.visible); });
+    return open.length ? open.map(function (x) { return x.text; }).join('\n') : '主人沒有開放給你看。';
   }
 
   /* ---------- 世界事件 ---------- */
@@ -142,7 +155,10 @@
   }
   $('btnHome').addEventListener('click', goHome);
   function openFusion() { var f = FUSION.openFor(state, me.serial); showTab('sheet'); SHEET.navigate('fusion', f ? f.id : null); }
-  $('btnOpen').addEventListener('click', openFusion);
+  $('btnOpen').addEventListener('click', function () { if (!openTarget) return openFusion(); showTab('sheet'); SHEET.navigate(openTarget.sheet, openTarget.id); });
+  function enterDoor() { if (nearObj && WORLD.enter(nearObj.id)) { WORLD.flash(); drawWhere(); drawNear(null); msg('進到 ' + nearObj.name + ' 裡面。', false); } }
+  $('btnEnter').addEventListener('click', enterDoor);
+  $('btnLeave').addEventListener('click', function () { if (WORLD.leave()) { WORLD.flash(); drawWhere(); drawNear(null); } });
   $('meetOpen').addEventListener('click', function () { $('meet').hidden = true; goHome(); openFusion(); });
   $('btnReset').addEventListener('click', function () { dec.reset(); drawCode(); WORLD.hidePortal(); portalRole = null; msg('重走'); });
   $('btnCircle').addEventListener('click', function () { if (nearObj) WORLD.circleAround(nearObj.id); });
@@ -259,7 +275,7 @@
     state: function () { return state; }, me: function () { return me; }, cur: function () { return cur; }, dec: function () { return dec; },
     save: function () { DATA.save(state); }, msg: msg, becomeMe: becomeMe, goHome: goHome, showTab: showTab, isWorld: function () { return $('view-world') && !$('view-world').hidden; },
     openPortal: function (code) { showTab('world'); if (cur.visiting) goHome(); dec.reset(); drawCode(); openPortal(code); },
-    enterPortal: function () { if (portalRole) teleport(portalRole); }, teleportTo: teleport,
+    enterPortal: function () { if (portalRole) teleport(portalRole); }, teleportTo: teleport, enterDoor: enterDoor, nearObj: function () { return nearObj; },
     walkChanged: walkChanged, worldRefresh: worldRefresh, resetAll: resetAll, record: record, refresh: refresh, esc: esc, opt: opt
   };
 })();

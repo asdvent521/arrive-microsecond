@@ -3,6 +3,8 @@
 - `node v5/tests/data.test.js`：資料層（序號縮寫、走法解碼、預設世界）。
 - `node v5/tests/fusion.test.js`：融合流程規則（約出發點、階段、判定與爭議、熱量、加入、退出、擱置）。
 - `node v5/tests/t_fusion.js <test.html>`：在表世界把整輪融合走一遍（切換角色輪流操作）。
+- `node v5/tests/exchange.test.js`：兌換、每日 1800 大卡上限、可見條件、內部空間的資料檢查。
+- `node v5/tests/t_extra.js <test.html>`：門與內部空間、可見條件、市集與兌換頁。
 - `node v5/tests/t_sheets.js <test.html>`：表世界活頁簿（分頁順序、下一步、名稱方塊、連結跳轉與返回、角色／難題／規則／世界／走法／出發點各頁的操作）。
 - `node v5/tests/t_walk.js <test.html> [截圖資料夾]`：整段流程（靠近顯示功能、繞圈走出 J、走到走出 2、傳送門、到別人的世界看規則、站在終點等那一微秒、相遇、改外觀不影響走法）。
 
