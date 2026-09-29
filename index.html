@@ -1,0 +1,2393 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>到達那微秒</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E6ECF1; --panel:#F7F9FB; --panel2:#EEF2F6; --grid:#D5DDE5; --ink:#16212D; --muted:#586676; --line:#C7D1DB;
+  --brass:#A2731F; --brass-soft:#F1E4C8; --teal:#1C7A73; --teal-soft:#D5ECE9; --rose:#9C4450; --rose-soft:#F3DDE0;
+  --blue:#2D5A86; --blue-soft:#DCE7F2;
+  --sans:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --serif:"Noto Serif TC","Songti TC","PMingLiU",serif;
+  --r-s:6px; --r-m:10px; --tabs-h:46px;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --bg:#0D141B; --panel:#151F29; --panel2:#1B2733; --grid:#26333F; --ink:#E2E9F0; --muted:#93A1B0; --line:#2B3947;
+  --brass:#D8A954; --brass-soft:#3A2E17; --teal:#43B5AA; --teal-soft:#15332F; --rose:#D57F8B; --rose-soft:#3A1E23; --blue:#7FA9D6; --blue-soft:#1C2C3D;
+}}
+:root[data-theme="dark"]{
+  --bg:#0D141B; --panel:#151F29; --panel2:#1B2733; --grid:#26333F; --ink:#E2E9F0; --muted:#93A1B0; --line:#2B3947;
+  --brass:#D8A954; --brass-soft:#3A2E17; --teal:#43B5AA; --teal-soft:#15332F; --rose:#D57F8B; --rose-soft:#3A1E23; --blue:#7FA9D6; --blue-soft:#1C2C3D;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%;
+  display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+h1,h2,h3{font-family:var(--serif);font-weight:700;line-height:1.3;margin:0}
+h2{font-size:1.25rem} h3{font-size:1.02rem}
+p{margin:.4em 0}
+a{color:var(--blue)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--brass);outline-offset:1px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:.86rem}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+
+/* 頂部：活頁簿標題列 */
+.top{flex:none;background:var(--panel);border-bottom:1px solid var(--line)}
+.top-in{display:flex;align-items:center;gap:10px;padding:8px 12px;flex-wrap:wrap}
+.brand{font-family:var(--serif);font-weight:700;font-size:1.1rem;letter-spacing:.04em;white-space:nowrap}
+.role-sel{width:auto;max-width:60vw;min-height:38px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
+.clock{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;line-height:1.2}
+.clock .t{font-variant-numeric:tabular-nums;font-size:.92rem}
+.clock .t b{font-weight:500;color:var(--brass)}
+.clock .sim{font-size:.72rem;color:var(--rose)}
+/* 名稱方塊與資料編輯列 */
+.fxbar{display:flex;align-items:stretch;gap:0;border-top:1px solid var(--line);background:var(--panel)}
+.fxbar .back{border:0;border-right:1px solid var(--line);background:transparent;padding:0 12px;cursor:pointer;min-height:34px;white-space:nowrap}
+.fxbar .back:disabled{opacity:.35;cursor:default}
+.namebox{width:9.5em;flex:none;border-right:1px solid var(--line);padding:6px 10px;font-variant-numeric:tabular-nums;font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fx{flex:none;padding:6px 8px;color:var(--muted);font-style:italic;border-right:1px solid var(--line);font-family:var(--serif)}
+.fxval{flex:1;min-width:0;padding:6px 10px;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* 工作表區 */
+main{flex:1;min-height:0;overflow:auto;padding:12px 12px calc(var(--tabs-h) + 16px + env(safe-area-inset-bottom,0px))}
+.sheet-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:2px 0 8px}
+.sheet-head .no{font-family:var(--serif);color:var(--brass);font-weight:700}
+.sheet-desc{color:var(--muted);font-size:.88rem;margin:0 0 8px;max-width:72em}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px}
+.toolbar .q{width:14em;max-width:50vw;min-height:34px;padding:4px 10px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--panel)}
+.toolbar .cnt{color:var(--muted);font-size:.84rem}
+
+/* 按鈕與表單 */
+.btn{min-height:38px;padding:6px 14px;border-radius:var(--r-s);border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.btn.brass{background:var(--brass);color:#fff;border-color:var(--brass)}
+.btn.warn{color:var(--rose);border-color:var(--rose)}
+.btn.sm{min-height:30px;padding:2px 10px;font-size:.84rem}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:.86rem;color:var(--muted);margin:0 0 8px}
+input[type=text],input[type=number],input[type=date],input[type=datetime-local],input:not([type]),select,textarea{min-height:36px;padding:5px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg);color:var(--ink);width:100%}
+textarea{min-height:64px;resize:vertical}
+.inl{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
+.inl input{width:4.8em}
+.check{display:flex;align-items:center;gap:6px;min-height:30px;cursor:pointer}
+.check input{width:18px;height:18px}
+.err{background:var(--rose-soft);color:var(--rose);border-radius:var(--r-s);padding:8px 10px;white-space:pre-line;margin:6px 0}
+.ok{background:var(--teal-soft);color:var(--teal);border-radius:var(--r-s);padding:8px 10px;margin:6px 0}
+.note{background:var(--brass-soft);border-radius:var(--r-s);padding:8px 10px;margin:6px 0;font-size:.9rem}
+.tag{display:inline-block;font-size:.76rem;padding:0 7px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.teal{color:var(--teal);border-color:var(--teal)} .tag.rose{color:var(--rose);border-color:var(--rose)} .tag.brass{color:var(--brass);border-color:var(--brass)}
+.status{font-size:.78rem;padding:0 7px;border-radius:99px;background:var(--panel2);white-space:nowrap}
+.status.s-done{background:var(--teal-soft);color:var(--teal)} .status.s-hold{background:var(--rose-soft);color:var(--rose)} .status.s-go{background:var(--brass-soft);color:var(--brass)}
+
+/* 試算表格線 */
+.wb{overflow:auto;max-height:calc(100vh - 230px);min-height:120px;border:1px solid var(--line);background:var(--panel);-webkit-overflow-scrolling:touch}
+.ws{border-collapse:separate;border-spacing:0;font-size:.88rem;width:max-content;min-width:100%}
+.ws th,.ws td{border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);padding:5px 8px;text-align:left;vertical-align:top;background:var(--panel)}
+.ws td{max-width:20em}
+.ws thead th{position:sticky;z-index:3;background:var(--panel2);font-weight:500;white-space:nowrap}
+.ws thead tr.letters th{top:0;height:22px;padding:1px 8px;font-size:.72rem;color:var(--muted);text-align:center;font-family:var(--sans)}
+.ws thead tr.names th{top:22px;padding:0}
+.ws thead tr.names th .sh{all:unset;display:block;padding:6px 8px;cursor:pointer;font-size:.82rem;color:var(--ink)}
+.ws thead tr.names th .sh:focus-visible{outline:2px solid var(--brass)}
+.ws .rn{position:sticky;left:0;z-index:2;background:var(--panel2);color:var(--muted);text-align:right;font-size:.74rem;min-width:3.4rem;width:3.4rem;max-width:3.4rem;padding:5px 4px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ws thead .rn{z-index:4}
+.ws .rn .tg{all:unset;cursor:pointer;display:inline-block;width:1.2em;text-align:center;color:var(--ink)}
+.ws .rn .tg:focus-visible{outline:2px solid var(--brass)}
+.ws .fz{position:sticky;left:3.4rem;z-index:1;box-shadow:1px 0 0 var(--line)}
+.ws thead .fz{z-index:4}
+.ws td.n,.ws th.n{text-align:right;font-variant-numeric:tabular-nums}
+.ws tbody tr:hover > td:not(.rn){background:var(--panel2)}
+.ws td.sel{outline:2px solid var(--brass);outline-offset:-2px}
+.ws tr.flash > td{animation:flash 1.6s ease-out}
+@keyframes flash{0%,40%{background:var(--brass-soft)}100%{background:var(--panel)}}
+.ws tr.drawer > td{background:var(--bg);padding:12px 14px;max-width:none;white-space:normal}
+.ws tr.drawer .dwin{position:sticky;left:3.6rem;max-width:min(980px,calc(100vw - 80px))}
+.ws tr.addrow > td{background:var(--blue-soft);vertical-align:middle}
+.ws tr.addrow input,.ws tr.addrow select{min-height:32px;padding:3px 6px;min-width:6em}
+.ws tr.editrow > td{background:var(--brass-soft)}
+.ws tr.editrow input,.ws tr.editrow select{min-height:30px;padding:2px 6px}
+.ws td .btn{margin:1px 0}
+.ws tr.mine > td.fz{box-shadow:inset 3px 0 0 var(--teal),1px 0 0 var(--line)}
+.auto{color:var(--muted);font-size:.78rem;font-style:italic}
+.lk{all:unset;cursor:pointer;color:var(--blue);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
+.lk:hover{text-decoration-thickness:2px}
+.lk:focus-visible{outline:2px solid var(--brass)}
+.lks{display:flex;flex-wrap:wrap;gap:2px 10px}
+.empty{padding:14px;color:var(--muted)}
+
+/* 底部工作表分頁 */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;align-items:flex-end;gap:0;overflow-x:auto;background:var(--panel2);border-top:1px solid var(--line);
+  padding:0 8px env(safe-area-inset-bottom,0px);height:calc(var(--tabs-h) + env(safe-area-inset-bottom,0px));scrollbar-width:thin}
+.tabs a{flex:none;display:flex;align-items:center;height:36px;margin-top:0;padding:0 14px;text-decoration:none;color:var(--ink);font-size:.86rem;white-space:nowrap;
+  border:1px solid transparent;border-top:0;border-radius:0 0 var(--r-s) var(--r-s);align-self:flex-start}
+.tabs a b{font-family:var(--serif);color:var(--brass);margin-right:5px;font-weight:700}
+.tabs a[aria-current="page"]{background:var(--panel);border-color:var(--line);font-weight:700;box-shadow:inset 0 -3px 0 var(--brass)}
+.tabs .sep{flex:none;width:1px;height:22px;background:var(--line);margin:7px 6px;align-self:flex-start}
+
+/* 出發點讀數 */
+.readout{font-variant-numeric:tabular-nums;font-weight:300;letter-spacing:.02em;line-height:1.1;display:flex;flex-wrap:wrap;align-items:baseline;gap:.12em}
+.readout .dt{font-size:clamp(1.2rem,4vw,1.9rem)}
+.readout .us{font-size:clamp(1.8rem,7vw,3.2rem);color:var(--brass);font-weight:400}
+.readout .dot{font-size:clamp(1.8rem,7vw,3.2rem);color:var(--brass)}
+.count{font-variant-numeric:tabular-nums;color:var(--muted);margin-top:4px}
+.hero{padding:16px 18px;border:1px solid var(--line);background:var(--panel);margin:0 0 12px;border-radius:var(--r-m)}
+
+/* 出發點輸入 */
+.pt-in{display:flex;flex-wrap:wrap;gap:5px;align-items:flex-end}
+.pt-in label{display:flex;flex-direction:column;font-size:.72rem;color:var(--muted);gap:1px}
+.pt-in input{text-align:center;font-variant-numeric:tabular-nums;font-size:1.05rem;padding:4px 3px}
+.pt-in .w4{width:4.4em}.pt-in .w2{width:3em}.pt-in .w6{width:6em;border-color:var(--brass)}
+.nd-in{display:flex;gap:4px;align-items:center}
+.nd-in input[type=datetime-local]{width:14.5em}
+.nd-in input.us6{width:5.2em;text-align:center;border-color:var(--brass)}
+
+/* 人生行事歷（工作表） */
+.ws.life td.c{min-width:3.2em;text-align:center;padding:0}
+.ws.life td.c button{all:unset;display:block;width:100%;min-height:26px;line-height:26px;cursor:pointer;font-size:.78rem}
+.ws.life td.c button:focus-visible{outline:2px solid var(--brass)}
+.ws.life td.c.has{background:var(--brass-soft)}
+.ws.life td.c.has button{color:var(--brass);font-weight:700}
+.ws.life td.c.off{background:var(--bg)}
+.ws.life td.c.now{outline:2px solid var(--teal);outline-offset:-2px}
+.month{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.month .dh{text-align:center;color:var(--muted);font-size:.78rem}
+.month .dc{min-height:70px;border:1px solid var(--grid);padding:3px;font-size:.74rem;background:var(--panel);overflow:hidden}
+.month .dc .d{color:var(--muted)}
+.month .dc.out{opacity:.35}
+.month .ev{display:block;border-left:3px solid var(--brass);padding-left:4px;margin-top:2px;line-height:1.3;text-align:left}
+.month .ev.p{border-color:var(--rose)} .month .ev.n{border-color:var(--teal)}
+
+/* 挑戰時間軸 */
+.tl-bar{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.tl-bar .btn[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.tl{position:relative;height:130px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;touch-action:none;cursor:grab;user-select:none;margin-bottom:10px}
+.tl .tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--line)}
+.tl .tick span{position:absolute;bottom:4px;left:4px;font-size:.68rem;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.tl .now{position:absolute;top:0;bottom:0;border-left:2px solid var(--teal)}
+.tl .mk{position:absolute;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;border:2px solid var(--panel);cursor:pointer;padding:0}
+.tl .mk.dep{background:var(--brass);top:28px}
+.tl .mk.hit{background:var(--teal);top:26px;width:18px;height:18px;box-shadow:0 0 0 3px var(--teal-soft)}
+.tl .mk.node{background:var(--blue);top:56px;border-radius:3px}
+.tl .mk.bk{background:var(--rose);top:84px;border-radius:2px;transform:translateX(-50%) rotate(45deg)}
+.tl .range{position:absolute;top:5px;left:8px;font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--muted);margin:0 0 8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
+
+/* 抽屜內的相關資料 */
+.rel{display:grid;grid-template-columns:auto auto 1fr;gap:3px 12px;font-size:.84rem;margin-top:6px}
+.rel .h{color:var(--muted);font-size:.76rem}
+.box{border:1px solid var(--line);background:var(--panel);border-radius:var(--r-s);padding:10px 12px;margin:0 0 10px}
+
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);padding:14px 16px;margin:0 0 12px}
+.sec-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+
+/* 對話框與提示 */
+dialog{border:1px solid var(--line);border-radius:var(--r-m);background:var(--panel);color:var(--ink);max-width:min(620px,94vw);width:100%;padding:0}
+dialog::backdrop{background:rgba(10,16,22,.5)}
+.dlg-b{padding:16px;max-height:78vh;overflow:auto}
+.dlg-f{padding:10px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:calc(var(--tabs-h) + 14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:8px 14px;border-radius:var(--r-s);z-index:60;max-width:90vw;font-size:.9rem}
+
+/* 紙本 */
+.paper-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.paper-item{border:1px solid var(--line);border-radius:var(--r-s);padding:10px;background:var(--panel)}
+#preview .page{background:#fff;color:#111;margin:0 auto 16px;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+#print{display:none}
+.page{width:210mm;min-height:297mm;padding:16mm 15mm;font-family:var(--sans);font-size:13pt;line-height:1.6;color:#111;background:#fff;position:relative}
+.page h1{font-size:22pt;margin-bottom:6mm}
+.page h2{font-size:16pt;margin:0 0 4mm}
+.page table{width:100%;border-collapse:collapse;font-size:11.5pt}
+.page th,.page td{border:1px solid #444;padding:2.2mm 1.6mm;text-align:left;vertical-align:top}
+.page th{background:#eee;font-weight:700}
+.page td.tall{height:13mm}
+.page .foot{position:absolute;bottom:8mm;left:15mm;right:15mm;font-size:9pt;color:#555;display:flex;justify-content:space-between}
+.page .fill{display:inline-block;border-bottom:1px solid #222;min-width:18mm;height:1.3em;vertical-align:bottom}
+.page .box{display:inline-block;width:7.5mm;height:9mm;border:1px solid #222;margin-right:1px;vertical-align:bottom;padding:0;background:none;border-radius:0}
+.page .copy{border:1.5px dashed #777;padding:4mm;margin-bottom:5mm}
+.page .cut{border-top:1px dashed #555;margin:4mm 0;font-size:9pt;color:#555;text-align:center}
+.page .cover{display:flex;flex-direction:column;justify-content:center;min-height:250mm}
+.page .cover .big{font-family:var(--serif);font-size:44pt;letter-spacing:.08em}
+.page .life-p{display:grid;grid-template-columns:14mm repeat(12,1fr);font-size:8.5pt}
+.page .life-p div{border:1px solid #999;height:4.4mm;text-align:center;line-height:4.4mm}
+.preview-wrap{overflow-x:auto;background:var(--panel2);padding:12px;border-radius:var(--r-m)}
+@media print{
+  @page{size:A4;margin:0}
+  body{background:#fff;display:block}
+  body.printing .top, body.printing main, body.printing .tabs, body.printing dialog, body.printing .toast{display:none !important}
+  body.printing #print{display:block}
+  #print .page{page-break-after:always;break-after:page;box-shadow:none;margin:0}
+}
+@media (max-width:760px){
+  body{font-size:14px}
+  .namebox{width:7em} .fx{display:none}
+  .clock .t{font-size:.8rem}
+  .wb{max-height:none}
+  main{padding:8px 8px calc(var(--tabs-h) + 14px + env(safe-area-inset-bottom,0px))}
+}
+@media (prefers-reduced-motion:reduce){ *{transition:none !important;animation:none !important} }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <span class="brand">到達那微秒</span>
+    <select class="role-sel" id="roleSel" aria-label="切換角色"></select>
+    <div class="clock" aria-live="off"><span class="t" id="clockT"></span><span class="sim" id="clockSim"></span></div>
+  </div>
+  <div class="fxbar">
+    <button class="back" id="backBtn" type="button" aria-label="返回上一個位置">返回</button>
+    <div class="namebox" id="nameBox" aria-label="名稱方塊">—</div>
+    <div class="fx" aria-hidden="true">fx</div>
+    <div class="fxval" id="fxVal" aria-label="儲存格內容"></div>
+  </div>
+</header>
+<main id="main"></main>
+<nav class="tabs" id="tabs" aria-label="工作表"></nav>
+<div id="print"></div>
+<dialog id="dlg" aria-modal="true"><div class="dlg-b" id="dlgBody"></div><div class="dlg-f" id="dlgFoot"></div></dialog>
+<script>
+/* ===================== 時間（微秒） ===================== */
+const SEC = 1e6, MIN = 6e7, HOUR = 3.6e9, DAY = 8.64e10;
+const DAILY_CAP = 1800;
+const pad = (n, l = 2) => String(n).padStart(l, '0');
+function usParts(us) {
+  const s = Math.floor(us / SEC); const d = new Date(s * 1000);
+  return { y: d.getFullYear(), mo: d.getMonth() + 1, d: d.getDate(), h: d.getHours(), mi: d.getMinutes(), s: d.getSeconds(), micro: us - s * SEC };
+}
+function usFrom(p) { return new Date(p.y, p.mo - 1, p.d, p.h || 0, p.mi || 0, p.s || 0).getTime() * 1000 + (p.micro || 0); }
+function fmtUs(us, micro = true) {
+  if (us == null) return '—';
+  const p = usParts(us);
+  return `${p.y}-${pad(p.mo)}-${pad(p.d)} ${pad(p.h)}:${pad(p.mi)}:${pad(p.s)}` + (micro ? '.' + pad(p.micro, 6) : '');
+}
+function fmtDay(us) { const p = usParts(us); return `${p.y}-${pad(p.mo)}-${pad(p.d)}`; }
+function dayStart(us) { const d = new Date(Math.floor(us / 1000)); d.setHours(0, 0, 0, 0); return d.getTime() * 1000; }
+function addDays(us, n) { const d = new Date(Math.floor(us / 1000)); d.setDate(d.getDate() + n); return d.getTime() * 1000 + (us % 1000); }
+
+const Clock = {
+  offset: 0,
+  real() {
+    const sub = (typeof performance !== 'undefined') ? Math.floor((performance.now() % 1) * 1000) : 0;
+    return Date.now() * 1000 + sub;
+  },
+  now() { return this.real() + this.offset; }
+};
+
+/* ===================== 資料存取模組 ===================== */
+// 之後改接伺服器時，只替換 Store / DB 這一層。
+const SCHEMA_VERSION = 2;
+function migrate(d) {
+  if (d && d.schemaVersion === 1) { (d.problems || []).forEach(p => { if (!p.dockConds) p.dockConds = []; }); d.schemaVersion = 2; }
+  return d;
+}
+const COLS = ['accounts', 'roles', 'rules', 'visConds', 'ruleVersions', 'tails', 'problems', 'departures', 'stations',
+  'dockings', 'fusions', 'challenges', 'batches', 'bookings', 'heat'];
+const VISIBILITY = {
+  accounts: 'private', roles: 'public', rules: 'public', visConds: 'conditional', ruleVersions: 'public', tails: 'private',
+  problems: 'participants', departures: 'private', stations: 'participants', dockings: 'participants',
+  fusions: 'participants', challenges: 'participants', batches: 'private', bookings: 'private', heat: 'participants'
+};
+let _uidSeq = 0;
+function uid(prefix) { _uidSeq++; return prefix.slice(0, 3) + '_' + Date.now().toString(36) + _uidSeq.toString(36) + Math.random().toString(36).slice(2, 6); }
+
+const Store = {
+  key: 'arrive-that-microsecond-v1',
+  data: null,
+  mem: null,
+  empty() {
+    const d = { schemaVersion: SCHEMA_VERSION, meta: { clockOffset: 0, currentRole: null, currentAccount: null }, pendingUploads: [] };
+    COLS.forEach(c => d[c] = []);
+    return d;
+  },
+  load() {
+    let raw = null;
+    try { raw = localStorage.getItem(this.key); } catch (e) { raw = this.mem; }
+    try { this.data = raw ? migrate(JSON.parse(raw)) : null; } catch (e) { this.data = null; }
+    if (!this.data || this.data.schemaVersion !== SCHEMA_VERSION) this.data = null;
+    return this.data;
+  },
+  save() {
+    const s = JSON.stringify(this.data);
+    try { localStorage.setItem(this.key, s); } catch (e) { this.mem = s; }
+  },
+  exportJSON() { return JSON.stringify({ app: '到達那微秒', ...this.data }, null, 2); },
+  importJSON(text) {
+    const d = migrate(JSON.parse(text));
+    if (d.schemaVersion !== SCHEMA_VERSION) throw new Error('資料格式版本不符（需要 ' + SCHEMA_VERSION + '，檔案為 ' + d.schemaVersion + '）');
+    COLS.forEach(c => { if (!Array.isArray(d[c])) d[c] = []; });
+    delete d.app;
+    this.data = d; this.save();
+  }
+};
+
+const DB = {
+  all(col) { return Store.data[col]; },
+  list(col, pred) { return Store.data[col].filter(r => !r.deleted && (!pred || pred(r))); },
+  get(col, id) { return Store.data[col].find(r => r.id === id && !r.deleted) || null; },
+  find(col, pred) { return Store.data[col].find(r => !r.deleted && pred(r)) || null; },
+  insert(col, obj, by, at) {
+    const t = at != null ? at : Clock.now();
+    const r = { id: uid(col), createdAt: t, updatedAt: t, createdBy: by || Store.data.meta.currentRole || null,
+      deleted: false, visibility: VISIBILITY[col], tsSource: 'local', ...obj };
+    Store.data[col].push(r); this.queue('insert', col, r.id);
+    return r;
+  },
+  update(col, id, patch, at) {
+    const r = Store.data[col].find(x => x.id === id);
+    if (!r) return null;
+    Object.assign(r, patch, { updatedAt: at != null ? at : Clock.now() });
+    this.queue('update', col, id);
+    return r;
+  },
+  remove(col, id) { return this.update(col, id, { deleted: true }); },
+  queue(op, col, id) { Store.data.pendingUploads.push({ op, col, id, at: Clock.now() }); if (Store.data.pendingUploads.length > 500) Store.data.pendingUploads.shift(); }
+};
+
+/* ===================== 規則（必須可計算） ===================== */
+const DEADLOCK_OPTS = { third: '找指定的第三方仲裁', shelve: '擱置該項目', redo: '重新拆解後再議', custom: '自訂' };
+const INTERP_OPTS = { issuer: '規則發出者解釋', both: '雙方共同解釋', third: '指定的第三方解釋', custom: '自訂' };
+const EXIT_OPTS = { shelve: '難題擱置', handover: '由排隊第一位接手成為主體' };
+const PRIORITY_OPTS = { fifo: '依預約先後', coop: '合作天數多者優先（同天數依預約先後）', small: '所需能量點少者優先（相同時依預約先後）' };
+const COND_FIELDS = {
+  qRate: { label: '題點每點可換大卡', get: r => r.q.kcal / r.q.per },
+  zRate: { label: '戰點每點可換大卡', get: r => r.z.kcal / r.z.per },
+  stack: { label: '可疊加（是＝1，否＝0）', get: r => r.stack ? 1 : 0 },
+  resCount: { label: '資源項目數', get: r => r.resources.length },
+  queueMax: { label: '排隊上限人數', get: r => r.queue.max },
+  stableDays: { label: '規則版本維持天數', get: (r, roleId) => stableDays(roleId) }
+};
+const COND_OPS = { '>=': '大於等於', '<=': '小於等於', '=': '等於' };
+// 對接條件（寫在難題上，只看對方規則表；member:true 的欄位需指定「每一位／任一」成員）
+const DOCK_FIELDS = {
+  qRate: { label: '題點每點可換大卡', get: (r) => r.q.kcal / r.q.per },
+  zRate: { label: '戰點每點可換大卡', get: (r) => r.z.kcal / r.z.per },
+  stack: { label: '可疊加（是＝1，否＝0）', get: (r) => r.stack ? 1 : 0 },
+  hasRes: { label: '資源清單包含指定資源（是＝1，否＝0）', get: (r, cid, m, c) => r.resources.some(x => x.name.includes(c.res || '')) ? 1 : 0, needRes: true },
+  resCount: { label: '資源項目數', get: (r) => r.resources.length },
+  stableDays: { label: '規則版本維持天數', get: (r, cid) => stableDays(cid) },
+  sameDeadlock: { label: '僵局處理與主體相同（是＝1，否＝0）', get: (r, cid, m) => rulesOf(m).deadlock.opt === r.deadlock.opt ? 1 : 0, member: true },
+  coopDays: { label: '與主體的合作天數', get: (r, cid, m) => coopDays(cid, m), member: true }
+};
+const SCOPE_OPTS = { each: '與每一位成員', any: '與任一成員' };
+function cmp(v, op, x) { return op === '>=' ? v >= x : op === '<=' ? v <= x : Math.abs(v - x) < 1e-9; }
+function dockCondText(c) {
+  const f = DOCK_FIELDS[c.field]; if (!f) return '（無效條件）';
+  return (f.member ? SCOPE_OPTS[c.scope] + '：' : '') + f.label.replace(/（.*）/, '') + (f.needRes ? `「${c.res}」` : '') + ' ' + COND_OPS[c.op] + ' ' + c.value;
+}
+function validateDockConds(conds) {
+  const e = [];
+  (conds || []).forEach((c, i) => {
+    const f = DOCK_FIELDS[c.field];
+    if (!f) e.push(`第 ${i + 1} 條對接條件的欄位無效`);
+    if (!COND_OPS[c.op]) e.push(`第 ${i + 1} 條對接條件的比較方式無效`);
+    if (typeof c.value !== 'number' || !isFinite(c.value)) e.push(`第 ${i + 1} 條對接條件的數值必須是數字`);
+    if (f && f.member && !SCOPE_OPTS[c.scope]) e.push(`第 ${i + 1} 條對接條件要指定「與每一位成員」或「與任一成員」`);
+    if (f && f.needRes && !String(c.res || '').trim()) e.push(`第 ${i + 1} 條對接條件要填寫資源名稱`);
+  });
+  return e;
+}
+// 回傳未達到的條件（空陣列代表全部符合）
+function evalDockConds(conds, candId, subjectIds) {
+  const r = rulesOf(candId);
+  return (conds || []).filter(c => {
+    const f = DOCK_FIELDS[c.field]; if (!f) return true;
+    if (f.member) {
+      const oks = subjectIds.map(m => cmp(f.get(r, candId, m, c), c.op, c.value));
+      return !(c.scope === 'each' ? oks.every(Boolean) : oks.some(Boolean));
+    }
+    return !cmp(f.get(r, candId, null, c), c.op, c.value);
+  }).map(dockCondText);
+}
+
+function defaultRules() {
+  return {
+    q: { per: 10, kcal: 50 }, z: { per: 10, kcal: 50 },
+    qFn: { type: 'none', days: 30, pct: 10, cap: 50 }, zFn: { type: 'none', days: 30, pct: 10, cap: 50 },
+    stack: true, resources: [{ name: '陪跑一次', kcal: 100 }], priority: 'fifo',
+    deadlock: { opt: 'third', text: '' }, exit: 'shelve', queue: { max: 3, waitDays: 14, text: '' },
+    interp: { opt: 'issuer', text: '' }
+  };
+}
+const isPosInt = v => Number.isInteger(v) && v > 0;
+const isNonNegInt = v => Number.isInteger(v) && v >= 0;
+function validateRules(r) {
+  const e = [];
+  ['q', 'z'].forEach(k => {
+    const n = k === 'q' ? '題點' : '戰點';
+    if (!isPosInt(r[k].per)) e.push(n + '兌換的「每幾點」必須是正整數');
+    if (!isPosInt(r[k].kcal)) e.push(n + '兌換的「換幾大卡」必須是正整數');
+    const f = r[k + 'Fn'];
+    if (f.type === 'step') {
+      if (!isPosInt(f.days)) e.push(n + '函數的「每幾天」必須是正整數');
+      if (!isNonNegInt(f.pct)) e.push(n + '函數的「提高幾％」必須是 0 以上的整數');
+      if (!isNonNegInt(f.cap)) e.push(n + '函數的「最多提高幾％」必須是 0 以上的整數');
+    }
+  });
+  if (!r.resources.length) e.push('資源清單至少要有一項');
+  r.resources.forEach((x, i) => {
+    if (!String(x.name || '').trim()) e.push(`第 ${i + 1} 項資源缺少名稱`);
+    if (!isPosInt(x.kcal) || x.kcal > DAILY_CAP) e.push(`第 ${i + 1} 項資源的能量點必須是 1 到 ${DAILY_CAP} 的整數`);
+  });
+  if (!PRIORITY_OPTS[r.priority]) e.push('兌換優先必須選一種排序公式');
+  if (!isPosInt(r.queue.max)) e.push('排隊上限必須是正整數');
+  if (!isPosInt(r.queue.waitDays)) e.push('排隊等待上限（天）必須是正整數');
+  if (r.deadlock.opt === 'custom' && !r.deadlock.text.trim()) e.push('僵局處理選了自訂，請填寫內容');
+  if (r.interp.opt === 'custom' && !r.interp.text.trim()) e.push('解釋權選了自訂，請填寫內容');
+  return e;
+}
+function validateConds(conds) {
+  const e = [];
+  conds.forEach((c, i) => {
+    if (!COND_FIELDS[c.field]) e.push(`第 ${i + 1} 條可見條件的欄位無效`);
+    if (!COND_OPS[c.op]) e.push(`第 ${i + 1} 條可見條件的比較方式無效`);
+    if (typeof c.value !== 'number' || !isFinite(c.value)) e.push(`第 ${i + 1} 條可見條件的數值必須是數字`);
+  });
+  return e;
+}
+function fnMultiplier(fn, coopDays) {
+  if (!fn || fn.type !== 'step') return 1;
+  const up = Math.min(fn.cap, Math.floor(coopDays / fn.days) * fn.pct);
+  return 1 + up / 100;
+}
+// 每一點可換的大卡（依版本快照、點數類型、合作天數）
+function epp(snap, type, coopDays) {
+  const base = snap[type].kcal / snap[type].per;
+  return base * fnMultiplier(snap[type + 'Fn'], coopDays);
+}
+function rateText(x) { return `每 ${x.per} 點換 ${x.kcal} 大卡`; }
+function fnText(f) { return f.type === 'step' ? `合作每滿 ${f.days} 天，比例提高 ${f.pct}%（最多 ${f.cap}%）` : '不隨合作天數變化'; }
+function optText(o, table) { return o.opt === 'custom' ? '自訂：' + o.text : table[o.opt] + (o.text ? '（' + o.text + '）' : ''); }
+
+/* ===================== 查詢工具 ===================== */
+function role(id) { return DB.get('roles', id); }
+function roleName(id) { const r = role(id); return r ? r.name : '（已刪除）'; }
+function rulesOf(roleId) { return DB.find('rules', r => r.roleId === roleId); }
+function condsOf(roleId) { return DB.find('visConds', r => r.roleId === roleId && r.current); }
+function currentVersion(roleId) {
+  const vs = DB.list('ruleVersions', v => v.roleId === roleId);
+  return vs.reduce((a, b) => (!a || b.no > a.no ? b : a), null);
+}
+function versionOf(roleId, no) { return DB.find('ruleVersions', v => v.roleId === roleId && v.no === no); }
+function stableDays(roleId) { const v = currentVersion(roleId); return v ? Math.floor((Clock.now() - v.createdAt) / DAY) : 0; }
+function coopDays(a, b, at) {
+  const t = at != null ? at : Clock.now();
+  let first = null;
+  DB.list('dockings', d => d.result === 'cooperate').forEach(d => {
+    const set = [...d.subjectMembers, d.candidate];
+    if (set.includes(a) && set.includes(b) && (first == null || d.createdAt < first)) first = d.createdAt;
+  });
+  return first == null ? 0 : Math.max(0, Math.floor((t - first) / DAY));
+}
+function meetsConds(viewerId, targetId) {
+  const c = condsOf(targetId); const r = rulesOf(viewerId);
+  if (!c || !r) return !c || !c.conds.length;
+  return c.conds.every(x => {
+    const v = COND_FIELDS[x.field].get(r, viewerId);
+    return x.op === '>=' ? v >= x.value : x.op === '<=' ? v <= x.value : Math.abs(v - x.value) < 1e-9;
+  });
+}
+function stationOfPoint(us) { return DB.find('stations', s => s.point === us && s.status === 'open'); }
+function queueRule(st) {
+  if (st.subject.length === 1) return rulesOf(st.subject[0]).queue;
+  return st.common.queue;
+}
+function roleProblems(roleId) { return DB.list('problems', p => p.participants.includes(roleId)); }
+function canSeeProblem(viewerId, p) {
+  if (p.participants.includes(viewerId)) return true;
+  return DB.list('stations').some(st => {
+    const head = st.status === 'open' ? st.queue[0] : null;
+    const inside = st.subject.includes(viewerId) || (st.members || []).includes(viewerId);
+    if (inside && (st.history.includes(p.id) || (head && head.problemId === p.id))) return true;
+    if (head && head.roleId === viewerId && st.history.includes(p.id)) return true;
+    return false;
+  });
+}
+function guessable(us) { const p = usParts(us); return p.micro % 1000 === 0 || (p.s === 0 && p.micro === 0) || /^(\d)\1{5}$/.test(pad(p.micro, 6)) || pad(p.micro, 6) === '123456'; }
+
+/* ===================== 遊戲邏輯 ===================== */
+class GameError extends Error {}
+const fail = m => { throw new GameError(m); };
+const Game = {
+  commit() { Store.save(); },
+
+  createAccount(name, at) { return DB.insert('accounts', { name }, null, at); },
+  createRole({ name, birthY, birthM, accountId, rules, conds }, at) {
+    if (!String(name || '').trim()) fail('請填寫角色名稱');
+    const now = at != null ? at : Clock.now(); const np = usParts(now);
+    if (!isPosInt(birthY) || !isPosInt(birthM) || birthM > 12) fail('請填寫正確的出生年月');
+    if (birthY > np.y || (birthY === np.y && birthM > np.mo)) fail('出生年月不能晚於今天');
+    const r = DB.insert('roles', { name: name.trim(), birthY, birthM, accountId }, null, at);
+    DB.update('roles', r.id, { createdBy: r.id }, at);
+    this.saveRules(r.id, rules || defaultRules(), conds || [], at, '建立角色');
+    return r;
+  },
+  saveRules(roleId, rules, conds, at, note) {
+    const errs = [...validateRules(rules), ...validateConds(conds)];
+    if (errs.length) fail(errs.join('\n'));
+    const t = at != null ? at : Clock.now();
+    const cur = rulesOf(roleId);
+    if (cur) DB.update('rules', cur.id, { ...clone(rules) }, t); else DB.insert('rules', { roleId, ...clone(rules) }, roleId, t);
+    DB.list('visConds', c => c.roleId === roleId && c.current).forEach(c => DB.update('visConds', c.id, { current: false }, t));
+    const cv = currentVersion(roleId); const no = cv ? cv.no + 1 : 1;
+    DB.insert('visConds', { roleId, version: no, conds: clone(conds), current: true }, roleId, t);
+    DB.insert('ruleVersions', { roleId, no, snapshot: clone(rules), note: note || '修改規則' }, roleId, t);
+    return no;
+  },
+  addTail(roleId, s, micro, label) {
+    if (!(s >= 0 && s < 60 && Number.isInteger(s))) fail('秒數必須是 0 到 59 的整數');
+    if (!(micro >= 0 && micro < 1e6 && Number.isInteger(micro))) fail('微秒必須是 000000 到 999999');
+    return DB.insert('tails', { roleId, s, micro, label: label || '' }, roleId);
+  },
+  addProblem(roleId, { name, situation, goal, occurredAt, dockConds }, at) {
+    if (!String(name || '').trim()) fail('請填寫難題名稱');
+    const ce = validateDockConds(dockConds || []); if (ce.length) fail(ce.join('\n'));
+    const t = at != null ? at : Clock.now();
+    if (occurredAt > t) fail('難題的發生時間不能晚於現在');
+    const v = currentVersion(roleId);
+    return DB.insert('problems', { name: name.trim(), situation: situation || '', goal: goal || '', participants: [roleId], occurredAt,
+      applied: { kind: 'version', roleId, no: v ? v.no : 1 }, status: '進行中', departureId: null, dockConds: clone(dockConds || []) }, roleId, t);
+  },
+  editProblem(problemId, roleId, { name, situation, goal, occurredAt }, at) {
+    const t = at != null ? at : Clock.now();
+    const p = DB.get('problems', problemId);
+    if (!p || !p.participants.includes(roleId)) fail('只能修改自己的難題');
+    if (p.participants.length > 1) fail('融合後的難題不能在這裡修改內容');
+    if (!['進行中', '擱置'].includes(p.status)) fail('只有進行中或擱置的難題可以修改內容');
+    if (!String(name || '').trim()) fail('請填寫難題名稱');
+    if (!(occurredAt <= t)) fail('難題的發生時間不能晚於現在');
+    DB.update('problems', problemId, { name: name.trim(), situation: situation || '', goal: goal || '', occurredAt }, t);
+  },
+  setDockConds(problemId, roleId, conds, consents, at) {
+    const p = DB.get('problems', problemId);
+    if (!p || !p.participants.includes(roleId)) fail('只能修改自己參與的難題');
+    if (['已融合', '完成'].includes(p.status)) fail('已融合或已完成的難題不能修改對接條件');
+    const ce = validateDockConds(conds); if (ce.length) fail(ce.join('\n'));
+    if (p.participants.length > 1) {
+      const st = DB.find('stations', s => s.fusedProblemId === problemId);
+      const need = st ? st.subject : p.participants;
+      if (!consents || !need.every(x => consents.includes(x))) fail('主體多人時，修改對接條件需要全員同意');
+    }
+    DB.update('problems', problemId, { dockConds: clone(conds) }, at);
+  },
+  activeDeparture(problemId) { return DB.find('departures', d => d.problemId === problemId && ['subject', 'queued', 'member'].includes(d.status)); },
+
+  writeDeparture(roleId, problemId, point, at) {
+    const t = at != null ? at : Clock.now();
+    const p = DB.get('problems', problemId);
+    if (!p || !p.participants.includes(roleId)) fail('只能為自己的難題寫下出發點');
+    if (!['進行中', '擱置'].includes(p.status)) fail('這個難題目前的狀態不能寫出發點');
+    if (!(point > t)) fail('出發點必須晚於現在這一刻');
+    if (this.activeDeparture(problemId)) fail('這個難題已經有一個有效的出發點');
+    const st = stationOfPoint(point);
+    if (st) {
+      if (st.subject.includes(roleId) || st.queue.some(q => q.roleId === roleId)) fail('你已經在這個出發點上了');
+      const curP = DB.get('problems', this.currentProblemId(st));
+      const miss = evalDockConds(curP.dockConds, roleId, st.subject);
+      if (miss.length) {
+        const d = DB.insert('departures', { roleId, problemId, point, writtenAt: t, status: 'rejected', stationId: st.id, reason: '不符合對接條件：' + miss.join('；') }, roleId, t);
+        return { departure: d, outcome: 'conds', missing: miss, station: st };
+      }
+      const qr = queueRule(st);
+      if (st.queue.length >= qr.max) {
+        const d = DB.insert('departures', { roleId, problemId, point, writtenAt: t, status: 'rejected', stationId: st.id, reason: '排隊已額滿' }, roleId, t);
+        return { departure: d, outcome: 'full' };
+      }
+      const d = DB.insert('departures', { roleId, problemId, point, writtenAt: t, status: 'queued', stationId: st.id }, roleId, t);
+      const q = [...st.queue, { roleId, problemId, departureId: d.id, at: t }];
+      q.sort((a, b) => a.at - b.at || (a.departureId < b.departureId ? -1 : 1));
+      DB.update('stations', st.id, { queue: q }, t);
+      DB.update('problems', problemId, { status: '排隊中', departureId: d.id }, t);
+      return { departure: d, outcome: 'queued', station: st };
+    }
+    const d = DB.insert('departures', { roleId, problemId, point, writtenAt: t, status: 'subject', stationId: null }, roleId, t);
+    const s = DB.insert('stations', { point, subject: [roleId], members: [], queue: [], common: null, problemId, fusedProblemId: null,
+      history: [problemId], status: 'open', founder: roleId }, roleId, t);
+    DB.update('departures', d.id, { stationId: s.id }, t);
+    DB.update('problems', problemId, { departureId: d.id }, t);
+    return { departure: d, outcome: 'subject', station: s };
+  },
+
+  leaveQueue(stationId, roleId, reason, at) {
+    const t = at != null ? at : Clock.now();
+    const st = DB.get('stations', stationId); const q = st.queue.find(x => x.roleId === roleId);
+    if (!q) fail('你不在這個出發點的排隊中');
+    DB.update('stations', st.id, { queue: st.queue.filter(x => x.roleId !== roleId) }, t);
+    DB.update('departures', q.departureId, { status: reason || 'left' }, t);
+    DB.update('problems', q.problemId, { status: '擱置' }, t);
+  },
+
+  currentProblemId(st) { return st.fusedProblemId || st.problemId; },
+
+  dock(stationId, { accept, common, fused, consents }, at) {
+    const t = at != null ? at : Clock.now();
+    const st = DB.get('stations', stationId);
+    if (!st || st.status !== 'open') fail('這個出發點已經不能對接');
+    const head = st.queue[0]; if (!head) fail('目前沒有排隊的角色');
+    const everyone = [...st.subject, head.roleId];
+    const curP = DB.get('problems', this.currentProblemId(st));
+    if (accept) {
+      const miss = evalDockConds(curP.dockConds, head.roleId, st.subject);
+      if (miss.length) fail('對方目前不符合對接條件：' + miss.join('；') + '\n對方可以修改規則，或退出排隊。');
+      const ce = validateDockConds(fused.dockConds || []); if (ce.length) fail(ce.join('\n'));
+      if (!consents || !everyone.every(r => consents.includes(r))) fail('主體全員與對接角色都同意，才能合作');
+      const e = validateCommon(common); if (e.length) fail(e.join('\n'));
+      if (!String(fused.name || '').trim()) fail('請填寫融合後的難題名稱');
+    }
+    const round = DB.list('dockings', d => d.stationId === st.id).length + 1;
+    const dk = DB.insert('dockings', { stationId: st.id, point: st.point, round, subjectMembers: [...st.subject], candidate: head.roleId,
+      common: accept ? clone(common) : null, condsUsed: clone(curP.dockConds || []), result: accept ? 'cooperate' : 'decline' }, st.subject[0], t);
+    if (!accept) {
+      DB.update('stations', st.id, { queue: st.queue.slice(1) }, t);
+      DB.update('departures', head.departureId, { status: 'declined' }, t);
+      DB.update('problems', head.problemId, { status: '擱置' }, t);
+      return { docking: dk };
+    }
+    const before = this.currentProblemId(st);
+    const np = DB.insert('problems', { name: fused.name.trim(), situation: fused.situation || '', goal: fused.goal || '', participants: everyone,
+      occurredAt: t, applied: { kind: 'docking', dockingId: dk.id }, status: '進行中', departureId: null, fusedFrom: [before, head.problemId], dockConds: clone(fused.dockConds || []) }, st.subject[0], t);
+    DB.update('problems', before, { status: '已融合' }, t);
+    DB.update('problems', head.problemId, { status: '已融合' }, t);
+    DB.update('departures', head.departureId, { status: 'member' }, t);
+    const fu = DB.insert('fusions', { dockingId: dk.id, stationId: st.id, before: [before, head.problemId], after: np.id, members: everyone, afterConds: clone(fused.dockConds || []) }, st.subject[0], t);
+    DB.update('stations', st.id, { subject: everyone, queue: st.queue.slice(1), common: clone(common), fusedProblemId: np.id,
+      history: [...st.history, head.problemId, np.id] }, t);
+    return { docking: dk, fusion: fu, problem: np };
+  },
+
+  // 出發點到達、排隊超時、預約截止
+  tick(at) {
+    const now = at != null ? at : Clock.now();
+    let changed = false;
+    DB.list('stations', s => s.status === 'open').forEach(st => {
+      // 排隊超時
+      const qr = queueRule(st);
+      st.queue.filter(q => q.at + qr.waitDays * DAY < Math.min(now, st.point)).forEach(q => { this.leaveQueue(st.id, q.roleId, 'timeout', now); changed = true; });
+      const st2 = DB.get('stations', st.id);
+      if (st2.point <= now) {
+        st2.queue.forEach(q => { this.leaveQueue(st2.id, q.roleId, 'closed', st2.point); });
+        if (st2.subject.length > 1) {
+          DB.update('stations', st2.id, { status: 'started', queue: [] }, st2.point);
+        } else {
+          DB.update('stations', st2.id, { status: 'closed', queue: [], closedReason: '出發點到達時主體只有一人' }, st2.point);
+          DB.list('departures', d => d.stationId === st2.id && d.status === 'subject').forEach(d => DB.update('departures', d.id, { status: 'expired' }, st2.point));
+          DB.update('problems', st2.problemId, { status: '擱置' }, st2.point);
+        }
+        changed = true;
+      }
+    });
+    changed = this.processBookings(now) || changed;
+    return changed;
+  },
+
+  // ---------- 拆解與挑戰 ----------
+  requireAll(st, consents) { if (!consents || !st.subject.every(r => consents.includes(r))) fail('需要主體全員同意'); },
+  addChallenge(stationId, c, consents, at) {
+    const t = at != null ? at : Clock.now();
+    const st = DB.get('stations', stationId);
+    if (!st || !['open', 'started'].includes(st.status) || st.subject.length < 2) fail('主體至少要有兩個角色才能拆解');
+    this.requireAll(st, consents);
+    this.checkChallenge(st, c);
+    return DB.insert('challenges', { stationId, problemId: this.currentProblemId(st), content: c.content.trim(), node: c.node, writer: c.writer,
+      executor: c.executor, q: c.q, z: c.z, status: '待執行', judge: {}, log: [{ at: t, text: '拆解新增' }] }, c.writer, t);
+  },
+  checkChallenge(st, c) {
+    if (!String(c.content || '').trim()) fail('請填寫挑戰內容');
+    if (!(c.node >= st.point)) fail('時間節點不可早於出發點');
+    if (!st.subject.includes(c.writer)) fail('寫出挑戰的角色必須是主體成員');
+    if (c.executor && !st.subject.includes(c.executor)) fail('執行角色必須是主體成員');
+    if (c.executor && c.executor === c.writer) fail('寫出挑戰與執行挑戰必須是不同角色');
+    if (!isNonNegInt(c.q) || !isNonNegInt(c.z)) fail('題點與戰點數量必須是 0 以上的整數');
+  },
+  editChallenge(chId, c, consents, at) {
+    const t = at != null ? at : Clock.now();
+    const ch = DB.get('challenges', chId); const st = DB.get('stations', ch.stationId);
+    this.requireAll(st, consents);
+    if (['完成', '執行中', '待判定', '判定爭議中'].includes(ch.status)) fail('執行中或已完成的挑戰不能修改');
+    this.checkChallenge(st, c);
+    DB.update('challenges', chId, { content: c.content.trim(), node: c.node, writer: c.writer, executor: c.executor, q: c.q, z: c.z,
+      status: '待執行', log: [...ch.log, { at: t, text: '拆解修改（主體全員同意）' }] }, t);
+  },
+  deleteChallenge(chId, consents, at) {
+    const ch = DB.get('challenges', chId); const st = DB.get('stations', ch.stationId);
+    this.requireAll(st, consents);
+    if (['執行中', '待判定', '判定爭議中', '完成'].includes(ch.status)) fail('執行中或已完成的挑戰不能刪除');
+    DB.remove('challenges', chId);
+  },
+  issue(type, issuer, holder, n, challengeId, at) {
+    if (!n) return null;
+    const v = currentVersion(issuer);
+    return DB.insert('batches', { type, issuer, holder, n, remaining: n, frozen: 0, version: v.no, challengeId }, issuer, at);
+  },
+  acceptChallenge(chId, roleId, at) {
+    const t = at != null ? at : Clock.now();
+    const ch = DB.get('challenges', chId);
+    if (ch.status !== '待執行' || ch.executor !== roleId) fail('只有指定的執行角色可以接下這個挑戰');
+    this.issue('題點', roleId, ch.writer, ch.q, ch.id, t);
+    DB.update('challenges', chId, { status: '執行中', log: [...ch.log, { at: t, text: `${roleName(roleId)} 接下挑戰，發出 ${ch.q} 題點` }] }, t);
+  },
+  declineChallenge(chId, roleId, at) {
+    const t = at != null ? at : Clock.now(); const ch = DB.get('challenges', chId);
+    if (ch.status !== '待執行' || ch.executor !== roleId) fail('只有指定的執行角色可以婉拒');
+    DB.update('challenges', chId, { status: '擱置', executor: null, log: [...ch.log, { at: t, text: `${roleName(roleId)} 婉拒，挑戰擱置，待主體修改拆解` }] }, t);
+  },
+  abandonChallenge(chId, roleId, at) {
+    const t = at != null ? at : Clock.now(); const ch = DB.get('challenges', chId);
+    if (ch.status !== '執行中' || ch.executor !== roleId) fail('只有執行中的執行角色可以放棄');
+    DB.update('challenges', chId, { status: '待執行', executor: null, log: [...ch.log, { at: t, text: `${roleName(roleId)} 放棄執行，挑戰回到待執行（已發出的題點不退回）` }] }, t);
+  },
+  submitChallenge(chId, roleId, at) {
+    const t = at != null ? at : Clock.now(); const ch = DB.get('challenges', chId);
+    if (ch.status !== '執行中' || ch.executor !== roleId) fail('只有執行角色可以提交判定');
+    DB.update('challenges', chId, { status: '待判定', judge: { executor: true }, log: [...ch.log, { at: t, text: '執行角色提交判定' }] }, t);
+  },
+  judgeChallenge(chId, roleId, approve, at) {
+    const t = at != null ? at : Clock.now(); const ch = DB.get('challenges', chId);
+    if (ch.status !== '待判定' || ch.writer !== roleId) fail('只有寫出挑戰的角色可以判定');
+    if (approve) this.completeChallenge(ch, t, '雙方共同判定完成');
+    else DB.update('challenges', chId, { status: '判定爭議中', log: [...ch.log, { at: t, text: '寫出者不同意，進入判定爭議，依共同規則處理' }] }, t);
+  },
+  resolveDispute(chId, done, consents, at) {
+    const t = at != null ? at : Clock.now(); const ch = DB.get('challenges', chId); const st = DB.get('stations', ch.stationId);
+    if (ch.status !== '判定爭議中') fail('這個挑戰不在爭議中');
+    if (!consents || ![ch.writer, ch.executor].every(r => consents.includes(r))) fail('依共同規則處理後，需雙方確認結果');
+    if (done) this.completeChallenge(ch, t, '依共同規則（' + optText(st.common.deadlock, DEADLOCK_OPTS) + '）裁定完成');
+    else DB.update('challenges', chId, { status: '執行中', judge: {}, log: [...ch.log, { at: t, text: '依共同規則裁定未完成，回到執行中' }] }, t);
+  },
+  completeChallenge(ch, t, text) {
+    this.issue('戰點', ch.writer, ch.executor, ch.z, ch.id, t);
+    DB.update('challenges', ch.id, { status: '完成', judge: { executor: true, writer: true }, log: [...ch.log, { at: t, text: text + `，發出 ${ch.z} 戰點` }] }, t);
+  },
+  challengesOf(stationId) { return DB.list('challenges', c => c.stationId === stationId).sort((a, b) => a.node - b.node); },
+  readyForHeat(st) { const cs = this.challengesOf(st.id); return st.status === 'started' && cs.length > 0 && cs.every(c => c.status === '完成'); },
+  fillHeat(stationId, roleId, kcal, at) {
+    const t = at != null ? at : Clock.now(); const st = DB.get('stations', stationId);
+    if (!st.subject.includes(roleId)) fail('只有主體成員可以填寫');
+    if (!this.readyForHeat(st)) fail('所有挑戰完成後才能填寫往後需消耗的熱量');
+    if (!(isNonNegInt(kcal))) fail('熱量必須是 0 以上的整數');
+    const pid = this.currentProblemId(st);
+    const ex = DB.find('heat', h => h.problemId === pid && h.roleId === roleId);
+    if (ex) DB.update('heat', ex.id, { kcal }, t); else DB.insert('heat', { problemId: pid, roleId, kcal }, roleId, t);
+    if (st.subject.every(r => DB.find('heat', h => h.problemId === pid && h.roleId === r))) {
+      DB.update('problems', pid, { status: '完成' }, t);
+      DB.update('stations', st.id, { status: 'done' }, t);
+    }
+  },
+  exitStation(stationId, roleId, at) {
+    const t = at != null ? at : Clock.now(); const st = DB.get('stations', stationId);
+    if (!st.subject.includes(roleId)) fail('你不是這個主體的成員');
+    const pending = this.challengesOf(st.id).filter(c => ['待判定', '判定爭議中'].includes(c.status) && (c.writer === roleId || c.executor === roleId));
+    if (pending.length) fail('退出前，請先完成你參與且已提交的判定：' + pending.map(c => c.content).join('、'));
+    const myDep = DB.find('departures', d => d.stationId === st.id && d.roleId === roleId && ['subject', 'member'].includes(d.status));
+    const myProblem = myDep ? myDep.problemId : null;
+    if (st.subject.length > 1) {
+      this.challengesOf(st.id).forEach(c => {
+        if (c.executor === roleId && ['待執行', '執行中'].includes(c.status)) DB.update('challenges', c.id, { status: '待執行', executor: null, log: [...c.log, { at: t, text: `${roleName(roleId)} 退出，挑戰回到待執行` }] }, t);
+        else if (c.writer === roleId && c.status !== '完成') DB.update('challenges', c.id, { status: '擱置', log: [...c.log, { at: t, text: `寫出者 ${roleName(roleId)} 退出，待主體修改拆解` }] }, t);
+      });
+      const rest = st.subject.filter(r => r !== roleId);
+      DB.update('stations', st.id, { subject: rest, members: [...(st.members || []), roleId] }, t);
+      const fp = st.fusedProblemId; if (fp) { const p = DB.get('problems', fp); DB.update('problems', fp, { exited: [...(p.exited || []), roleId] }, t); }
+      if (myDep) DB.update('departures', myDep.id, { status: 'exited' }, t);
+      if (myProblem) DB.update('problems', myProblem, { status: '擱置' }, t);
+      return 'left';
+    }
+    // 主體只剩一人
+    const r = rulesOf(roleId);
+    if (st.status === 'open' && r.exit === 'handover' && st.queue.length) {
+      const head = st.queue[0];
+      DB.update('stations', st.id, { subject: [head.roleId], queue: st.queue.slice(1), problemId: head.problemId, common: null, history: [...st.history, head.problemId] }, t);
+      DB.update('departures', head.departureId, { status: 'subject' }, t);
+      DB.update('problems', head.problemId, { status: '進行中' }, t);
+      if (myDep) DB.update('departures', myDep.id, { status: 'exited' }, t);
+      if (myProblem) DB.update('problems', myProblem, { status: '擱置' }, t);
+      return 'handover';
+    }
+    st.queue.forEach(q => this.leaveQueue(st.id, q.roleId, 'closed', t));
+    DB.update('stations', st.id, { status: 'closed', subject: [], queue: [], closedReason: '主體退出，依退出處理擱置' }, t);
+    if (myDep) DB.update('departures', myDep.id, { status: 'exited' }, t);
+    DB.update('problems', this.currentProblemId(st), { status: '擱置' }, t);
+    if (myProblem) DB.update('problems', myProblem, { status: '擱置' }, t);
+    return 'closed';
+  },
+
+  // ---------- 兌換 ----------
+  quote(holderId, issuerId, resourceIdx, uses, at) {
+    const t = at != null ? at : Clock.now();
+    const rules = rulesOf(issuerId); const res = rules.resources[resourceIdx];
+    if (!res) fail('請選擇要兌現的資源');
+    if (!uses.length) fail('請選擇要使用的點數');
+    if (!rules.stack && uses.length > 1) fail('對方的規則不可疊加：一個資源只能用單一批點數兌現');
+    const cd = coopDays(holderId, issuerId, t); const cur = currentVersion(issuerId);
+    let need = res.kcal; const out = [];
+    for (const u of uses) {
+      const b = DB.get('batches', u.batchId);
+      if (!b || b.holder !== holderId || b.issuer !== issuerId) fail('點數批次不正確');
+      const vno = u.ver === 'current' ? cur.no : b.version;
+      const snap = versionOf(issuerId, vno).snapshot;
+      const k = b.type === '題點' ? 'q' : 'z';
+      const e = epp(snap, k, cd);
+      if (need <= 1e-9) break;
+      const take = Math.min(b.remaining, Math.ceil(need / e - 1e-9));
+      if (take <= 0) continue;
+      out.push({ batchId: b.id, type: b.type, n: take, ver: u.ver, versionNo: vno, epp: e, kcal: take * e });
+      need -= take * e;
+    }
+    if (need > 1e-9) fail(`點數不足：還差約 ${Math.ceil(need)} 大卡`);
+    if (!rules.stack && out.length > 1) fail('對方的規則不可疊加');
+    return { resource: res, cost: res.kcal, uses: out, coopDays: cd, stack: out.length > 1 };
+  },
+  approvedOn(issuerId, day) { return DB.list('bookings', b => b.issuer === issuerId && b.day === day && b.result === '核准').reduce((s, b) => s + b.cost, 0); },
+  book(holderId, issuerId, day, resourceIdx, uses, at) {
+    const t = at != null ? at : Clock.now();
+    if (holderId === issuerId) fail('不能向自己兌換');
+    const d = dayStart(day);
+    if (d < dayStart(t)) fail('兌現日不能早於今天');
+    const q = this.quote(holderId, issuerId, resourceIdx, uses, t);
+    q.uses.forEach(u => { const b = DB.get('batches', u.batchId); DB.update('batches', b.id, { remaining: b.remaining - u.n, frozen: b.frozen + u.n }, t); });
+    const bk = DB.insert('bookings', { holder: holderId, issuer: issuerId, day: d, resource: q.resource.name, cost: q.cost, uses: q.uses,
+      stack: q.stack, result: '待核准', sameDay: d === dayStart(t) }, holderId, t);
+    if (d === dayStart(t)) { // 截止後的當日申請：剩餘額度先到先得
+      this.settle(bk, this.approvedOn(issuerId, d) + q.cost <= DAILY_CAP, t, '當日申請，依剩餘額度先到先得');
+    }
+    return DB.get('bookings', bk.id);
+  },
+  settle(bk, ok, t, note) {
+    bk.uses.forEach(u => {
+      const b = DB.get('batches', u.batchId);
+      DB.update('batches', b.id, ok ? { frozen: b.frozen - u.n } : { frozen: b.frozen - u.n, remaining: b.remaining + u.n }, t);
+    });
+    DB.update('bookings', bk.id, { result: ok ? '核准' : '未核准', note: ok ? note : (note + '；加入後會超過每日 ' + DAILY_CAP + ' 大卡上限，點數已解凍'), settledAt: t }, t);
+  },
+  processBookings(now) {
+    const pend = DB.list('bookings', b => b.result === '待核准' && b.day <= now);
+    if (!pend.length) return false;
+    const groups = {};
+    pend.forEach(b => { const k = b.issuer + '|' + b.day; (groups[k] = groups[k] || []).push(b); });
+    Object.values(groups).forEach(list => {
+      const issuer = list[0].issuer, day = list[0].day; const pr = rulesOf(issuer).priority;
+      list.forEach(b => b._cd = coopDays(b.holder, issuer, day));
+      list.sort((a, b) => pr === 'coop' ? (b._cd - a._cd || a.createdAt - b.createdAt) : pr === 'small' ? (a.cost - b.cost || a.createdAt - b.createdAt) : a.createdAt - b.createdAt);
+      let used = this.approvedOn(issuer, day);
+      list.forEach(b => { delete b._cd; const ok = used + b.cost <= DAILY_CAP; if (ok) used += b.cost; this.settle(b, ok, day, '預約截止後依「' + PRIORITY_OPTS[pr] + '」排序核准'); });
+    });
+    return true;
+  },
+  cancelBooking(bkId, roleId, at) {
+    const t = at != null ? at : Clock.now(); const bk = DB.get('bookings', bkId);
+    if (bk.holder !== roleId || bk.result !== '待核准') fail('只能取消自己待核准的預約');
+    bk.uses.forEach(u => { const b = DB.get('batches', u.batchId); DB.update('batches', b.id, { frozen: b.frozen - u.n, remaining: b.remaining + u.n }, t); });
+    DB.update('bookings', bkId, { result: '已取消' }, t);
+  }
+};
+function validateCommon(c) {
+  const e = [];
+  if (!c) return ['缺少共同規則'];
+  if (c.deadlock.opt === 'custom' && !c.deadlock.text.trim()) e.push('共同規則的僵局處理選了自訂，請填寫內容');
+  if (c.interp.opt === 'custom' && !c.interp.text.trim()) e.push('共同規則的解釋權選了自訂，請填寫內容');
+  if (!isPosInt(c.queue.max)) e.push('共同規則的排隊上限必須是正整數');
+  if (!isPosInt(c.queue.waitDays)) e.push('共同規則的排隊等待上限必須是正整數');
+  return e;
+}
+function clone(x) { return JSON.parse(JSON.stringify(x)); }
+
+
+
+/* ===================== 示範資料 ===================== */
+function seedDemo() {
+  Store.data = Store.empty();
+  const T = Clock.real();
+  const D = n => T + n * DAY;
+  const at = (dayOffset, h, mi, s, micro) => { const p = usParts(D(dayOffset)); return usFrom({ ...p, h, mi, s, micro }); };
+  const start = D(-95);
+
+  const accs = ['阿澄', '小晴', '老周', '阿凱', '阿芸'].map(n => Game.createAccount(n + '的帳號', start));
+
+  const rA = { ...defaultRules(), q: { per: 1, kcal: 100 }, z: { per: 1, kcal: 20 }, zFn: { type: 'step', days: 30, pct: 10, cap: 30 },
+    stack: true, resources: [{ name: '陪跑一次', kcal: 100 }, { name: '一起整理文件', kcal: 150 }, { name: '搬家幫手半天', kcal: 900 }, { name: '陪同看診半天', kcal: 1000 }],
+    priority: 'coop', deadlock: { opt: 'third', text: '請社區的林老師仲裁' }, exit: 'handover', queue: { max: 2, waitDays: 14, text: '' }, interp: { opt: 'both', text: '' } };
+  const rB = { ...defaultRules(), q: { per: 1, kcal: 40 }, z: { per: 1, kcal: 30 }, stack: true,
+    resources: [{ name: '代買菜一次', kcal: 200 }, { name: '顧小孩兩小時', kcal: 300 }], priority: 'fifo',
+    deadlock: { opt: 'redo', text: '' }, queue: { max: 3, waitDays: 10, text: '' }, interp: { opt: 'issuer', text: '' } };
+  const rC = { ...defaultRules(), q: { per: 1, kcal: 50 }, z: { per: 1, kcal: 40 }, qFn: { type: 'step', days: 60, pct: 5, cap: 20 }, stack: false,
+    resources: [{ name: '店裡幫忙一小時', kcal: 150 }, { name: '修理小家電', kcal: 200 }], priority: 'small',
+    deadlock: { opt: 'third', text: '請社區的林老師仲裁' }, queue: { max: 2, waitDays: 7, text: '' }, interp: { opt: 'third', text: '林老師' } };
+  const rD = { ...defaultRules(), q: { per: 2, kcal: 60 }, z: { per: 2, kcal: 60 }, resources: [{ name: '教用試算表一小時', kcal: 120 }] };
+  const A = Game.createRole({ name: '阿澄', birthY: 1996, birthM: 5, accountId: accs[0].id, rules: rA, conds: [{ field: 'zRate', op: '>=', value: 15 }] }, start);
+  const B = Game.createRole({ name: '小晴', birthY: 1999, birthM: 11, accountId: accs[1].id, rules: rB, conds: [{ field: 'stack', op: '=', value: 1 }] }, start);
+  const C = Game.createRole({ name: '老周', birthY: 1968, birthM: 3, accountId: accs[2].id, rules: rC, conds: [{ field: 'stableDays', op: '>=', value: 7 }] }, start);
+  const Dd = Game.createRole({ name: '阿凱', birthY: 2001, birthM: 7, accountId: accs[3].id, rules: rD, conds: [{ field: 'qRate', op: '>=', value: 3 }] }, start);
+  const rE = { ...defaultRules(), q: { per: 1, kcal: 10 }, z: { per: 1, kcal: 10 }, resources: [{ name: '代寫一封信', kcal: 80 }] };
+  const E = Game.createRole({ name: '阿芸', birthY: 1993, birthM: 9, accountId: accs[4].id, rules: rE, conds: [{ field: 'resCount', op: '>=', value: 1 }] }, start);
+
+  DB.insert('tails', { roleId: A.id, s: 17, micro: 520913, label: '和小晴、老周約好的尾數' }, A.id, D(-60));
+  DB.insert('tails', { roleId: B.id, s: 17, micro: 520913, label: '阿澄的尾數' }, B.id, D(-50));
+
+  const pA = Game.addProblem(A.id, { name: '轉職一直卡在第一步', situation: '離職半年，每天都說明天開始投履歷，卻一直沒有動。', goal: '能算出轉職這段時間還要付出多少力氣，並真的開始。', occurredAt: usFrom({ y: 2025, mo: 2, d: 12, h: 9 }),
+    dockConds: [{ field: 'qRate', op: '>=', value: 30 }, { field: 'stableDays', op: '>=', value: 7 }] }, D(-80));
+  const pB = Game.addProblem(B.id, { name: '長輩照護與上班時間衝突', situation: '外婆需要有人陪看診，排班常跟上班撞在一起。', goal: '排出可以長期維持的照護輪班。', occurredAt: usFrom({ y: 2024, mo: 10, d: 3, h: 9 }) }, D(-80));
+  const pC = Game.addProblem(C.id, { name: '小店營收下滑，不知從何改起', situation: '開了二十年的五金行，這兩年客人明顯變少。', goal: '知道要調整哪些事、各要花多少力氣。', occurredAt: usFrom({ y: 2023, mo: 6, d: 20, h: 9 }) }, D(-80));
+  const pD = Game.addProblem(Dd.id, { name: '證照考試一拖再拖', situation: '報名了兩次都沒去考。', goal: '排出能準時應考的準備節奏。', occurredAt: usFrom({ y: 2025, mo: 8, d: 1, h: 9 }) }, D(-80));
+  const pE = Game.addProblem(E.id, { name: '接案收入不穩', situation: '自由接案，收入時多時少。', goal: '知道每個月要花多少力氣找案子。', occurredAt: usFrom({ y: 2025, mo: 11, d: 5, h: 9 }) }, D(-80));
+  const pA2 = Game.addProblem(A.id, { name: '每天拖到半夜才開始做事', situation: '白天都在滑手機，事情總是拖到半夜。', goal: '找到白天就能開始的方法。', occurredAt: usFrom({ y: 2026, mo: 3, d: 1, h: 9 }),
+    dockConds: [{ field: 'qRate', op: '>=', value: 25 }] }, D(-10));
+
+  const X = at(-20, 21, 3, 17, 520913);
+  Game.writeDeparture(A.id, pA.id, X, D(-40));
+  Game.writeDeparture(B.id, pB.id, X, D(-38));
+  Game.writeDeparture(C.id, pC.id, X, D(-37));
+  Game.writeDeparture(Dd.id, pD.id, X, D(-36)); // 排隊額滿
+  Game.writeDeparture(E.id, pE.id, X, D(-35)); // 不符合對接條件
+  const st = DB.find('stations', s => s.point === X);
+
+  const common1 = { deadlock: { opt: 'third', text: '請社區的林老師仲裁' }, interp: { opt: 'both', text: '' }, queue: { max: 2, waitDays: 14, text: '' } };
+  Game.dock(st.id, { accept: true, common: common1, consents: [A.id, B.id], fused: { dockConds: [{ field: 'qRate', op: '>=', value: 30 }, { field: 'coopDays', op: '>=', value: 0, scope: 'any' }], name: '轉職與照護排班互相卡住', situation: '阿澄想找工作卻沒有開始；小晴的照護排班需要人手。兩人的時間可以互補。', goal: '阿澄開始投遞，小晴的排班有人分擔。' } }, D(-33));
+  const common2 = { deadlock: { opt: 'third', text: '請社區的林老師仲裁' }, interp: { opt: 'both', text: '' }, queue: { max: 2, waitDays: 7, text: '' } };
+  Game.dock(st.id, { accept: true, common: common2, consents: [A.id, B.id, C.id], fused: { dockConds: [{ field: 'qRate', op: '>=', value: 30 }, { field: 'sameDeadlock', op: '=', value: 1, scope: 'any' }], name: '三人的時間與收入重新配置', situation: '老周的店需要幫手與新做法；阿澄需要實際工作經驗；小晴需要排班分擔。', goal: '三人都能算出往後各自要花的力氣。' } }, D(-30));
+  const all = [A.id, B.id, C.id];
+
+  const s1 = Game.addChallenge(st.id, { content: '整理一份可投遞的履歷與作品清單', node: X + 2 * DAY, writer: A.id, executor: B.id, q: 3, z: 6 }, all, D(-29));
+  const s2 = Game.addChallenge(st.id, { content: '排出三週的照護輪班表', node: X + 4 * DAY, writer: B.id, executor: C.id, q: 2, z: 5 }, all, D(-29));
+  const s3 = Game.addChallenge(st.id, { content: '整理店裡的帳', node: X + 5 * DAY, writer: B.id, executor: C.id, q: 1, z: 3 }, all, D(-29));
+  Game.editChallenge(s3.id, { content: '列出店裡可以交給家人做的三件事', node: X + 5 * DAY, writer: B.id, executor: C.id, q: 1, z: 3 }, all, D(-25));
+  const s4 = Game.addChallenge(st.id, { content: '陪老周跑一次進貨，記錄流程', node: D(5), writer: C.id, executor: A.id, q: 12, z: 4 }, all, D(-22));
+  const s5 = Game.addChallenge(st.id, { content: '試做一週的晚間時段分配', node: D(8), writer: B.id, executor: A.id, q: 12, z: 4 }, all, D(-22));
+  const s6 = Game.addChallenge(st.id, { content: '把照護排班與店休日對齊', node: D(15), writer: A.id, executor: C.id, q: 2, z: 4 }, all, D(-21));
+  Game.tick(D(-20) + SEC); // 出發點到達
+
+  Game.acceptChallenge(s1.id, B.id, D(-19));
+  Game.acceptChallenge(s2.id, C.id, D(-18));
+  Game.submitChallenge(s1.id, B.id, D(-17));
+  Game.acceptChallenge(s3.id, C.id, D(-17));
+  Game.judgeChallenge(s1.id, A.id, true, D(-16));
+  Game.saveRules(A.id, { ...rA, z: { per: 1, kcal: 25 } }, [{ field: 'zRate', op: '>=', value: 15 }], D(-15), '提高戰點兌換比例');
+  Game.submitChallenge(s2.id, C.id, D(-13));
+  Game.judgeChallenge(s2.id, B.id, true, D(-12));
+  Game.submitChallenge(s3.id, C.id, D(-11));
+  Game.judgeChallenge(s3.id, B.id, true, D(-10));
+  Game.acceptChallenge(s4.id, A.id, D(-9));
+  Game.acceptChallenge(s5.id, A.id, D(-8));
+  // 判定爭議：老周做完排班對齊，阿澄認為還沒完成
+  Game.acceptChallenge(s6.id, C.id, D(-7.5));
+  Game.submitChallenge(s6.id, C.id, D(-6.8));
+  Game.judgeChallenge(s6.id, A.id, false, D(-6.6));
+
+  const bat = (holder, issuer, type) => DB.list('batches', b => b.holder === holder && b.issuer === issuer && b.type === type).sort((a, b) => a.createdAt - b.createdAt);
+  // 版本選擇：小晴用阿澄的戰點（發出時 v1 每點 20，當前 v2 每點 25）
+  Game.book(B.id, A.id, D(-5), 0, [{ batchId: bat(B.id, A.id, '戰點')[0].id, ver: 'current' }], D(-7));
+  // 疊加：老周用小晴的兩批戰點合併兌現代買菜
+  const cz = bat(C.id, B.id, '戰點');
+  Game.book(C.id, B.id, D(-4), 0, [{ batchId: cz[0].id, ver: 'issue' }, { batchId: cz[1].id, ver: 'issue' }], D(-6));
+  // 超過 1800 大卡：老周較早預約，但阿澄的兌換優先是合作天數多者優先
+  Game.book(C.id, A.id, D(-3), 3, [{ batchId: bat(C.id, A.id, '題點')[0].id, ver: 'current' }], D(-5.5));
+  Game.book(B.id, A.id, D(-3), 2, [{ batchId: bat(B.id, A.id, '題點')[0].id, ver: 'current' }], D(-5));
+  Game.tick(D(-2));
+  // 未來的預約：等截止時才核准
+  Game.book(B.id, A.id, D(3), 1, [{ batchId: bat(B.id, A.id, '題點')[0].id, ver: 'current' }], D(-1));
+
+  // 阿澄另一個難題的出發點（尚未碰撞）
+  Game.writeDeparture(A.id, pA2.id, at(12, 7, 30, 17, 520913), D(-2));
+
+  Store.data.meta.currentRole = A.id;
+  Store.data.meta.clockOffset = 0;
+  Clock.offset = 0;
+  Game.tick();
+  Store.save();
+}
+
+/* ===================== 介面工具 ===================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const stripTags = s => String(s).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+const UI = { sheet: 'life', open: {}, sheets: {}, hist: [], ruleEdit: false, bk: null, addCh: null, calMonth: null, tl: { center: null, span: 31 * DAY }, tlSel: null, paper: null, downloads: null, sel: null, focus: null };
+const me = () => Store.data.meta.currentRole;
+const STATUS_CLASS = { '完成': 's-done', '擱置': 's-hold', '未核准': 's-hold', '判定爭議中': 's-hold', '已取消': 's-hold', '執行中': 's-go', '待判定': 's-go', '排隊中': 's-go', '待核准': 's-go', '核准': 's-done', '已融合': '', '挑戰中': 's-go', '等待出發': 's-go', '已完成': 's-done', '已擱置': 's-hold' };
+const statusTag = s => `<span class="status ${STATUS_CLASS[s] || ''}">${esc(s)}</span>`;
+const DEP_TEXT = { subject: '主體', queued: '排隊中', member: '已融合進主體', rejected: '未成立', declined: '主體不合作', timeout: '排隊超時', closed: '出發點到達，排隊結束', expired: '出發點到達時沒有碰撞', exited: '已退出', left: '已退出排隊' };
+const ST_TEXT = { open: '等待出發', started: '挑戰中', closed: '已擱置', done: '已完成' };
+const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+function alertBox(title, msg) {
+  const d = $('#dlg');
+  if (d.open) { const b = $('#dlgBody'); const old = b.querySelector('.err.inline'); if (old) old.remove(); b.insertAdjacentHTML('afterbegin', `<div class="err inline"><b>${esc(title)}</b><br>${esc(msg)}</div>`); b.scrollTop = 0; return; }
+  openDialog(`<h3>${esc(title)}</h3><div class="err">${esc(msg)}</div>`, [{ label: '知道了', cls: 'pri' }]);
+}
+function run(fn, okMsg) {
+  try { const r = fn(); Game.commit(); render(); if (okMsg) toast(okMsg); return r || true; }
+  catch (e) { if (e instanceof GameError) alertBox('還不能這樣做', e.message); else { console.error(e); alertBox('發生錯誤', e.message); } return null; }
+}
+function openDialog(body, buttons) {
+  const d = $('#dlg'); $('#dlgBody').innerHTML = body;
+  $('#dlgFoot').innerHTML = buttons.map((b, i) => `<button type="button" class="btn ${b.cls || ''}" data-dlg="${i}">${esc(b.label)}</button>`).join('');
+  d._buttons = buttons; d._gen = (d._gen || 0) + 1;
+  if (!d.open) { try { d.showModal(); } catch (e) { d.setAttribute('open', ''); } }
+}
+function closeDialog() { const d = $('#dlg'); try { d.close(); } catch (e) { d.removeAttribute('open'); } }
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-dlg]'); if (!b) return;
+  const d = $('#dlg'); const btn = d._buttons[+b.dataset.dlg]; const gen = d._gen;
+  if (btn && btn.fn) { const r = btn.fn(); if (r === false || r === null || d._gen !== gen) return; }
+  closeDialog();
+});
+function formVals(form) {
+  const o = {}; const fd = new FormData(form);
+  for (const [k, v] of fd.entries()) { if (k.endsWith('[]')) (o[k] = o[k] || []).push(v); else o[k] = v; }
+  return o;
+}
+const int = v => { const n = Number(String(v).trim()); return Number.isFinite(n) && String(v).trim() !== '' ? n : NaN; };
+function readout(us) {
+  const f = fmtUs(us); const [a, b] = f.split('.');
+  return `<div class="readout" aria-label="${esc(f)}"><span class="dt">${esc(a)}</span><span class="dot">.</span><span class="us">${esc(b)}</span></div>`;
+}
+function countdownText(target) {
+  let d = target - Clock.now(); const past = d < 0; d = Math.abs(d);
+  const days = Math.floor(d / DAY); d -= days * DAY; const h = Math.floor(d / HOUR); d -= h * HOUR; const m = Math.floor(d / MIN); d -= m * MIN; const s = Math.floor(d / SEC); const us = Math.floor(d - s * SEC);
+  const str = `${days} 天 ${pad(h)}:${pad(m)}:${pad(s)}.${pad(us, 6)}`;
+  return past ? `已經過了 ${str}` : `還有 ${str}`;
+}
+function roleOptions(ids, sel) { return ids.map(id => `<option value="${id}" ${id === sel ? 'selected' : ''}>${esc(roleName(id))}</option>`).join(''); }
+function consentBox(ids, label, fa = '') {
+  return `<fieldset class="box" style="margin:6px 0"><legend class="small muted">${esc(label || '全員同意')}（同一台裝置模擬多位玩家，請逐一勾選）</legend>` +
+    ids.map(id => `<label class="check"><input type="checkbox" name="consent[]" value="${id}" ${fa}> ${esc(roleName(id))} 同意</label>`).join('') + '</fieldset>';
+}
+function ageOf(r, at) { const p = usParts(at || Clock.now()); let a = p.y - r.birthY; if (p.mo < r.birthM) a--; return Math.max(0, a); }
+const colLetter = i => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+
+/* ===================== 對接條件編輯 ===================== */
+function dockCondRow(c) {
+  const f = c ? c.field : 'qRate';
+  return `<div class="box rrow" style="padding:8px;margin:0 0 6px">
+    <div class="row"><select name="dcField[]" style="flex:2;min-width:12em">${Object.entries(DOCK_FIELDS).map(([k, v]) => `<option value="${k}" ${k === f ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
+    <select name="dcOp[]" style="width:8em">${Object.entries(COND_OPS).map(([k, v]) => `<option value="${k}" ${c && c.op === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+    <input name="dcVal[]" inputmode="decimal" value="${c ? c.value : ''}" placeholder="數值" style="width:6em"></div>
+    <div class="row small" style="margin-top:4px"><label class="inl"><span class="muted">主體成員</span><select name="dcScope[]" style="width:auto">${Object.entries(SCOPE_OPTS).map(([k, v]) => `<option value="${k}" ${c && c.scope === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+    <label class="inl"><span class="muted">資源名稱</span><input name="dcRes[]" value="${esc(c && c.res || '')}" style="width:9em" placeholder="例如 陪跑"></label>
+    <button type="button" class="btn sm warn" data-act="rmRow">移除</button></div></div>`;
+}
+function dockCondEditor(conds) {
+  return `<div class="small muted" style="margin:4px 0">對接條件只看對方的規則表，必須可計算，多條須全部符合。「主體成員」只用在僵局處理與合作天數；「資源名稱」只用在資源條件。不設條件代表所有碰撞者都能排隊。</div>
+    <div class="dc-rows">${(conds || []).map(dockCondRow).join('')}</div><button type="button" class="btn sm" data-act="addDockCond">新增對接條件</button>`;
+}
+function readDockConds(form) {
+  const v = formVals(form); const fs = v['dcField[]'] || [];
+  return fs.map((field, i) => {
+    const c = { field, op: v['dcOp[]'][i], value: Number(v['dcVal[]'][i]) };
+    if (String(v['dcVal[]'][i]).trim() === '') c.value = NaN;
+    if (DOCK_FIELDS[field] && DOCK_FIELDS[field].member) c.scope = v['dcScope[]'][i];
+    if (DOCK_FIELDS[field] && DOCK_FIELDS[field].needRes) c.res = (v['dcRes[]'][i] || '').trim();
+    return c;
+  });
+}
+function dockCondList(conds, candId, subjectIds) {
+  if (!conds || !conds.length) return '<p class="small muted">沒有設定對接條件，所有碰撞者都能排隊。</p>';
+  const miss = candId ? evalDockConds(conds, candId, subjectIds) : [];
+  return `<ul class="small" style="margin:4px 0;padding-left:1.2em">${conds.map(c => { const t = dockCondText(c); const bad = candId && miss.includes(t);
+    return `<li>${esc(t)}${candId ? (bad ? ' <span class="tag rose">未達到</span>' : ' <span class="tag teal">符合</span>') : ''}</li>`; }).join('')}</ul>`;
+}
+const condsText = cs => cs && cs.length ? cs.map(dockCondText).map(esc).join('；') : '<span class="muted">無</span>';
+const visCondText = cs => cs && cs.length ? cs.map(x => `${COND_FIELDS[x.field].label} ${COND_OPS[x.op]} ${x.value}`).map(esc).join('；') : '沒有條件';
+const commonText = c => c ? `${esc(optText(c.deadlock, DEADLOCK_OPTS))}；${esc(optText(c.interp, INTERP_OPTS))}；排隊 ${c.queue.max} 位、${c.queue.waitDays} 天` : '<span class="muted">尚無（依主體規則表）</span>';
+
+/* ===================== 出發點與時間節點輸入 ===================== */
+function pointInput(prefix, us, tails) {
+  const p = usParts(us);
+  const f = (k, v, cls, lab, max) => `<label>${lab}<input class="${cls}" name="${prefix}_${k}" inputmode="numeric" pattern="[0-9]*" maxlength="${max}" value="${v}" autocomplete="off"></label>`;
+  return `<div class="pt-in" data-pt="${prefix}">${f('y', p.y, 'w4', '年', 4)}${f('mo', pad(p.mo), 'w2', '月', 2)}${f('d', pad(p.d), 'w2', '日', 2)}` +
+    `${f('h', pad(p.h), 'w2', '時', 2)}${f('mi', pad(p.mi), 'w2', '分', 2)}${f('s', pad(p.s), 'w2', '秒', 2)}${f('micro', pad(p.micro, 6), 'w6', '微秒', 6)}</div>` +
+    (tails && tails.length ? `<div class="row small" style="margin-top:6px"><span class="muted">帶入常用尾數：</span>${tails.map(t => `<button type="button" class="btn sm" data-act="tail" data-p="${prefix}" data-s="${t.s}" data-u="${t.micro}">${pad(t.s)}.${pad(t.micro, 6)}${t.label ? '（' + esc(t.label) + '）' : ''}</button>`).join('')}</div>` : '') +
+    `<div class="pt-preview small" data-prev="${prefix}"></div>`;
+}
+function readPoint(form, prefix) {
+  const g = k => form.querySelector(`[name="${prefix}_${k}"]`).value.trim();
+  const p = { y: int(g('y')), mo: int(g('mo')), d: int(g('d')), h: int(g('h')), mi: int(g('mi')), s: int(g('s')) };
+  const ms = g('micro');
+  if (!/^\d{1,6}$/.test(ms)) throw new GameError('微秒必須是 0 到 999999 的數字');
+  p.micro = parseInt(ms, 10);
+  if (![p.y, p.mo, p.d, p.h, p.mi, p.s].every(Number.isInteger)) throw new GameError('請把年、月、日、時、分、秒都填成數字');
+  if (p.mo < 1 || p.mo > 12 || p.h > 23 || p.mi > 59 || p.s > 59 || p.h < 0 || p.mi < 0 || p.s < 0) throw new GameError('時間超出範圍');
+  const us = usFrom(p); const back = usParts(us);
+  if (back.d !== p.d || back.mo !== p.mo) throw new GameError('這一天不存在，請檢查日期');
+  return us;
+}
+function updatePreview(box) {
+  const form = box.closest('form'); if (!form) return; const prefix = box.dataset.pt; const prev = form.querySelector(`[data-prev="${prefix}"]`);
+  if (!prev) return;
+  try {
+    const us = readPoint(form, prefix);
+    let h = `<span class="muted">將寫下：</span><span class="num">${esc(fmtUs(us))}</span>`;
+    if (us <= Clock.now()) h += `<div class="err">出發點必須晚於現在這一刻。</div>`;
+    else if (guessable(us)) h += `<div class="note">這個出發點容易被陌生人撞到。可以把秒數與微秒改得更不好猜，或使用你和熟人約好的常用尾數。</div>`;
+    prev.innerHTML = h;
+  } catch (e) { prev.innerHTML = `<span class="muted">${esc(e.message)}</span>`; }
+}
+document.addEventListener('input', e => { const box = e.target.closest('.pt-in'); if (box) updatePreview(box); });
+// 時間節點：日期時間到秒，另填六位微秒
+function nodeInput(prefix, us, fa = '') {
+  const p = usParts(us);
+  return `<span class="nd-in"><input type="datetime-local" step="1" name="${prefix}_dt" value="${p.y}-${pad(p.mo)}-${pad(p.d)}T${pad(p.h)}:${pad(p.mi)}:${pad(p.s)}" aria-label="時間節點" ${fa}>` +
+    `<input class="us6" name="${prefix}_us" inputmode="numeric" maxlength="6" value="${pad(p.micro, 6)}" aria-label="微秒" ${fa}></span>`;
+}
+function readNode(form, prefix) {
+  const v = formVals(form); const dt = v[prefix + '_dt'] || ''; const us = String(v[prefix + '_us'] || '').trim();
+  const m = dt.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) throw new GameError('請填寫時間節點的日期與時間');
+  if (!/^\d{1,6}$/.test(us)) throw new GameError('時間節點的微秒必須是 0 到 999999 的數字');
+  return usFrom({ y: +m[1], mo: +m[2], d: +m[3], h: +m[4], mi: +m[5], s: +(m[6] || 0), micro: parseInt(us, 10) });
+}
+
+/* ===================== 編號與連結 ===================== */
+const PREFIX = { roles: 'U', problems: 'P', stations: 'S', departures: 'D', dockings: 'K', fusions: 'F', challenges: 'C', batches: 'B', bookings: 'R', ruleVersions: 'V', rules: 'G' };
+let CODES = {};
+function buildCodes() {
+  CODES = {};
+  Object.entries(PREFIX).forEach(([col, p]) => {
+    [...Store.data[col]].sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1)).forEach((r, i) => { CODES[r.id] = p + '-' + pad(i + 1, 3); });
+  });
+}
+const code = id => CODES[id] || '—';
+function sheetTitle(s) { const S = SHEETS[s]; return S ? (S.no ? '表 ' + S.no + ' ' : '') + S.name : s; }
+function L(s, id, text, open) {
+  if (!id) return '<span class="muted">—</span>';
+  return `<button type="button" class="lk" data-act="jump" data-s="${s}" data-id="${esc(id)}"${open ? ' data-open="1"' : ''} title="前往${esc(sheetTitle(s))}">${text}</button>`;
+}
+function LQ(s, q, text) { return `<button type="button" class="lk" data-act="jump" data-s="${s}" data-q="${esc(q)}" title="在${esc(sheetTitle(s))}篩選">${text}</button>`; }
+function refLabel(s, id) {
+  if (s === 'roles') return esc(roleName(id));
+  if (s === 'problems') { const p = DB.get('problems', id); return p ? `${code(id)} ${esc(p.name)}` : code(id); }
+  if (s === 'stations') { const st = DB.get('stations', id); return st ? `${code(id)}｜${esc(fmtUs(st.point))}` : code(id); }
+  if (s === 'ruleVersions') { const v = DB.get('ruleVersions', id); return v ? `${esc(roleName(v.roleId))} v${v.no}` : code(id); }
+  if (s === 'rules') { const r = DB.get('rules', id); return r ? `${esc(roleName(r.roleId))}的規則` : code(id); }
+  return code(id);
+}
+const ruleRowId = roleId => { const r = rulesOf(roleId); return r ? r.id : null; };
+
+/* ===================== 可見範圍 ===================== */
+function involved(st, r) { return st.subject.includes(r) || st.queue.some(q => q.roleId === r) || (st.members || []).includes(r); }
+function insider(st, r) { return st.subject.includes(r) || (st.members || []).includes(r); }
+function myStations(r) { return DB.list('stations', s => involved(s, r)); }
+function stationFor(pid) {
+  const d = DB.list('departures', x => x.problemId === pid && x.status !== 'rejected').sort((a, b) => b.createdAt - a.createdAt)[0];
+  if (d && d.stationId) { const s = DB.get('stations', d.stationId); if (s) return s; }
+  return DB.list('stations', s => s.history.includes(pid)).sort((a, b) => b.createdAt - a.createdAt)[0] || null;
+}
+function seesDocking(d, r) { const st = DB.get('stations', d.stationId); return !!st && (insider(st, r) || d.candidate === r || (st.status === 'open' && st.queue[0] && st.queue[0].roleId === r)); }
+function challengeStep(c) { return Game.challengesOf(c.stationId).findIndex(x => x.id === c.id) + 1; }
+const visBatches = () => DB.list('batches', b => b.holder === me() || b.issuer === me());
+
+/* ===================== 工作表定義 =====================
+   每張表：rows() 取目前角色看得到的列；cols 為欄位。
+   欄位有 to（連到哪張表）與 ids(列) 時，就是一條「路徑」，路徑圖由這些欄位自動產生。 */
+const txt = s => esc(s || '') || '<span class="muted">—</span>';
+const day = us => `<span class="num">${esc(fmtDay(us))}</span>`;
+const tm = us => `<span class="num">${esc(fmtUs(us))}</span>`;
+
+const SHEETS = {
+  life: { name: '人生行事歷', special: true, desc: '起點。縱軸是年齡，從現在往回排到 0 歲；橫軸是月份。' },
+  timeline: { name: '挑戰時間軸', special: true, desc: '只放未來。' },
+  todo: { name: '待處理', special: true },
+
+  problems: {
+    no: 'I', name: '難題表', desc: '難題是目前無法處理的情況，往後要為它付出多少熱量還是未知數。展開一列可以修改內容、設定對接條件、寫下出發點。',
+    rows: () => DB.list('problems', p => canSeeProblem(me(), p)),
+    mine: p => p.participants.includes(me()),
+    cols: [
+      { k: 'code', h: '難題編號', v: p => code(p.id), sort: p => code(p.id) },
+      { k: 'name', h: '名稱', v: p => `<b>${esc(p.name)}</b>` },
+      { k: 'status', h: '狀態', v: p => statusTag(p.status) },
+      { k: 'who', h: '參與角色', to: 'roles', ids: p => p.participants },
+      { k: 'occ', h: '發生時間', v: p => day(p.occurredAt), sort: p => p.occurredAt },
+      { k: 'st', h: '出發點', to: 'stations', ids: p => { const st = stationFor(p.id); return st && involved(st, me()) ? [st.id] : []; } },
+      { k: 'deps', h: '出發紀錄', to: 'departures', ids: p => DB.list('departures', d => d.problemId === p.id && d.roleId === me()).map(d => d.id) },
+      { k: 'applied', h: '適用規則', to: ['ruleVersions', 'dockings'], refs: p => p.applied.kind === 'version' ? [{ s: 'ruleVersions', id: (versionOf(p.applied.roleId, p.applied.no) || {}).id }] : [{ s: 'dockings', id: p.applied.dockingId }] },
+      { k: 'conds', h: '對接條件', v: p => `<span class="small">${condsText(p.dockConds)}</span>`, sort: p => (p.dockConds || []).length },
+      { k: 'from', h: '融合自', to: 'problems', ids: p => p.fusedFrom || [] },
+      { k: 'into', h: '融合成', to: 'problems', ids: p => DB.list('problems', q => (q.fusedFrom || []).includes(p.id)).map(q => q.id) },
+      { k: 'sit', h: '情況', v: p => `<span class="small">${txt(p.situation)}</span>` },
+      { k: 'goal', h: '目標', v: p => `<span class="small">${txt(p.goal)}</span>` },
+      { k: 'next', h: '下一步', v: p => problemNext(p) }
+    ],
+    add: {
+      when: () => true,
+      cells: () => { const t = new Date(Math.floor(Clock.now() / 1000)); const fa = 'form="addF-problems"';
+        return { name: `<input name="name" maxlength="60" placeholder="新難題名稱" ${fa}>`, occ: `<input type="date" name="occ" value="${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}" ${fa}>`,
+          who: `<span class="small">${esc(roleName(me()))}</span>`, sit: `<input name="situation" placeholder="情況" ${fa}>`, goal: `<input name="goal" placeholder="目標" ${fa}>`,
+          next: `<form id="addF-problems" onsubmit="return false"></form><button type="button" class="btn sm pri" data-act="addProblem" form="addF-problems">新增這一列</button>`,
+          conds: '<span class="auto">新增後展開設定</span>' }; }
+    },
+    drawer: p => problemDrawer(p)
+  },
+
+  rules: {
+    no: 'II', name: '規則表', desc: '每個角色一列。規則表是公開的，可見條件只有符合的人看得到。點「編輯」直接在你那一列修改，儲存後成為新版本。',
+    rows: () => DB.list('roles').map(r => rulesOf(r.id)).filter(Boolean),
+    mine: R => R.roleId === me(),
+    cols: [
+      { k: 'code', h: '規則編號', v: R => code(R.id) },
+      { k: 'role', h: '角色', to: 'roles', ids: R => [R.roleId] },
+      { k: 'ver', h: '目前版本', to: 'ruleVersions', ids: R => [currentVersion(R.roleId).id] },
+      { k: 'stable', h: '維持天數', num: true, v: R => String(stableDays(R.roleId)), sort: R => stableDays(R.roleId) },
+      { k: 'q', h: '題點兌換', v: R => esc(rateText(R.q)), sort: R => R.q.kcal / R.q.per, ed: R => `<span class="inl">每 <input name="qPer" inputmode="numeric" value="${R.q.per}" form="rulesForm"> 點換 <input name="qKcal" inputmode="numeric" value="${R.q.kcal}" form="rulesForm"> 大卡</span>` },
+      { k: 'qFn', h: '題點函數', v: R => `<span class="small">${esc(fnText(R.qFn))}</span>`, ed: R => fnEd('q', R.qFn) },
+      { k: 'z', h: '戰點兌換', v: R => esc(rateText(R.z)), sort: R => R.z.kcal / R.z.per, ed: R => `<span class="inl">每 <input name="zPer" inputmode="numeric" value="${R.z.per}" form="rulesForm"> 點換 <input name="zKcal" inputmode="numeric" value="${R.z.kcal}" form="rulesForm"> 大卡</span>` },
+      { k: 'zFn', h: '戰點函數', v: R => `<span class="small">${esc(fnText(R.zFn))}</span>`, ed: R => fnEd('z', R.zFn) },
+      { k: 'stack', h: '疊加', v: R => R.stack ? '可' : '不可', ed: R => `<label class="check"><input type="checkbox" name="stack" form="rulesForm" ${R.stack ? 'checked' : ''}> 可疊加</label>` },
+      { k: 'res', h: '資源', v: R => `<span class="small">${R.resources.map(x => esc(x.name) + ' ' + x.kcal).join('<br>')}</span>`, sort: R => R.resources.length,
+        ed: R => `<div id="resRows">${R.resources.map(resRow).join('')}</div><button type="button" class="btn sm" data-act="addRes">新增資源</button>` },
+      { k: 'pri', h: '兌換優先', v: R => `<span class="small">${PRIORITY_OPTS[R.priority]}</span>`, ed: R => selF('priority', PRIORITY_OPTS, R.priority) },
+      { k: 'dl', h: '僵局處理', v: R => `<span class="small">${esc(optText(R.deadlock, DEADLOCK_OPTS))}</span>`, ed: R => selF('dl', DEADLOCK_OPTS, R.deadlock.opt) + `<input name="dlt" placeholder="補充說明" value="${esc(R.deadlock.text)}" form="rulesForm">` },
+      { k: 'exit', h: '退出處理', v: R => `<span class="small">${EXIT_OPTS[R.exit]}</span>`, ed: R => selF('exit', EXIT_OPTS, R.exit) },
+      { k: 'queue', h: '排隊規則', v: R => `${R.queue.max} 位／${R.queue.waitDays} 天`, sort: R => R.queue.max,
+        ed: R => `<span class="inl">最多 <input name="qm" inputmode="numeric" value="${R.queue.max}" form="rulesForm"> 位，等 <input name="qw" inputmode="numeric" value="${R.queue.waitDays}" form="rulesForm"> 天</span><input name="qt" placeholder="補充說明" value="${esc(R.queue.text)}" form="rulesForm">` },
+      { k: 'ip', h: '解釋權', v: R => `<span class="small">${esc(optText(R.interp, INTERP_OPTS))}</span>`, ed: R => selF('ip', INTERP_OPTS, R.interp.opt) + `<input name="ipt" placeholder="補充說明" value="${esc(R.interp.text)}" form="rulesForm">` },
+      { k: 'vis', h: '可見條件', v: R => (R.roleId === me() || meetsConds(me(), R.roleId)) ? `<span class="small">${visCondText((condsOf(R.roleId) || {}).conds)}</span>` : '<span class="muted small">不符合，看不到</span>',
+        ed: R => `<div id="condRows">${((condsOf(R.roleId) || {}).conds || []).map(condRow).join('')}</div><button type="button" class="btn sm" data-act="addCond">新增條件</button>` },
+      { k: 'meet', h: '我是否符合', v: R => R.roleId === me() ? '—' : (meetsConds(me(), R.roleId) ? '符合' : '不符合') },
+      { k: 'coop', h: '與我合作天數', num: true, v: R => R.roleId === me() ? '—' : String(coopDays(me(), R.roleId)), sort: R => coopDays(me(), R.roleId) },
+      { k: 'op', h: '操作', v: R => R.roleId === me() ? `<button class="btn sm" data-act="ruleEdit">編輯</button>` : '',
+        ed: R => `<form id="rulesForm" onsubmit="return false"></form><input name="note" placeholder="修改說明" form="rulesForm" style="min-width:10em"><div class="row" style="margin-top:4px"><button type="button" class="btn sm pri" data-act="saveRules">儲存為新版本</button><button type="button" class="btn sm" data-act="ruleCancel">取消</button></div>` }
+    ],
+    editRow: R => UI.ruleEdit && R.roleId === me(),
+    drawer: R => R.roleId === me() && UI.ruleEdit ? `<div class="box"><h3>試算</h3><div class="inl small">持有 <input id="tryN" value="10" inputmode="numeric"> 點，合作 <input id="tryD" value="30" inputmode="numeric"> 天</div><div id="tryOut" class="note num"></div><p class="small muted" id="condCount"></p></div>` : ''
+  },
+
+  ruleVersions: {
+    no: 'III', name: '規則版本表', desc: '每次修改規則都留下完整的一版設定。兌換時，持有者可以在點數的發出版本和當前版本之間選一個。',
+    rows: () => DB.list('ruleVersions'),
+    mine: v => v.roleId === me(),
+    cols: [
+      { k: 'code', h: '版本編號', v: v => code(v.id) },
+      { k: 'role', h: '角色', to: 'roles', ids: v => [v.roleId] },
+      { k: 'no', h: '版本號', v: v => 'v' + v.no + (currentVersion(v.roleId).id === v.id ? ' <span class="tag teal">現行</span>' : ''), sort: v => v.no },
+      { k: 'date', h: '日期', v: v => tm(v.createdAt), sort: v => v.createdAt },
+      { k: 'note', h: '說明', v: v => esc(v.note) },
+      { k: 'q', h: '題點每點大卡', num: true, v: v => (v.snapshot.q.kcal / v.snapshot.q.per).toFixed(1), sort: v => v.snapshot.q.kcal / v.snapshot.q.per },
+      { k: 'z', h: '戰點每點大卡', num: true, v: v => (v.snapshot.z.kcal / v.snapshot.z.per).toFixed(1), sort: v => v.snapshot.z.kcal / v.snapshot.z.per },
+      { k: 'fn', h: '函數', v: v => `<span class="small">題：${esc(fnText(v.snapshot.qFn))}<br>戰：${esc(fnText(v.snapshot.zFn))}</span>` },
+      { k: 'res', h: '資源', v: v => `<span class="small">${v.snapshot.resources.map(x => esc(x.name) + ' ' + x.kcal).join('<br>')}</span>` },
+      { k: 'stack', h: '疊加', v: v => v.snapshot.stack ? '可' : '不可' },
+      { k: 'pri', h: '兌換優先', v: v => `<span class="small">${PRIORITY_OPTS[v.snapshot.priority]}</span>` },
+      { k: 'batches', h: '以此版本發出的點數', to: 'batches', ids: v => visBatches().filter(b => b.issuer === v.roleId && b.version === v.no).map(b => b.id) }
+    ]
+  },
+
+  dockings: {
+    no: 'IV', name: '對接紀錄表', desc: '每一輪對接都是一列，包括不合作的結果。',
+    rows: () => DB.list('dockings', d => seesDocking(d, me())),
+    cols: [
+      { k: 'code', h: '對接編號', v: d => code(d.id) },
+      { k: 'st', h: '出發點', to: 'stations', ids: d => [d.stationId] },
+      { k: 'round', h: '輪次', num: true, v: d => String(d.round), sort: d => d.round },
+      { k: 'sub', h: '主體成員', to: 'roles', ids: d => d.subjectMembers },
+      { k: 'cand', h: '對接角色', to: 'roles', ids: d => [d.candidate] },
+      { k: 'conds', h: '當輪對接條件', v: d => `<span class="small">${condsText(d.condsUsed)}</span>` },
+      { k: 'common', h: '共同規則', v: d => `<span class="small">${d.common ? commonText(d.common) : '—'}</span>` },
+      { k: 'result', h: '結果', v: d => d.result === 'cooperate' ? statusTag('合作') : statusTag('不合作') },
+      { k: 'fus', h: '融合紀錄', to: 'fusions', ids: d => DB.list('fusions', f => f.dockingId === d.id).map(f => f.id) },
+      { k: 'date', h: '日期', v: d => day(d.createdAt), sort: d => d.createdAt }
+    ]
+  },
+
+  fusions: {
+    no: 'V', name: '融合紀錄表', desc: '每一次融合都存成獨立紀錄，原難題不會被覆蓋。',
+    rows: () => DB.list('fusions', f => { const d = DB.get('dockings', f.dockingId); return d && seesDocking(d, me()); }),
+    cols: [
+      { k: 'code', h: '融合編號', v: f => code(f.id) },
+      { k: 'dock', h: '對接編號', to: 'dockings', ids: f => [f.dockingId] },
+      { k: 'before', h: '融合前難題', to: 'problems', ids: f => f.before },
+      { k: 'after', h: '融合後難題', to: 'problems', ids: f => [f.after] },
+      { k: 'members', h: '融合後主體成員', to: 'roles', ids: f => f.members },
+      { k: 'conds', h: '融合後對接條件', v: f => `<span class="small">${condsText(f.afterConds)}</span>` },
+      { k: 'date', h: '日期', v: f => day(f.createdAt), sort: f => f.createdAt }
+    ]
+  },
+
+  challenges: {
+    no: 'VI', name: '拆解時間節點表', desc: '每個步驟就是一個挑戰，由主體中兩個不同的角色合作。接下挑戰時執行角色發出題點，判定完成時寫出者發出戰點。最下面一列可以直接新增挑戰。',
+    rows: () => DB.list('challenges', c => { const st = DB.get('stations', c.stationId); return st && insider(st, me()); }).sort((a, b) => a.node - b.node),
+    mine: c => c.writer === me() || c.executor === me(),
+    cols: [
+      { k: 'code', h: '挑戰編號', v: c => code(c.id) },
+      { k: 'prob', h: '難題', to: 'problems', ids: c => [c.problemId] },
+      { k: 'st', h: '出發點', to: 'stations', ids: c => [c.stationId] },
+      { k: 'step', h: '步驟', num: true, v: c => String(challengeStep(c)), sort: c => challengeStep(c) },
+      { k: 'content', h: '挑戰內容', v: c => esc(c.content) },
+      { k: 'node', h: '時間節點', v: c => tm(c.node), sort: c => c.node },
+      { k: 'writer', h: '寫出挑戰的角色', to: 'roles', ids: c => [c.writer] },
+      { k: 'exec', h: '執行角色（負責）', to: 'roles', ids: c => c.executor ? [c.executor] : [], v: c => c.executor ? L('roles', c.executor, esc(roleName(c.executor))) : '<span class="muted">待指定</span>' },
+      { k: 'q', h: '題點', num: true, v: c => String(c.q), sort: c => c.q },
+      { k: 'z', h: '戰點', num: true, v: c => String(c.z), sort: c => c.z },
+      { k: 'status', h: '狀態', v: c => statusTag(c.status) },
+      { k: 'op', h: '操作', v: c => chActions(c) || '<span class="muted small">—</span>' },
+      { k: 'batches', h: '發出的點數', to: 'batches', ids: c => visBatches().filter(b => b.challengeId === c.id).map(b => b.id) },
+      { k: 'log', h: '紀錄', num: true, v: c => String(c.log.length), sort: c => c.log.length }
+    ],
+    add: { when: () => addableStations().length > 0, cells: () => challengeAddCells() },
+    drawer: c => challengeDrawer(c)
+  },
+
+  heat: {
+    no: 'VII', name: '難題熱量表', desc: '難題的所有挑戰完成後，每個仍在主體中的角色各自填入往後需消耗的總熱量；全部填完，難題自動完成。',
+    rowId: h => h.id,
+    rows: () => {
+      const out = [];
+      myStations(me()).filter(st => insider(st, me()) && (Game.readyForHeat(st) || st.status === 'done')).forEach(st => {
+        const pid = Game.currentProblemId(st);
+        const ids = [...new Set([...st.subject, ...DB.list('heat', h => h.problemId === pid).map(h => h.roleId)])];
+        ids.forEach(rid => { const h = DB.find('heat', x => x.problemId === pid && x.roleId === rid); out.push({ id: pid + '|' + rid, pid, rid, st, h, createdAt: h ? h.createdAt : 0 }); });
+      });
+      return out;
+    },
+    mine: x => x.rid === me(),
+    cols: [
+      { k: 'prob', h: '難題', to: 'problems', ids: x => [x.pid] },
+      { k: 'role', h: '角色', to: 'roles', ids: x => [x.rid] },
+      { k: 'kcal', h: '往後需消耗總熱量（大卡）', num: true, v: x => x.h ? String(x.h.kcal) : (x.rid === me() && x.st.status === 'started' ? `<form id="heatF-${x.st.id}" onsubmit="return false" data-st="${x.st.id}" class="inl"><input name="kcal" inputmode="numeric" style="width:7em" aria-label="往後需消耗總熱量"><button type="button" class="btn sm pri" data-act="heat">填入</button></form>` : '<span class="muted">未填</span>'), sort: x => x.h ? x.h.kcal : -1 },
+      { k: 'at', h: '填寫時間', v: x => x.h ? tm(x.h.updatedAt) : '—', sort: x => x.h ? x.h.updatedAt : 0 },
+      { k: 'st', h: '出發點', to: 'stations', ids: x => [x.st.id] }
+    ]
+  },
+
+  batches: {
+    no: 'VIII', name: '點數紀錄表', desc: '每次發出的點數為一批。點數綁定發出者，只能兌換成發出者兌換當天的能量點。',
+    rows: () => visBatches(),
+    mine: b => b.holder === me(),
+    cols: [
+      { k: 'code', h: '點數批號', v: b => code(b.id) },
+      { k: 'type', h: '類型', v: b => b.type },
+      { k: 'issuer', h: '發出者', to: 'roles', ids: b => [b.issuer] },
+      { k: 'holder', h: '持有者', to: 'roles', ids: b => [b.holder] },
+      { k: 'n', h: '數量', num: true, v: b => String(b.n), sort: b => b.n },
+      { k: 'rem', h: '剩餘', num: true, v: b => String(b.remaining), sort: b => b.remaining },
+      { k: 'fz', h: '凍結', num: true, v: b => String(b.frozen), sort: b => b.frozen },
+      { k: 'ver', h: '發出版本號', to: 'ruleVersions', ids: b => [(versionOf(b.issuer, b.version) || {}).id] },
+      { k: 'date', h: '發出日期', v: b => day(b.createdAt), sort: b => b.createdAt },
+      { k: 'ch', h: '來源挑戰', to: 'challenges', ids: b => { const c = DB.get('challenges', b.challengeId); const st = c && DB.get('stations', c.stationId); return c && st && insider(st, me()) ? [c.id] : []; } },
+      { k: 'bk', h: '用於預約', to: 'bookings', ids: b => DB.list('bookings', k => k.uses.some(u => u.batchId === b.id) && (k.holder === me() || k.issuer === me())).map(k => k.id) },
+      { k: 'op', h: '操作', v: b => b.holder === me() && b.remaining > 0 ? `<button class="btn sm" data-act="useBatch" data-b="${b.id}">用這批兌換</button>` : '' }
+    ]
+  },
+
+  bookings: {
+    no: 'IX', name: '兌換預約表', desc: `兌換日就是資源兌現日。預約在兌現日前一天結束時自動截止，依發出者的兌換優先排序，逐筆整筆核准，超過每日 ${DAILY_CAP} 大卡的不核准；兌現日當天的申請以剩餘額度先到先得。最下面一列可以直接新增預約。`,
+    rows: () => DB.list('bookings', b => b.holder === me() || b.issuer === me()),
+    mine: b => b.holder === me(),
+    cols: [
+      { k: 'code', h: '預約編號', v: b => code(b.id) },
+      { k: 'holder', h: '持有者', to: 'roles', ids: b => [b.holder] },
+      { k: 'issuer', h: '發出者', to: 'roles', ids: b => [b.issuer] },
+      { k: 'at', h: '預約時間', v: b => tm(b.createdAt), sort: b => b.createdAt },
+      { k: 'day', h: '兌現日', v: b => day(b.day), sort: b => b.day },
+      { k: 'res', h: '兌現資源', v: b => esc(b.resource) },
+      { k: 'cost', h: '所需能量點', num: true, v: b => String(b.cost), sort: b => b.cost },
+      { k: 'uses', h: '使用點數明細', to: 'batches', ids: b => b.uses.map(u => u.batchId),
+        v: b => `<div class="small">${b.uses.map(u => { const v = versionOf(b.issuer, u.versionNo); return `${L('batches', u.batchId, code(u.batchId))} ${u.type} ${u.n} 點，${L('ruleVersions', v && v.id, 'v' + u.versionNo)}，每點 ${(+u.epp).toFixed(1)}`; }).join('<br>')}</div>` },
+      { k: 'stack', h: '疊加', v: b => b.stack ? '是' : '否' },
+      { k: 'result', h: '結果', v: b => statusTag(b.result) },
+      { k: 'note', h: '說明', v: b => `<span class="small muted">${esc(b.note || '')}</span>` },
+      { k: 'op', h: '操作', v: b => b.result === '待核准' && b.holder === me() ? `<button class="btn sm warn" data-act="cancelBk" data-b="${b.id}">取消</button>` : '' }
+    ],
+    add: { when: () => DB.list('batches', b => b.holder === me() && b.remaining > 0).length > 0, cells: () => bookingAddCells() }
+  },
+
+  roles: {
+    no: 'X', name: '角色表', desc: '一個帳號可以擁有多個角色。沒有碰撞時，可以另外建立一個角色寫下同一出發點。',
+    rows: () => DB.list('roles'),
+    mine: r => r.id === me(),
+    cols: [
+      { k: 'code', h: '角色編號', v: r => code(r.id) },
+      { k: 'name', h: '名稱', v: r => `<b>${esc(r.name)}</b>` + (r.id === me() ? ' <span class="tag teal">目前</span>' : '') },
+      { k: 'acc', h: '所屬帳號', v: r => esc((DB.get('accounts', r.accountId) || {}).name) },
+      { k: 'birth', h: '出生年月', v: r => `${r.birthY} 年 ${r.birthM} 月`, sort: r => r.birthY * 100 + r.birthM },
+      { k: 'age', h: '目前年齡', num: true, v: r => String(ageOf(r)), sort: r => ageOf(r) },
+      { k: 'rules', h: '規則', to: 'rules', ids: r => [ruleRowId(r.id)] },
+      { k: 'coop', h: '與我合作天數', num: true, v: r => r.id === me() ? '—' : String(coopDays(me(), r.id)), sort: r => coopDays(me(), r.id) },
+      { k: 'op', h: '操作', v: r => r.id === me() ? '' : `<button class="btn sm" data-act="playAs" data-r="${r.id}">以此角色遊玩</button>` }
+    ],
+    add: {
+      when: () => true,
+      cells: () => { const fa = 'form="addF-roles"'; const accs = DB.list('accounts');
+        return { name: `<input name="name" placeholder="新角色名稱" ${fa}>`, birth: `<span class="inl"><input name="by" inputmode="numeric" placeholder="年" style="width:5em" ${fa}><input name="bm" inputmode="numeric" placeholder="月" style="width:3.5em" ${fa}></span>`,
+          acc: `<select name="acc" ${fa}>${accs.map(a => `<option value="${a.id}" ${a.id === role(me()).accountId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}<option value="__new">建立新帳號</option></select>`,
+          op: `<form id="addF-roles" onsubmit="return false"></form><button type="button" class="btn sm pri" data-act="addRole" form="addF-roles">新增這一列</button>` }; }
+    }
+  },
+
+  stations: {
+    name: '出發點', desc: '你參與的每個出發點是一列：你是主體、在排隊，或曾經是成員。展開一列可以對接、退出排隊或退出出發點。',
+    rows: () => myStations(me()),
+    mine: st => st.subject.includes(me()),
+    cols: [
+      { k: 'code', h: '出發點編號', v: st => code(st.id) },
+      { k: 'point', h: '出發點', v: st => tm(st.point), sort: st => st.point },
+      { k: 'status', h: '狀態', v: st => statusTag(ST_TEXT[st.status]) },
+      { k: 'sub', h: '主體', to: 'roles', ids: st => st.subject },
+      { k: 'queue', h: '排隊', to: 'roles', ids: st => st.queue.map(q => q.roleId), v: st => st.queue.length ? st.queue.map((q, i) => `${i + 1}. ${L('roles', q.roleId, esc(roleName(q.roleId)))}`).join('<br>') : '<span class="muted">—</span>', sort: st => st.queue.length },
+      { k: 'prob', h: '目前難題', to: 'problems', ids: st => { const p = DB.get('problems', Game.currentProblemId(st)); return p && canSeeProblem(me(), p) ? [p.id] : []; } },
+      { k: 'common', h: '共同規則', v: st => `<span class="small">${commonText(st.common)}</span>` },
+      { k: 'dock', h: '對接紀錄', to: 'dockings', ids: st => DB.list('dockings', d => d.stationId === st.id && seesDocking(d, me())).map(d => d.id) },
+      { k: 'ch', h: '挑戰（完成／全部）', to: 'challenges', ids: st => insider(st, me()) ? Game.challengesOf(st.id).map(c => c.id) : [],
+        v: st => { if (!insider(st, me())) return '—'; const cs = Game.challengesOf(st.id); return cs.length ? LQ('challenges', code(st.id), `${cs.filter(c => c.status === '完成').length} ／ ${cs.length}`) : '0'; } },
+      { k: 'next', h: '下一步', v: st => stationNext(st) }
+    ],
+    drawer: st => stationDrawer(st)
+  },
+
+  departures: {
+    name: '出發紀錄', desc: '你寫下的每個出發點，包括沒有成立的。只有你自己看得到。',
+    rows: () => DB.list('departures', d => d.roleId === me()),
+    cols: [
+      { k: 'code', h: '紀錄編號', v: d => code(d.id) },
+      { k: 'prob', h: '難題', to: 'problems', ids: d => [d.problemId] },
+      { k: 'point', h: '出發點', v: d => tm(d.point), sort: d => d.point },
+      { k: 'wrote', h: '寫下時間（判定先後用）', v: d => tm(d.writtenAt), sort: d => d.writtenAt },
+      { k: 'src', h: '時間來源', v: d => d.tsSource === 'local' ? '本機' : '伺服器' },
+      { k: 'result', h: '結果', v: d => esc(DEP_TEXT[d.status] || d.status) + (d.reason ? `<div class="small muted">${esc(d.reason)}</div>` : '') },
+      { k: 'st', h: '所在出發點', to: 'stations', ids: d => { const st = d.stationId && DB.get('stations', d.stationId); return st && involved(st, me()) && d.status !== 'rejected' ? [st.id] : []; } }
+    ]
+  },
+
+  daily: {
+    name: '每日額度', desc: `你是發出者時，每天最多分給別人 ${DAILY_CAP} 大卡的能量點，上限不累積到隔天。`,
+    rowId: x => x.id,
+    rows: () => { const list = DB.list('bookings', b => b.issuer === me() && ['核准', '待核准'].includes(b.result)); return [...new Set(list.map(b => b.day))].map(d => ({ id: 'd' + d, day: d, list: list.filter(b => b.day === d), createdAt: d })); },
+    cols: [
+      { k: 'day', h: '兌現日', v: x => day(x.day), sort: x => x.day },
+      { k: 'ok', h: '已核准', num: true, v: x => String(sumCost(x.list, '核准')), sort: x => sumCost(x.list, '核准') },
+      { k: 'pend', h: '待核准', num: true, v: x => String(sumCost(x.list, '待核准')), sort: x => sumCost(x.list, '待核准') },
+      { k: 'left', h: '剩餘額度', num: true, v: x => String(DAILY_CAP - sumCost(x.list, '核准')), sort: x => DAILY_CAP - sumCost(x.list, '核准') },
+      { k: 'rate', h: '使用率', num: true, v: x => Math.round(sumCost(x.list, '核准') / DAILY_CAP * 100) + '%', sort: x => sumCost(x.list, '核准') },
+      { k: 'bk', h: '預約', to: 'bookings', ids: x => x.list.map(b => b.id), v: x => x.list.map(b => `${L('bookings', b.id, code(b.id))} ${esc(roleName(b.holder))} ${esc(b.resource)} ${b.cost}（${b.result}）`).join('<br>') }
+    ]
+  },
+
+  tails: {
+    name: '常用尾數', desc: '你固定使用的秒數與微秒。熟人知道它，就能一直跟你對上。只有你自己看得到。',
+    rows: () => DB.list('tails', t => t.roleId === me()),
+    cols: [
+      { k: 's', h: '秒', num: true, v: t => pad(t.s), sort: t => t.s },
+      { k: 'u', h: '微秒', num: true, v: t => pad(t.micro, 6), sort: t => t.micro },
+      { k: 'label', h: '說明', v: t => esc(t.label) },
+      { k: 'op', h: '操作', v: t => `<button class="btn sm warn" data-act="rmTail" data-t="${t.id}">刪除</button>` }
+    ],
+    add: { when: () => true, cells: () => { const fa = 'form="addF-tails"'; return { s: `<input name="s" inputmode="numeric" placeholder="秒" style="width:4em" ${fa}>`, u: `<input name="u" inputmode="numeric" maxlength="6" placeholder="六位數" style="width:7em" ${fa}>`, label: `<input name="l" placeholder="和誰約好" ${fa}>`, op: `<form id="addF-tails" onsubmit="return false"></form><button type="button" class="btn sm pri" data-act="addTail" form="addF-tails">新增這一列</button>` }; } }
+  },
+
+  paths: {
+    name: '路徑圖', meta: true, desc: '表與表之間的所有連結。表格裡每個可以點的編號或名稱，都是這裡的一條路徑。之後做裡世界時，這份路徑圖就是地圖上的通道。',
+    rowId: x => x.id,
+    rows: () => PATHS(),
+    cols: [
+      { k: 'from', h: '起點表', v: x => LQ(x.from, '', esc(sheetTitle(x.from))) },
+      { k: 'col', h: '經由欄位', v: x => esc(x.col) },
+      { k: 'to', h: '終點表', v: x => LQ(x.to, '', esc(sheetTitle(x.to))) },
+      { k: 'n', h: '目前連結數', num: true, v: x => String(x.n), sort: x => x.n }
+    ]
+  },
+
+  paper: { name: '紙本', special: true },
+  settings: { name: '設定', special: true }
+};
+const sumCost = (list, r) => list.filter(b => b.result === r).reduce((s, b) => s + b.cost, 0);
+const TABS = ['life', 'timeline', 'todo', '|', 'problems', 'rules', 'ruleVersions', 'dockings', 'fusions', 'challenges', 'heat', 'batches', 'bookings', 'roles', '|', 'stations', 'departures', 'daily', 'tails', 'paths', '|', 'paper', 'settings'];
+
+// 欄位的連結目標：{ s, id } 陣列
+function refsOf(c, r) {
+  if (c.refs) return (c.refs(r) || []).filter(x => x && x.id);
+  if (c.to && c.ids) return [].concat(c.ids(r) || []).filter(Boolean).map(id => ({ s: c.to, id }));
+  return [];
+}
+function PATHS() {
+  const out = [];
+  Object.entries(SHEETS).forEach(([sk, S]) => {
+    if (!S.cols || S.meta) return;
+    const recs = S.rows();
+    S.cols.forEach(c => { if (!c.to) return; [].concat(c.to).forEach(to => out.push({ id: sk + '.' + c.k + '.' + to, from: sk, col: c.h, to, n: recs.reduce((n, r) => n + refsOf(c, r).filter(x => x.s === to).length, 0) })); });
+  });
+  return out;
+}
+function relatedOf(sk, rec) {
+  const S = SHEETS[sk]; const rid = (S.rowId || (x => x.id))(rec); const out = [];
+  S.cols.forEach(c => { const rs = refsOf(c, rec); if (rs.length) out.push({ dir: '連到', col: c.h, list: rs }); });
+  Object.entries(SHEETS).forEach(([tk, T]) => {
+    if (!T.cols || T.meta) return;
+    const tid = T.rowId || (x => x.id); let recs = null;
+    T.cols.forEach(c => {
+      if (!c.to || ![].concat(c.to).includes(sk)) return;
+      recs = recs || T.rows();
+      const hits = recs.filter(tr => refsOf(c, tr).some(x => x.s === sk && x.id === rid));
+      if (hits.length) out.push({ dir: '被連', col: sheetTitle(tk) + '．' + c.h, list: hits.map(h => ({ s: tk, id: tid(h) })) });
+    });
+  });
+  return out;
+}
+function relatedHtml(sk, rec) {
+  const rel = relatedOf(sk, rec);
+  if (!rel.length) return '';
+  return `<div class="box"><h3>相關資料</h3><div class="rel"><span class="h">方向</span><span class="h">經由</span><span class="h">項目</span>` +
+    rel.map(x => `<span>${x.dir}</span><span class="muted">${esc(x.col)}</span><span class="lks">${x.list.map(t => L(t.s, t.id, t.s === 'heat' || t.s === 'daily' ? esc(sheetTitle(t.s)) : refLabel(t.s, t.id))).join('')}</span>`).join('') + '</div></div>';
+}
+
+/* ===================== 規則表的列內編輯 ===================== */
+const selF = (name, opts, v) => `<select name="${name}" form="rulesForm">${Object.entries(opts).map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+function fnEd(k, f) {
+  return `<select name="${k}FnType" form="rulesForm">${Object.entries({ none: '不隨合作天數變化', step: '隨合作天數分段提高' }).map(([a, b]) => `<option value="${a}" ${a === f.type ? 'selected' : ''}>${b}</option>`).join('')}</select>
+    <span class="inl small">每滿 <input name="${k}FnDays" inputmode="numeric" value="${f.days}" form="rulesForm"> 天提高 <input name="${k}FnPct" inputmode="numeric" value="${f.pct}" form="rulesForm">%，最多 <input name="${k}FnCap" inputmode="numeric" value="${f.cap}" form="rulesForm">%</span>`;
+}
+function resRow(x) { return `<div class="row rrow" style="margin-bottom:4px;flex-wrap:nowrap"><input name="resName[]" value="${esc(x ? x.name : '')}" placeholder="資源名稱" form="rulesForm" style="min-width:7em"><input name="resKcal[]" inputmode="numeric" value="${x ? x.kcal : ''}" placeholder="大卡" form="rulesForm" style="width:5em"><button type="button" class="btn sm warn" data-act="rmRow" aria-label="移除這項資源">移除</button></div>`; }
+function condRow(c) {
+  return `<div class="row rrow" style="margin-bottom:4px;flex-wrap:nowrap"><select name="cField[]" form="rulesForm">${Object.entries(COND_FIELDS).map(([k, v]) => `<option value="${k}" ${c && c.field === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
+    <select name="cOp[]" form="rulesForm" style="width:6.5em">${Object.entries(COND_OPS).map(([k, v]) => `<option value="${k}" ${c && c.op === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+    <input name="cVal[]" inputmode="decimal" value="${c ? c.value : ''}" placeholder="數值" form="rulesForm" style="width:5em"><button type="button" class="btn sm warn" data-act="rmRow" aria-label="移除這條條件">移除</button></div>`;
+}
+function readRulesForm(f) {
+  const v = formVals(f); const n = k => int(v[k]);
+  const names = v['resName[]'] || [], kcals = v['resKcal[]'] || [];
+  const rules = {
+    q: { per: n('qPer'), kcal: n('qKcal') }, z: { per: n('zPer'), kcal: n('zKcal') },
+    qFn: { type: v.qFnType, days: n('qFnDays'), pct: n('qFnPct'), cap: n('qFnCap') }, zFn: { type: v.zFnType, days: n('zFnDays'), pct: n('zFnPct'), cap: n('zFnCap') },
+    stack: !!v.stack, resources: names.map((x, i) => ({ name: x.trim(), kcal: int(kcals[i]) })).filter(x => x.name || !isNaN(x.kcal)), priority: v.priority,
+    deadlock: { opt: v.dl, text: v.dlt || '' }, interp: { opt: v.ip, text: v.ipt || '' }, exit: v.exit, queue: { max: n('qm'), waitDays: n('qw'), text: v.qt || '' }
+  };
+  const fs = v['cField[]'] || [], ops = v['cOp[]'] || [], vals = v['cVal[]'] || [];
+  const conds = fs.map((x, i) => ({ field: x, op: ops[i], value: Number(vals[i]) })).filter((c, i) => String(vals[i]).trim() !== '');
+  return { rules, conds, note: v.note };
+}
+function updateTry() {
+  const f = $('#rulesForm'); const out = $('#tryOut'); if (!f || !out) return;
+  const { rules, conds } = readRulesForm(f); const N = int($('#tryN').value) || 0, Dd = int($('#tryD').value) || 0;
+  const errs = [...validateRules(rules), ...validateConds(conds)];
+  if (errs.length) out.innerHTML = `<span style="color:var(--rose)">${esc(errs[0])}</span>`;
+  else {
+    const q = epp(rules, 'q', Dd) * N, z = epp(rules, 'z', Dd) * N;
+    out.innerHTML = `${N} 題點 ≈ ${q.toFixed(1)} 大卡；${N} 戰點 ≈ ${z.toFixed(1)} 大卡。` + rules.resources.map(x => `<br>兌現「${esc(x.name)}」（${x.kcal} 大卡）最少需要 ${Math.ceil(x.kcal / epp(rules, 'q', Dd) - 1e-9)} 題點或 ${Math.ceil(x.kcal / epp(rules, 'z', Dd) - 1e-9)} 戰點`).join('');
+  }
+  if (!validateConds(conds).length && $('#condCount')) {
+    const others = DB.list('roles', r => r.id !== me());
+    const ok = others.filter(o => { const R = rulesOf(o.id); return conds.every(x => cmp(COND_FIELDS[x.field].get(R, o.id), x.op, x.value)); });
+    $('#condCount').textContent = `目前有 ${ok.length} 個角色（共 ${others.length} 個）符合你的可見條件。`;
+  }
+}
+const inRulesForm = t => (t.form && t.form.id === 'rulesForm') || t.id === 'tryN' || t.id === 'tryD';
+document.addEventListener('input', e => { if (inRulesForm(e.target)) updateTry(); });
+document.addEventListener('change', e => { if (inRulesForm(e.target)) updateTry(); });
+function kv(rows) { return `<table class="ws" style="width:auto;min-width:0"><tbody>${rows.map(([k, v]) => `<tr><th style="position:static">${k}</th><td>${v}</td></tr>`).join('')}</tbody></table>`; }
+function rulesSummary(rid) {
+  const R = rulesOf(rid); const v = currentVersion(rid);
+  return `<div class="small muted" style="margin:6px 0 2px">${L('rules', R.id, esc(roleName(rid)) + '的規則表')}（${L('ruleVersions', v.id, 'v' + v.no)}，維持 ${stableDays(rid)} 天）</div>` + kv([
+    ['題點兌換', esc(rateText(R.q)) + '；' + esc(fnText(R.qFn))], ['戰點兌換', esc(rateText(R.z)) + '；' + esc(fnText(R.zFn))], ['疊加', R.stack ? '可' : '不可'],
+    ['資源', R.resources.map(x => `${esc(x.name)} ${x.kcal}`).join('、')], ['兌換優先', PRIORITY_OPTS[R.priority]], ['僵局處理', esc(optText(R.deadlock, DEADLOCK_OPTS))],
+    ['退出處理', EXIT_OPTS[R.exit]], ['排隊規則', `最多 ${R.queue.max} 位，每位最多等 ${R.queue.waitDays} 天`], ['解釋權', esc(optText(R.interp, INTERP_OPTS))]]);
+}
+
+/* ===================== 難題：下一步與抽屜 ===================== */
+function problemNext(p) {
+  if (!p.participants.includes(me())) return '';
+  if (p.participants.length === 1 && ['進行中', '擱置'].includes(p.status) && !Game.activeDeparture(p.id)) return `<button class="btn sm brass" data-act="jump" data-s="problems" data-id="${p.id}" data-open="1">寫下出發點</button>`;
+  const st = stationFor(p.id);
+  if (st && involved(st, me()) && ['open', 'started'].includes(st.status)) return L('stations', st.id, '到出發點');
+  return '';
+}
+function problemDrawer(p) {
+  const r = me(); const mine = p.participants.includes(r);
+  let h = `<div class="grid2"><div class="box"><h3>${esc(p.name)}</h3><p class="small"><span class="muted">情況：</span>${txt(p.situation)}</p><p class="small"><span class="muted">目標：</span>${txt(p.goal)}</p></div>`;
+  if (mine && p.participants.length === 1 && ['進行中', '擱置'].includes(p.status)) {
+    const d = new Date(Math.floor(p.occurredAt / 1000));
+    h += `<form class="box" onsubmit="return false" data-pid="${p.id}"><h3>修改內容</h3>
+      <label class="f"><span>名稱</span><input name="name" value="${esc(p.name)}"></label>
+      <label class="f"><span>發生時間</span><input type="date" name="occ" value="${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}"></label>
+      <label class="f"><span>情況</span><textarea name="situation">${esc(p.situation)}</textarea></label>
+      <label class="f"><span>目標</span><textarea name="goal">${esc(p.goal)}</textarea></label>
+      <button type="button" class="btn sm pri" data-act="saveProblem">儲存</button></form>`;
+  }
+  h += '</div>';
+  const canConds = mine && !['已融合', '完成'].includes(p.status);
+  const stF = p.participants.length > 1 ? DB.find('stations', s => s.fusedProblemId === p.id) : null;
+  h += `<div class="box"><h3>對接條件</h3><p class="small muted">決定誰能排隊加入這個難題。碰撞時與對接時各檢查一次。</p>${dockCondList(p.dockConds)}
+    ${canConds ? `<details><summary>修改對接條件</summary><form onsubmit="return false" data-pid="${p.id}">${dockCondEditor(p.dockConds)}
+      ${p.participants.length > 1 ? consentBox(stF ? stF.subject : p.participants, '主體全員同意修改') : ''}
+      <div style="margin-top:6px"><button type="button" class="btn sm pri" data-act="saveDockConds">儲存對接條件</button></div></form></details>` : ''}</div>`;
+  if (mine && p.participants.length === 1 && ['進行中', '擱置'].includes(p.status) && !Game.activeDeparture(p.id)) {
+    const tails = DB.list('tails', t => t.roleId === r);
+    h += `<div class="box"><h3>寫下出發點</h3><p class="small muted">出發點就是你開始挑戰的那一刻，由你親手決定，精確到微秒。它也是一組暗號：只有知道的熟人會寫下同一個時間，陌生人撞不進來。</p>
+      <form onsubmit="return false" data-pid="${p.id}">${pointInput('pt', usFrom({ ...usParts(addDays(Clock.now(), 7)), s: 0, micro: 0 }), tails)}
+      <div style="margin-top:8px"><button type="button" class="btn brass" data-act="writeDep">寫下出發點</button></div></form></div>`;
+  }
+  return h;
+}
+
+/* ===================== 出發點：下一步與抽屜 ===================== */
+function stationNext(st) {
+  const r = me(); const head = st.status === 'open' ? st.queue[0] : null;
+  if (st.subject.includes(r) && head) return `<button class="btn sm brass" data-act="jump" data-s="stations" data-id="${st.id}" data-open="1">對接 ${esc(roleName(head.roleId))}</button>`;
+  if (st.queue.some(q => q.roleId === r)) return `<button class="btn sm" data-act="jump" data-s="stations" data-id="${st.id}" data-open="1">查看排隊</button>`;
+  if (st.subject.includes(r) && Game.readyForHeat(st)) return LQ('heat', code(Game.currentProblemId(st)), '填寫熱量');
+  return '';
+}
+function stationDrawer(st) {
+  const r = me(); const isSub = st.subject.includes(r); const qi = st.queue.findIndex(q => q.roleId === r);
+  const head = st.status === 'open' ? st.queue[0] : null;
+  let h = `<div class="box">${readout(st.point)}${st.status === 'open' ? `<div class="count" data-count="${st.point}">${esc(countdownText(st.point))}</div><p class="small muted">出發點一到，融合就結束，仍在排隊的角色會自動退出，主體以現有成員開始挑戰。排隊規則：最多 ${queueRule(st).max} 位，每位最多等 ${queueRule(st).waitDays} 天。</p>` : ''}
+    ${st.closedReason ? `<p class="small muted">${esc(st.closedReason)}</p>` : ''}${(st.members || []).length ? `<p class="small muted">已退出：${st.members.map(roleName).map(esc).join('、')}</p>` : ''}</div>`;
+  if (qi >= 0) {
+    h += `<div class="box"><div class="note">你排在第 ${qi + 1} 位。${qi === 0 ? '等主體和你對接。' : ''}加入後，你的難題內容會讓主體的所有成員看到。你隨時可以退出排隊。</div>
+      <h3>這個難題的對接條件</h3>${dockCondList(DB.get('problems', Game.currentProblemId(st)).dockConds, r, st.subject)}
+      <p class="small muted">對接時會再檢查一次。如果你之後修改規則而不再符合，主體就不能和你對接。</p>
+      <h3>主體的規則</h3>${st.subject.length > 1 ? `<p class="small">共同規則：${commonText(st.common)}</p>` : ''}${st.subject.map(id => rulesSummary(id)).join('')}
+      <div style="margin-top:8px"><button class="btn warn" data-act="leaveQueue" data-st="${st.id}">退出排隊</button></div></div>`;
+  }
+  if (isSub && head) h += `<div class="box">${dockingPanel(st, head)}</div>`;
+  if (isSub && ['open', 'started'].includes(st.status)) h += `<div class="box"><h3>退出這個出發點</h3><p class="small muted">${st.subject.length > 1 ? '退出後其他成員繼續。退出前必須先完成你參與且已提交的判定。' : '主體只剩你一人。退出時依你的規則表「退出處理」：' + EXIT_OPTS[rulesOf(r).exit] + '。'}</p><button class="btn sm warn" data-act="exitStation" data-st="${st.id}">退出</button></div>`;
+  return h;
+}
+function dockingPanel(st, head) {
+  const base = st.subject.length === 1 ? rulesOf(st.subject[0]) : st.common;
+  const cand = DB.get('problems', head.problemId); const cur = DB.get('problems', Game.currentProblemId(st));
+  const sel = (name, opts, v) => `<select name="${name}">${Object.entries(opts).map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const trial = st.subject.map(id => { const cd = coopDays(id, head.roleId); const R = rulesOf(head.roleId), R2 = rulesOf(id);
+    return [esc(roleName(id)), `${epp(R, 'q', cd).toFixed(1)}／${epp(R, 'z', cd).toFixed(1)}`, `${epp(R2, 'q', cd).toFixed(1)}／${epp(R2, 'z', cd).toFixed(1)}`, String(cd)]; });
+  return `<h3>對接：${L('roles', head.roleId, esc(roleName(head.roleId)))}</h3>
+    <p class="small muted">主體與排隊的下一個角色比對規則表，談妥共同規則後融合難題。主體多人時需要全員同意。</p>
+    <div class="grid2"><div><div class="muted small">對方的難題</div><p>${L('problems', cand.id, refLabel('problems', cand.id))}</p><p class="small">${esc(cand.situation)}</p></div>
+    <div><div class="muted small">主體目前的難題</div><p>${L('problems', cur.id, refLabel('problems', cur.id))}</p><p class="small">${esc(cur.situation)}</p></div></div>
+    <h3 style="margin-top:8px">對接條件檢查</h3>${dockCondList(cur.dockConds, head.roleId, st.subject)}
+    <details style="margin:8px 0"><summary>比對規則表與點數試算</summary>${rulesSummary(head.roleId)}
+      <p class="small muted" style="margin-top:8px">每點可換大卡（題點／戰點）</p>
+      <table class="ws" style="width:auto;min-width:0"><thead><tr class="names"><th style="position:static;padding:5px 8px">主體成員</th><th style="position:static;padding:5px 8px">在${esc(roleName(head.roleId))}那裡</th><th style="position:static;padding:5px 8px">${esc(roleName(head.roleId))}在他那裡</th><th style="position:static;padding:5px 8px">合作天數</th></tr></thead>
+      <tbody>${trial.map(r => `<tr>${r.map((c, i) => `<td class="${i ? 'n' : ''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></details>
+    <form onsubmit="return false" data-st="${st.id}">
+      <h3>共同規則 <span class="small muted">${st.subject.length === 1 ? '（以主體的規則表為基礎）' : '（以現有共同規則為基礎）'}</span></h3>
+      <div class="grid2"><label class="f"><span>僵局處理</span>${sel('dl', DEADLOCK_OPTS, base.deadlock.opt)}<input name="dlt" placeholder="補充說明" value="${esc(base.deadlock.text)}"></label>
+      <label class="f"><span>解釋權</span>${sel('ip', INTERP_OPTS, base.interp.opt)}<input name="ipt" placeholder="補充說明" value="${esc(base.interp.text)}"></label>
+      <label class="f"><span>排隊上限（人）</span><input name="qm" inputmode="numeric" value="${base.queue.max}"></label>
+      <label class="f"><span>排隊等待上限（天）</span><input name="qw" inputmode="numeric" value="${base.queue.waitDays}"></label></div>
+      <h3>融合後的難題</h3>
+      <label class="f"><span>名稱</span><input name="fn" value="${esc(cur.name + '＋' + cand.name)}"></label>
+      <label class="f"><span>情況</span><textarea name="fs">${esc(cur.situation + '\n' + cand.situation)}</textarea></label>
+      <label class="f"><span>目標</span><textarea name="fg">${esc(cur.goal + '\n' + cand.goal)}</textarea></label>
+      <h3>融合後的對接條件 <span class="small muted">（預設沿用目前的條件）</span></h3>${dockCondEditor(cur.dockConds)}
+      ${consentBox([...st.subject, head.roleId], '主體全員與對接角色同意合作')}
+      <div class="row"><button type="button" class="btn brass" data-act="dock" data-ok="1">合作並融合</button><button type="button" class="btn warn" data-act="dock" data-ok="0">不合作</button></div>
+    </form>`;
+}
+
+/* ===================== 挑戰：操作、抽屜、新增列 ===================== */
+function chActions(c) {
+  const r = me(); const st = DB.get('stations', c.stationId); const b = [];
+  const btn = (act, label, cls) => `<button class="btn sm ${cls || ''}" data-act="${act}" data-ch="${c.id}">${label}</button>`;
+  if (c.executor === r && c.status === '待執行') b.push(btn('acceptCh', `接下（發出 ${c.q} 題點）`, 'pri'), btn('declineCh', '婉拒', 'warn'));
+  if (c.executor === r && c.status === '執行中') b.push(btn('submitCh', '提交判定', 'pri'), btn('abandonCh', '放棄', 'warn'));
+  if (c.writer === r && c.status === '待判定') b.push(btn('judgeOk', `判定完成（發出 ${c.z} 戰點）`, 'pri'), btn('judgeNo', '還沒完成', 'warn'));
+  if (c.status === '判定爭議中' && (c.writer === r || c.executor === r)) b.push(btn('resolveCh', '依共同規則處理'));
+  if (st && st.subject.includes(r) && ['待執行', '擱置'].includes(c.status)) b.push(`<button class="btn sm" data-act="jump" data-s="challenges" data-id="${c.id}" data-open="1">修改</button>`, btn('delCh', '刪除', 'warn'));
+  return `<div class="row" style="gap:4px;flex-wrap:nowrap">${b.join('')}</div>`.replace('<div class="row" style="gap:4px;flex-wrap:nowrap"></div>', '');
+}
+function challengeDrawer(c) {
+  const st = DB.get('stations', c.stationId);
+  let h = `<div class="box"><h3>紀錄</h3><ul class="small" style="margin:4px 0;padding-left:1.2em">${c.log.map(l => `<li><span class="num">${esc(fmtUs(l.at, false))}</span> ${esc(l.text)}</li>`).join('')}</ul></div>`;
+  if (st.subject.includes(me()) && ['待執行', '擱置'].includes(c.status) && ['open', 'started'].includes(st.status)) h += `<div class="box"><h3>修改拆解</h3>${challengeForm(st, c)}</div>`;
+  return h;
+}
+function challengeForm(st, c) {
+  return `<form onsubmit="return false" data-st="${st.id}" data-ch="${c.id}">
+    <label class="f"><span>挑戰內容</span><input name="content" value="${esc(c.content)}"></label>
+    <label class="f"><span>時間節點</span>${nodeInput('nd', c.node)}</label>
+    <div class="grid2"><label class="f"><span>寫出挑戰的角色</span><select name="writer">${roleOptions(st.subject, c.writer)}</select></label>
+    <label class="f"><span>執行角色（負責角色）</span><select name="executor">${roleOptions(st.subject, c.executor || st.subject.find(x => x !== c.writer))}</select></label>
+    <label class="f"><span>題點數量（雙方談定）</span><input name="q" inputmode="numeric" value="${c.q}"></label>
+    <label class="f"><span>戰點數量（雙方談定）</span><input name="z" inputmode="numeric" value="${c.z}"></label></div>
+    ${consentBox(st.subject, '主體全員同意這項修改')}
+    <button type="button" class="btn sm pri" data-act="saveCh">儲存修改</button></form>`;
+}
+function readChallengeForm(f) {
+  const v = formVals(f);
+  return { c: { content: v.content || '', node: readNode(f, 'nd'), writer: v.writer, executor: v.executor, q: int(v.q), z: int(v.z) }, consents: v['consent[]'] || [] };
+}
+function addableStations() { return DB.list('stations', s => s.subject.includes(me()) && s.subject.length >= 2 && ['open', 'started'].includes(s.status)); }
+function challengeAddCells() {
+  const sts = addableStations(); if (!UI.addCh || !sts.some(s => s.id === UI.addCh.st)) UI.addCh = { st: sts[0].id };
+  const st = DB.get('stations', UI.addCh.st); const fa = 'form="addF-challenges"';
+  const other = st.subject.find(x => x !== me());
+  return {
+    st: `<select name="st" ${fa} data-act-change="addChSt">${sts.map(s => `<option value="${s.id}" ${s.id === st.id ? 'selected' : ''}>${code(s.id)}｜${esc(fmtUs(s.point))}</option>`).join('')}</select>`,
+    prob: `<span class="small">${refLabel('problems', Game.currentProblemId(st))}</span>`,
+    content: `<input name="content" placeholder="新挑戰內容" ${fa}>`,
+    node: nodeInput('nd', Math.max(st.point, Clock.now()) + DAY, fa),
+    writer: `<select name="writer" ${fa}>${roleOptions(st.subject, me())}</select>`,
+    exec: `<select name="executor" ${fa}>${roleOptions(st.subject, other)}</select>`,
+    q: `<input name="q" inputmode="numeric" value="1" style="width:4em" ${fa}>`, z: `<input name="z" inputmode="numeric" value="1" style="width:4em" ${fa}>`,
+    op: `<form id="addF-challenges" onsubmit="return false" data-st="${st.id}"></form><div class="row small" style="gap:2px 10px"><span class="muted">全員同意：</span>${st.subject.map(id => `<label class="check"><input type="checkbox" name="consent[]" value="${id}" ${fa}> ${esc(roleName(id))}</label>`).join('')}</div><button type="button" class="btn sm pri" data-act="addCh" form="addF-challenges">新增這一列</button>`
+  };
+}
+
+/* ===================== 兌換預約新增列 ===================== */
+function bookingAddCells() {
+  const r = me(); const held = DB.list('batches', b => b.holder === r && b.remaining > 0);
+  const issuers = [...new Set(held.map(b => b.issuer))];
+  const S = UI.bk && issuers.includes(UI.bk.issuer) ? UI.bk : (UI.bk = { issuer: issuers[0], res: 0, day: fmtDay(addDays(Clock.now(), 2)), uses: {} });
+  const R = rulesOf(S.issuer); const cur = currentVersion(S.issuer); const cd = coopDays(r, S.issuer); const fa = 'form="bkF"';
+  const bs = held.filter(b => b.issuer === S.issuer);
+  const uses = bs.filter(b => S.uses[b.id]).map(b => ({ batchId: b.id, ver: S.uses[b.id] }));
+  let quote;
+  try { quote = uses.length ? (q => `<b>${q.cost}</b><div class="small ok" style="margin:2px 0">${q.uses.map(u => `${code(u.batchId)} ${u.n} 點`).join('＋')}${q.stack ? '（疊加）' : ''}</div>`)(Game.quote(r, S.issuer, S.res, uses)) : `<b>${R.resources[S.res] ? R.resources[S.res].kcal : ''}</b><div class="small muted">勾選點數</div>`; }
+  catch (e) { quote = `<div class="small err" style="margin:0">${esc(e.message)}</div>`; }
+  return {
+    holder: `<span class="small">${esc(roleName(r))}</span>`,
+    issuer: `<select name="issuer" ${fa}>${roleOptions(issuers, S.issuer)}</select><div class="small muted">合作 ${cd} 天，${R.stack ? '可疊加' : '不可疊加'}</div>`,
+    day: `<input type="date" name="day" value="${esc(S.day)}" ${fa}>`,
+    res: `<select name="res" ${fa}>${R.resources.map((x, i) => `<option value="${i}" ${i === S.res ? 'selected' : ''}>${esc(x.name)}（${x.kcal}）</option>`).join('')}</select>`,
+    cost: quote,
+    uses: `<div class="small">${bs.map(b => { const k = b.type === '題點' ? 'q' : 'z'; const e1 = epp(versionOf(S.issuer, b.version).snapshot, k, cd), e2 = epp(cur.snapshot, k, cd);
+      return `<div style="margin-bottom:4px"><label class="check"><input type="checkbox" name="use[]" value="${b.id}" ${S.uses[b.id] ? 'checked' : ''} ${fa}> ${code(b.id)} ${b.type} 剩 ${b.remaining}</label>
+        <span class="inl" style="margin-left:22px"><label class="check"><input type="radio" name="ver_${b.id}" value="issue" ${S.uses[b.id] !== 'current' ? 'checked' : ''} ${fa}> 發出 v${b.version}：${e1.toFixed(1)}</label>
+        <label class="check"><input type="radio" name="ver_${b.id}" value="current" ${S.uses[b.id] === 'current' ? 'checked' : ''} ${fa}> 當前 v${cur.no}：${e2.toFixed(1)}</label></span></div>`; }).join('')}</div>`,
+    op: `<form id="bkF" onsubmit="return false"></form><button type="button" class="btn sm pri" data-act="book" form="bkF">送出預約</button>`
+  };
+}
+document.addEventListener('change', e => {
+  const f = e.target.form;
+  if (f && f.id === 'bkF') {
+    const v = formVals(f); const prev = UI.bk || {};
+    const uses = {}; (v['use[]'] || []).forEach(id => uses[id] = v['ver_' + id] || 'issue');
+    UI.bk = { issuer: v.issuer, res: v.issuer !== prev.issuer ? 0 : +v.res, day: v.day, uses: v.issuer !== prev.issuer ? {} : uses };
+    renderMain();
+  }
+  if (f && f.id === 'addF-challenges' && e.target.name === 'st') { UI.addCh = { st: e.target.value }; renderMain(); }
+});
+
+/* ===================== 通用工作表繪製 ===================== */
+function cellHtml(c, r) {
+  if (c.v) return c.v(r);
+  const rs = refsOf(c, r);
+  return rs.length ? `<div class="lks">${rs.map(x => L(x.s, x.id, refLabel(x.s, x.id))).join('')}</div>` : '<span class="muted">—</span>';
+}
+function sortVal(c, r) { if (c.sort) return c.sort(r); return stripTags(cellHtml(c, r)); }
+function cmpVals(a, b) { if (typeof a === 'number' && typeof b === 'number') return a - b; return String(a).localeCompare(String(b), 'zh-Hant', { numeric: true }); }
+function renderSheet(sk) {
+  const S = SHEETS[sk]; const cols = S.cols; const st = UI.sheets[sk] = UI.sheets[sk] || {};
+  const rid = S.rowId || (x => x.id);
+  const recs = S.rows().slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  let list = recs.map((r, i) => ({ r, i }));
+  if (st.col != null && cols[st.col]) { const c = cols[st.col]; const vals = new Map(list.map(x => [x, sortVal(c, x.r)])); list.sort((a, b) => st.dir * cmpVals(vals.get(a), vals.get(b))); }
+  const open = UI.open[sk] || new Set();
+  const letters = `<tr class="letters"><th class="rn"></th>${cols.map((c, i) => `<th class="${i === 0 ? 'fz' : ''}">${colLetter(i)}</th>`).join('')}</tr>`;
+  const names = `<tr class="names"><th class="rn"><span class="small">列</span></th>${cols.map((c, i) => `<th class="${i === 0 ? 'fz' : ''} ${c.num ? 'n' : ''}"><button type="button" class="sh" data-act="sort" data-s="${sk}" data-c="${i}" title="依此欄排序">${esc(c.h)}${c.to ? ' <span class="muted" aria-hidden="true">⇢</span>' : ''}${st.col === i ? (st.dir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>`;
+  let body = '';
+  list.forEach(({ r, i }) => {
+    const id = rid(r); const isOpen = open.has(id) || (sk === 'rules' && S.editRow && S.editRow(r));
+    const edit = S.editRow && S.editRow(r);
+    const tds = cols.map((c, ci) => `<td class="${ci === 0 ? 'fz' : ''} ${c.num ? 'n' : ''}" data-c="${ci}">${edit && c.ed ? c.ed(r) : cellHtml(c, r)}</td>`).join('');
+    body += `<tr data-row data-id="${esc(id)}" data-i="${i + 1}" class="${S.mine && S.mine(r) ? 'mine' : ''} ${edit ? 'editrow' : ''}"><td class="rn"><button type="button" class="tg" data-act="toggle" data-s="${sk}" data-id="${esc(id)}" aria-expanded="${isOpen}" aria-label="${isOpen ? '收起' : '展開'}第 ${i + 1} 列">${isOpen ? '▾' : '▸'}</button>${i + 1}</td>${tds}</tr>`;
+    if (isOpen) body += `<tr class="drawer" data-drawer-of="${esc(id)}"><td colspan="${cols.length + 1}"><div class="dwin">${S.drawer ? S.drawer(r) : ''}${relatedHtml(sk, r)}</div></td></tr>`;
+  });
+  if (S.add && S.add.when()) {
+    const cells = S.add.cells();
+    body += `<tr class="addrow"><td class="rn"><span aria-hidden="true">＊</span></td>${cols.map((c, ci) => `<td class="${ci === 0 ? 'fz' : ''}">${cells[c.k] != null ? cells[c.k] : '<span class="auto">自動</span>'}</td>`).join('')}</tr>`;
+  }
+  const empty = !recs.length ? `<div class="empty">這張表目前沒有你看得到的資料。</div>` : '';
+  return `<div class="toolbar"><input class="q" data-q="${sk}" placeholder="篩選這張表" aria-label="篩選這張表" value="${esc(st.q || '')}"><span class="cnt" data-cnt="${sk}"></span>
+    ${st.col != null ? `<button class="btn sm" data-act="unsort" data-s="${sk}">取消排序</button>` : ''}${open.size ? `<button class="btn sm" data-act="collapse" data-s="${sk}">全部收起</button>` : ''}</div>
+    <div class="wb"><table class="ws" data-sheet="${sk}"><thead>${letters}${names}</thead><tbody>${body}</tbody></table>${empty}</div>`;
+}
+function applyFilter(sk) {
+  const t = document.querySelector(`[data-sheet="${sk}"]`); if (!t) return;
+  const q = ((UI.sheets[sk] || {}).q || '').trim().toLowerCase(); let n = 0, all = 0;
+  t.querySelectorAll('tbody tr[data-row]').forEach(tr => {
+    all++; const show = !q || tr.textContent.toLowerCase().includes(q); tr.hidden = !show; if (show) n++;
+    const dr = tr.nextElementSibling; if (dr && dr.classList.contains('drawer')) dr.hidden = !show;
+  });
+  const cnt = document.querySelector(`[data-cnt="${sk}"]`); if (cnt) cnt.textContent = q ? `${n} ／ ${all} 列` : `共 ${all} 列`;
+}
+document.addEventListener('input', e => { const sk = e.target.dataset && e.target.dataset.q; if (!sk || !e.target.classList.contains('q')) return; (UI.sheets[sk] = UI.sheets[sk] || {}).q = e.target.value; applyFilter(sk); });
+
+/* ===================== 名稱方塊：選取儲存格 ===================== */
+document.addEventListener('click', e => {
+  const td = e.target.closest('.ws[data-sheet] tbody td'); if (!td) return;
+  const tr = td.parentElement; if (!tr.hasAttribute('data-row')) return;
+  if (td.classList.contains('rn')) return;
+  selectCell(td);
+});
+function selectCell(td) {
+  document.querySelectorAll('.ws td.sel').forEach(x => x.classList.remove('sel'));
+  td.classList.add('sel');
+  const table = td.closest('table'); const sk = table.dataset.sheet; const S = SHEETS[sk]; const ci = +td.dataset.c; const tr = td.parentElement;
+  const th = table.querySelectorAll('thead tr.names th')[ci + 1];
+  $('#nameBox').textContent = `${S.no ? S.no : S.name}!${colLetter(ci)}${tr.dataset.i}`;
+  $('#nameBox').title = `${sheetTitle(sk)}．${th ? stripTags(th.innerHTML).replace(/[▲▼⇢]/g, '').trim() : ''}．第 ${tr.dataset.i} 列`;
+  const v = stripTags(td.innerHTML); $('#fxVal').textContent = v; $('#fxVal').title = v;
+  UI.sel = { sk, id: tr.dataset.id, ci };
+}
+
+/* ===================== 待處理 ===================== */
+function todos(r) {
+  const out = []; // [類別, 事項, 相關時間, 目標]
+  DB.list('stations', s => s.status === 'open').forEach(st => {
+    if (st.subject.includes(r) && st.queue[0]) out.push(['對接', `${roleName(st.queue[0].roleId)} 在排隊，等主體對接`, st.point, { s: 'stations', id: st.id, open: 1 }]);
+    if (st.queue.findIndex(q => q.roleId === r) === 0) out.push(['排隊', '你排在第一位，等主體對接', st.point, { s: 'stations', id: st.id, open: 1 }]);
+  });
+  DB.list('challenges').forEach(c => {
+    const st = DB.get('stations', c.stationId); if (!st) return;
+    const t = { s: 'challenges', id: c.id };
+    if (c.executor === r && c.status === '待執行') out.push(['挑戰', `接下或婉拒「${c.content}」`, c.node, t]);
+    if (c.executor === r && c.status === '執行中') out.push(['挑戰', `執行中「${c.content}」，做完後提交判定`, c.node, t]);
+    if (c.writer === r && c.status === '待判定') out.push(['判定', `判定「${c.content}」是否完成`, c.node, t]);
+    if (c.status === '判定爭議中' && (c.writer === r || c.executor === r)) out.push(['爭議', `「${c.content}」依共同規則處理`, c.node, t]);
+    if (c.status === '擱置' && st.subject.includes(r)) out.push(['拆解', `「${c.content}」擱置中，可修改拆解`, c.node, { ...t, open: 1 }]);
+    if (c.status === '待執行' && !c.executor && st.subject.includes(r)) out.push(['拆解', `「${c.content}」需要新的執行角色`, c.node, { ...t, open: 1 }]);
+  });
+  DB.list('stations', s => s.status === 'started' && s.subject.includes(r)).forEach(st => {
+    const pid = Game.currentProblemId(st);
+    if (Game.readyForHeat(st) && !DB.find('heat', h => h.problemId === pid && h.roleId === r)) out.push(['熱量', '所有挑戰已完成，填寫往後需消耗的總熱量', st.point, { s: 'heat', q: code(pid) }]);
+  });
+  DB.list('bookings', b => b.holder === r && b.result === '待核准').forEach(b => out.push(['兌換', `預約「${b.resource}」待核准（前一天結束時截止）`, b.day, { s: 'bookings', id: b.id }]));
+  return out;
+}
+function nextDeparture(r) {
+  return DB.list('departures', d => d.roleId === r && ['subject', 'queued', 'member'].includes(d.status) && d.point > Clock.now()).sort((a, b) => a.point - b.point)[0] || null;
+}
+function heroHtml() {
+  const r = me(); const R = role(r); const d = nextDeparture(r);
+  if (!d) return `<section class="hero"><div class="small muted">${esc(R.name)}還沒有未來的出發點</div><p style="font-family:var(--serif);font-size:1.2rem;margin:.3em 0">選一個難題，親手寫下你要開始的那一微秒。</p>${LQ('problems', '', '到難題表')}</section>`;
+  const st = DB.get('stations', d.stationId); const hit = st && (st.subject.length + st.queue.length) > 1;
+  return `<section class="hero"><div class="small muted">${esc(R.name)}的下一個出發點${hit ? ' <span class="tag teal">已有熟人對上</span>' : ''}</div>${readout(d.point)}
+    <div class="count" data-count="${d.point}">${esc(countdownText(d.point))}</div>
+    <p class="small">出發點就是你開始挑戰的那一刻。${L('problems', d.problemId, '看這個難題')}　${st ? L('stations', st.id, '看這個出發點') : ''}</p></section>`;
+}
+function simpleSheet(id, headers, rows, numCols = []) {
+  if (!rows.length) return '<div class="empty">目前沒有。</div>';
+  return `<div class="wb"><table class="ws" data-simple="${id}"><thead><tr class="letters"><th class="rn"></th>${headers.map((h, i) => `<th>${colLetter(i)}</th>`).join('')}</tr>
+    <tr class="names"><th class="rn"><span class="small">列</span></th>${headers.map((h, i) => `<th class="${numCols.includes(i) ? 'n' : ''}"><span class="sh" style="cursor:default">${esc(h)}</span></th>`).join('')}</tr></thead>
+    <tbody>${rows.map((r, i) => `<tr><td class="rn">${i + 1}</td>${r.map((c, j) => `<td class="${numCols.includes(j) ? 'n' : ''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function tgtLink(t, text) { return t.q != null ? LQ(t.s, t.q, text) : L(t.s, t.id, text, t.open); }
+function viewTodo() {
+  const td = todos(me()).sort((a, b) => a[2] - b[2]);
+  return heroHtml() + `<div class="sheet-head"><h2>待處理</h2><span class="muted small">${td.length} 件</span></div>` +
+    simpleSheet('todo', ['類別', '事項', '相關時間', '前往'], td.map(([k, t, at, g]) => [esc(k), esc(t), tm(at), tgtLink(g, esc(sheetTitle(g.s)))]));
+}
+
+/* ===================== 人生行事歷（起點） ===================== */
+function pastEvents(r) {
+  const now = Clock.now(); const ev = [];
+  roleProblems(r).forEach(p => ev.push({ t: p.occurredAt, k: 'p', text: '難題：' + p.name, g: { s: 'problems', id: p.id }, dep: !!(p.departureId || p.fusedFrom) }));
+  DB.list('departures', d => d.roleId === r && d.point <= now).forEach(d => ev.push({ t: d.point, k: 'd', text: '出發點（' + (DEP_TEXT[d.status] || '') + '）', g: { s: 'departures', id: d.id } }));
+  DB.list('challenges', c => (c.writer === r || c.executor === r) && c.node <= now).forEach(c => ev.push({ t: c.node, k: 'n', text: '時間節點：' + c.content, g: { s: 'challenges', id: c.id } }));
+  DB.list('bookings', b => (b.holder === r || b.issuer === r) && b.day <= now).forEach(b => ev.push({ t: b.day, k: 'b', text: `兌現：${b.resource}（${b.result}）`, g: { s: 'bookings', id: b.id } }));
+  return ev;
+}
+function viewLife() {
+  const r = me(); const R = role(r); const now = Clock.now(); const np = usParts(now); const age = ageOf(R, now);
+  const ev = pastEvents(r); const byM = {};
+  ev.forEach(e => { const p = usParts(e.t); const k = p.y + '-' + p.mo; (byM[k] = byM[k] || []).push(e); });
+  const d = nextDeparture(r); const nTodo = todos(r).length;
+  let rows = '';
+  for (let a = age; a >= 0; a--) {
+    const y0 = R.birthY + a;
+    let cells = ''; let cnt = 0;
+    for (let m = 1; m <= 12; m++) {
+      const y = m >= R.birthM ? y0 : y0 + 1;
+      const future = y > np.y || (y === np.y && m > np.mo); const before = y < R.birthY || (y === R.birthY && m < R.birthM);
+      const list = byM[y + '-' + m] || []; cnt += list.length;
+      const arrow = list.some(e => e.k === 'p' && e.dep);
+      const lab = list.length ? list.length + (arrow ? '→' : '') : '';
+      const cur = y === np.y && m === np.mo;
+      cells += (future || before) ? `<td class="c off" data-c="${m + 1}"></td>` :
+        `<td class="c ${list.length ? 'has' : ''} ${cur ? 'now' : ''}" data-c="${m + 1}"><button type="button" data-act="calOpen" data-y="${y}" data-m="${m}" aria-label="${y} 年 ${m} 月${list.length ? '，' + list.length + ' 件' : ''}">${lab}</button></td>`;
+    }
+    rows += `<tr data-row data-id="age${a}" data-i="${age - a + 1}"><td class="rn">${age - a + 1}</td><td class="fz" data-c="0"><b>${a} 歲</b></td><td data-c="1" class="n small muted">${y0}${R.birthM === 1 ? '' : '–' + String(y0 + 1).slice(-2)}</td>${cells}<td class="n" data-c="14">${cnt || ''}</td></tr>`;
+  }
+  let month = '';
+  if (UI.calMonth) {
+    const { y, m } = UI.calMonth; const startW = new Date(y, m - 1, 1).getDay(); const days = new Date(y, m, 0).getDate();
+    const list = byM[y + '-' + m] || [];
+    let cells = ['日', '一', '二', '三', '四', '五', '六'].map(x => `<div class="dh">${x}</div>`).join('');
+    for (let i = 0; i < startW; i++) cells += '<div class="dc out"></div>';
+    for (let dd = 1; dd <= days; dd++) {
+      const evs = list.filter(e => usParts(e.t).d === dd);
+      cells += `<div class="dc ${usFrom({ y, mo: m, d: dd }) > now ? 'out' : ''}"><div class="d">${dd}</div>${evs.map(e => `<span class="ev ${e.k}">${L(e.g.s, e.g.id, esc(e.text))}</span>`).join('')}</div>`;
+    }
+    month = `<div class="box" id="monthBox" style="margin-top:12px"><div class="row" style="justify-content:space-between"><h3>${y} 年 ${m} 月</h3><button class="btn sm" data-act="calClose">收起</button></div><div class="month" style="margin-top:6px">${cells}</div></div>`;
+  }
+  const hdr = ['年齡', '年份', ...[...Array(12)].map((_, i) => (i + 1) + '月'), '件數'];
+  return `<div class="sheet-head"><span class="no">起點</span><h2>人生行事歷</h2><span class="muted small">只記錄到今天</span></div>
+    <p class="sheet-desc">縱軸是年齡，從現在往回排到 0 歲；橫軸是月份，每一列涵蓋該年齡的十二個月。有紀錄的格子標出件數，箭頭表示那個月的難題已經寫下出發點。點格子打開那個月的月曆，月曆裡的每件事都能跳到對應的表。</p>
+    <div class="toolbar">${d ? `<span class="small">下一個出發點 ${L('problems', d.problemId, tm(d.point))}，<span data-count="${d.point}">${esc(countdownText(d.point))}</span></span>` : '<span class="small muted">還沒有未來的出發點</span>'}
+    <button class="btn sm" data-act="go" data-s="todo">待處理 ${nTodo} 件</button></div>
+    <div class="wb"><table class="ws life" data-sheet="life"><thead><tr class="letters"><th class="rn"></th>${hdr.map((h, i) => `<th class="${i === 0 ? 'fz' : ''}">${colLetter(i)}</th>`).join('')}</tr>
+    <tr class="names"><th class="rn"><span class="small">列</span></th><th class="fz"><span class="sh" style="cursor:default">年齡</span></th><th><span class="sh" style="cursor:default">年份</span></th>${[...Array(12)].map((_, i) => `<th><span class="sh" style="cursor:default;text-align:center">${i + 1}月</span></th>`).join('')}<th><span class="sh" style="cursor:default">件數</span></th></tr></thead>
+    <tbody>${rows}</tbody></table></div>${month}`;
+}
+
+/* ===================== 挑戰時間軸（未來） ===================== */
+const TL_LEVELS = [['年', 10 * 365 * DAY], ['月', 365 * DAY], ['日', 31 * DAY], ['時', DAY], ['分', HOUR], ['秒', MIN], ['微秒', 1000]];
+const TL_STEPS = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, MIN, 10 * MIN, HOUR, 6 * HOUR, DAY, 7 * DAY, 30 * DAY, 365 * DAY];
+const TL_KIND = { dep: '我的出發點', hit: '碰撞的出發點', node: '時間節點', bk: '兌現預約' };
+function tlItems(r) {
+  const now = Clock.now(); const out = [];
+  DB.list('departures', d => d.roleId === r && ['subject', 'queued', 'member'].includes(d.status) && d.point > now).forEach(d => {
+    const st = DB.get('stations', d.stationId); const hit = st && (st.subject.length + st.queue.length) > 1;
+    out.push({ t: d.point, k: hit ? 'hit' : 'dep', text: (DB.get('problems', d.problemId) || {}).name, g: st ? { s: 'stations', id: st.id } : { s: 'departures', id: d.id }, who: '' });
+  });
+  DB.list('challenges', c => c.node > now && c.status !== '完成').forEach(c => {
+    const st = DB.get('stations', c.stationId); if (!st || !insider(st, r)) return;
+    out.push({ t: c.node, k: 'node', text: c.content, g: { s: 'challenges', id: c.id }, who: c.executor ? roleName(c.executor) : '待指定' });
+  });
+  DB.list('bookings', b => (b.holder === r || b.issuer === r) && b.day + DAY > now && ['待核准', '核准'].includes(b.result)).forEach(b => out.push({ t: Math.max(b.day, now + 1), k: 'bk', text: `${b.resource}（${b.result}）`, g: { s: 'bookings', id: b.id }, who: roleName(b.issuer) }));
+  return out.sort((a, b) => a.t - b.t);
+}
+function tlWindow() {
+  const now = Clock.now(); const tl = UI.tl;
+  if (tl.center == null) tl.center = now + tl.span / 2 - tl.span * 0.05;
+  let start = tl.center - tl.span / 2; if (start < now - tl.span * 0.05) { start = now - tl.span * 0.05; tl.center = start + tl.span / 2; }
+  return { start, end: start + tl.span };
+}
+function tickLabel(t, step) {
+  const p = usParts(t);
+  if (step >= DAY) return `${p.y}-${pad(p.mo)}-${pad(p.d)}`;
+  if (step >= MIN) return `${pad(p.mo)}/${pad(p.d)} ${pad(p.h)}:${pad(p.mi)}`;
+  if (step >= SEC) return `${pad(p.h)}:${pad(p.mi)}:${pad(p.s)}`;
+  return `${pad(p.s)}.${pad(p.micro, 6)}`;
+}
+function renderTimeline() {
+  const el = $('#tl'); if (!el) return;
+  const { start, end } = tlWindow(); const span = end - start; const W = el.clientWidth || 600;
+  const step = TL_STEPS.find(s => span / s <= Math.max(3, Math.floor(W / 110))) || 365 * DAY;
+  const tz = -new Date().getTimezoneOffset() * MIN;
+  const first = step >= HOUR ? Math.floor((start + tz) / step) * step - tz : Math.floor(start / step) * step;
+  let h = '';
+  for (let t = first; t <= end; t += step) { if (t < start) continue; h += `<div class="tick" style="left:${((t - start) / span * 100).toFixed(4)}%"><span>${esc(tickLabel(t, step))}</span></div>`; }
+  const now = Clock.now();
+  if (now >= start && now <= end) h += `<div class="now" style="left:${((now - start) / span * 100).toFixed(4)}%" title="現在"></div>`;
+  const items = tlItems(me());
+  items.forEach((it, i) => { if (it.t < start || it.t > end) return; h += `<button class="mk ${it.k}" style="left:${((it.t - start) / span * 100).toFixed(4)}%" data-act="tlSel" data-i="${i}" title="${esc(fmtUs(it.t) + ' ' + TL_KIND[it.k] + '：' + it.text)}" aria-label="${esc(TL_KIND[it.k] + '：' + it.text)}"></button>`; });
+  h += `<div class="range">${esc(fmtUs(start))} ～ ${esc(fmtUs(end))}</div>`;
+  el.innerHTML = h;
+  const lvl = TL_LEVELS.reduce((a, b) => Math.abs(Math.log(b[1] / UI.tl.span)) < Math.abs(Math.log(a[1] / UI.tl.span)) ? b : a);
+  document.querySelectorAll('[data-act="tlLevel"]').forEach(b => b.setAttribute('aria-pressed', b.dataset.l === lvl[0] ? 'true' : 'false'));
+  const inWin = items.map((it, i) => ({ ...it, i })).filter(it => it.t >= start && it.t <= end);
+  const sel = UI.tlSel != null ? items[UI.tlSel] : null;
+  const row = it => [tm(it.t), TL_KIND[it.k], tgtLink(it.g, esc(it.text)), esc(it.who || ''), `<button class="btn sm" data-act="tlFocus" data-i="${it.i}">放大到微秒</button>`];
+  $('#tlList').innerHTML = (sel ? `<div class="note"><span class="num">${esc(fmtUs(sel.t))}</span>　${TL_KIND[sel.k]}：${tgtLink(sel.g, esc(sel.text))}</div>` : '') +
+    `<h3 style="margin:8px 0 4px">這個範圍內（${inWin.length}）</h3>` + simpleSheet('tlwin', ['時間', '類型', '內容', '負責／對象', ''], inWin.map(row)) +
+    `<h3 style="margin:12px 0 4px">全部未來項目（${items.length}）</h3>` + simpleSheet('tlall', ['時間', '類型', '內容', '負責／對象', ''], items.map((it, i) => row({ ...it, i })));
+}
+function viewTimeline() {
+  return `<div class="sheet-head"><h2>挑戰時間軸</h2><span class="muted small">只放未來</span></div>
+    <p class="sheet-desc">只顯示你寫下的出發點、已和你碰撞的出發點、你參與的時間節點與兌換預約。其他玩家的出發點是暗號，不會出現在這裡。滑鼠滾輪或雙指可以縮放，拖曳可以平移；時間過去後，項目會移到人生行事歷。</p>
+    <div class="tl-bar">${TL_LEVELS.map(([l]) => `<button class="btn sm" data-act="tlLevel" data-l="${l}">${l}</button>`).join('')}<button class="btn sm" data-act="tlNow">回到現在</button></div>
+    <div class="tl" id="tl" aria-label="挑戰時間軸"></div>
+    <div class="legend"><span><i style="background:var(--brass)"></i>我的出發點</span><span><i style="background:var(--teal)"></i>碰撞的出發點</span><span><i style="background:var(--blue);border-radius:2px"></i>時間節點</span><span><i style="background:var(--rose);border-radius:1px"></i>兌現預約</span></div>
+    <div id="tlList"></div>`;
+}
+function bindTimeline() {
+  const el = $('#tl'); if (!el || el._bound) return; el._bound = true;
+  const pts = new Map(); let last = null;
+  const zoomAt = (factor, xFrac) => {
+    const { start } = tlWindow(); const anchor = start + UI.tl.span * xFrac;
+    UI.tl.span = Math.min(40 * 365 * DAY, Math.max(20, UI.tl.span * factor));
+    UI.tl.center = anchor - UI.tl.span * xFrac + UI.tl.span / 2; renderTimeline();
+  };
+  el.addEventListener('wheel', e => { e.preventDefault(); const r = el.getBoundingClientRect(); zoomAt(e.deltaY > 0 ? 1.25 : 0.8, (e.clientX - r.left) / r.width); }, { passive: false });
+  el.addEventListener('pointerdown', e => { if (e.target.closest('.mk')) return; el.setPointerCapture(e.pointerId); pts.set(e.pointerId, e.clientX); last = null; });
+  el.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return; const r = el.getBoundingClientRect();
+    if (pts.size === 1) { const dx = e.clientX - pts.get(e.pointerId); UI.tl.center -= dx / r.width * UI.tl.span; pts.set(e.pointerId, e.clientX); renderTimeline(); }
+    else if (pts.size === 2) { pts.set(e.pointerId, e.clientX); const xs = [...pts.values()]; const dist = Math.abs(xs[0] - xs[1]) || 1; if (last) zoomAt(last / dist, ((xs[0] + xs[1]) / 2 - r.left) / r.width); last = dist; }
+  });
+  const up = e => { pts.delete(e.pointerId); last = null; };
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+}
+
+/* ===================== 設定 ===================== */
+function viewSettings() {
+  const now = Clock.now();
+  return `<div class="sheet-head"><h2>設定</h2></div>
+    <section class="sec"><h3>模擬時間</h3><p class="small muted">把系統時間往後快轉，用來測試出發點到達、排隊超時、預約截止。已經發生的事不會因為倒轉而撤銷。</p>
+    <p class="num">目前：${esc(fmtUs(now))}${Clock.offset ? `（快轉 ${esc(humanSpan(Math.abs(Clock.offset)))}）` : '（真實時間）'}</p>
+    <div class="row"><button class="btn" data-act="sim" data-d="${HOUR}">＋1 小時</button><button class="btn" data-act="sim" data-d="${DAY}">＋1 天</button><button class="btn" data-act="sim" data-d="${7 * DAY}">＋7 天</button><button class="btn" data-act="sim" data-d="${30 * DAY}">＋30 天</button><button class="btn warn" data-act="simReset">回到真實時間</button></div>
+    <form onsubmit="return false" style="margin-top:10px"><div class="small muted">跳到指定時間</div>${pointInput('sim', now + DAY)}<button type="button" class="btn" data-act="simTo" style="margin-top:8px">跳到這個時間</button></form></section>
+    <section class="sec"><h3>資料</h3><p class="small muted">這一版資料存在這個瀏覽器，手機和電腦不互通。用匯出與匯入在兩端之間搬資料。資料格式版本：${SCHEMA_VERSION}。待上傳佇列：${Store.data.pendingUploads.length} 筆（日後接上伺服器時使用）。角色與常用尾數在各自的工作表裡管理。</p>
+    <div class="row"><button class="btn pri" data-act="export">匯出 JSON</button><button class="btn" data-act="importDlg">匯入 JSON</button><button class="btn" data-act="reseed">重設為示範資料</button><button class="btn warn" data-act="wipe">清空全部資料</button></div>
+    <div id="exportBox"></div></section>
+    <section class="sec"><h3>外觀</h3><div class="row"><button class="btn" data-act="theme" data-v="">跟隨系統</button><button class="btn" data-act="theme" data-v="light">淺色</button><button class="btn" data-act="theme" data-v="dark">深色</button></div></section>`;
+}
+function humanSpan(us) { const d = Math.floor(us / DAY); const h = Math.floor((us % DAY) / HOUR); const m = Math.floor((us % HOUR) / MIN); return (d ? d + ' 天 ' : '') + (h ? h + ' 小時 ' : '') + (!d && !h ? m + ' 分' : ''); }
+
+/* ===================== 紙本 ===================== */
+const ptBoxes = () => `<span class="fill" style="min-width:16mm"></span> 年 <span class="fill"></span> 月 <span class="fill"></span> 日 <span class="fill"></span> 時 <span class="fill"></span> 分 <span class="fill"></span> 秒 ` + '<span class="box"></span>'.repeat(6) + ' 微秒';
+function page(title, inner, sec, no) {
+  return `<section class="page">${title ? `<h2>${title}</h2>` : ''}${inner}<div class="foot"><span>到達那微秒｜${sec}</span><span>${no ? '第 ' + no + ' 頁' : ''}</span></div></section>`;
+}
+function blankTable(headers, n, tall) {
+  return `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${`<tr>${headers.map(() => `<td class="${tall ? 'tall' : ''}">&nbsp;</td>`).join('')}</tr>`.repeat(n)}</tbody></table>`;
+}
+const HANDBOOK = [
+  ['封面', () => `<div class="cover"><div class="big">到達那微秒</div><p style="font-size:15pt;margin-top:8mm">一款拿真實難題當關卡的合作遊戲</p><p style="margin-top:20mm">角色名稱：<span class="fill" style="min-width:70mm"></span></p><p>出生年月：<span class="fill" style="min-width:25mm"></span> 年 <span class="fill"></span> 月</p><p style="margin-top:14mm;font-size:11pt">這本手冊只給你自己看。要給別人看的規則表，在活頁單張裡。</p></div>`],
+  ['遊戲說明與用語', () => `<p>難題是真的，隊友是真的。怎麼合作、怎麼算分，由玩家自己訂規則。</p>
+    <table><tbody>
+    <tr><th style="width:26mm">難題</th><td>你無法處理的情況。往後要為它付出多少熱量，還是未知數。</td></tr>
+    <tr><th>挑戰</th><td>把未知變成已知的方法。難題拆解後的每個步驟就是一個挑戰。</td></tr>
+    <tr><th>完成</th><td>難題被處理到「能算出往後需消耗的熱量」。</td></tr>
+    <tr><th>出發點</th><td>你親手定下、精確到微秒的開始時刻。對自己是承諾，對熟人是暗號。</td></tr>
+    <tr><th>常用尾數</th><td>你固定使用的秒數與微秒。熟人知道它，就能一直跟你對上。</td></tr>
+    <tr><th>主體</th><td>第一個寫下出發點的角色。每融合一人，那人就加入主體。</td></tr>
+    <tr><th>對接條件</th><td>寫在難題上，決定誰能排隊加入。只看對方的規則表。</td></tr>
+    <tr><th>對接</th><td>主體和下一位比對規則表，談妥共同規則。談不攏就不合作。</td></tr>
+    <tr><th>共同規則</th><td>主體所有成員共用的規則，至少包含僵局處理、解釋權、排隊規則。</td></tr>
+    <tr><th>時間節點</th><td>每個挑戰的時間點，不可早於出發點。執行者就是負責角色。</td></tr>
+    <tr><th>題點</th><td>寫出能用的挑戰時獲得，由執行者發給你。</td></tr>
+    <tr><th>戰點</th><td>完成挑戰時獲得，由寫出挑戰的人發給你。</td></tr>
+    <tr><th>能量點</th><td>點數兌換的對象，代表一個人一天的熱量。每人每天最多分給別人 ${DAILY_CAP} 大卡。</td></tr>
+    <tr><th>解釋權</th><td>規則文字有歧義時，由誰決定怎麼解釋。</td></tr>
+    </tbody></table><p style="margin-top:4mm"><b>出發點就是你開始挑戰的那一刻。</b></p>`],
+  ['流程說明', () => `<ol style="padding-left:6mm">
+    <li>建立角色，寫下出生年月，填好規則表。</li>
+    <li>在人生行事歷記下難題發生的時間，並填進難題表。</li>
+    <li>為難題寫下出發點。和熟人約好同一個出發點，就會碰撞。</li>
+    <li>碰撞後，第一個寫下的人是主體，其他人依寫下的先後排隊。不符合難題對接條件的人，出發點不成立。排隊前可以先看主體的規則與對接條件。</li>
+    <li>主體一次只和一位對接：先談共同規則，再把難題融合。主體多人時，所有決定都要全員同意。</li>
+    <li>出發點一到，融合結束；還在排隊的人自動退出。主體只有一人時，難題擱置。</li>
+    <li>把融合後的難題拆成挑戰。每個挑戰由兩位不同的成員合作，並談好題點、戰點數量。</li>
+    <li>執行者接下挑戰時發出題點；雙方判定完成時，寫出者發出戰點。有爭議依共同規則。</li>
+    <li>所有挑戰完成後，每位成員寫下自己往後需消耗的熱量，全部寫完才算完成。</li>
+    <li>要用資源時，填兌換預約單。兌現日前一天結束時截止，依對方的兌換優先排序核准。</li>
+    <li>任何時候都可以退出。退出前，先處理完你已提交的判定。</li></ol>
+    <p>把紙本交給會用網站的人代為登錄時，表號與欄位名稱都和網站一致。出發點以代登者送出的時間判定先後。</p>`],
+  ['規則公式的寫法與範例', () => `<p>凡是影響能量點的規則，都要寫成能算出確定數字的公式。同樣的輸入，一定得到同樣的結果。</p>
+    <table><tbody><tr><th style="width:50%">不能生效</th><th>可以生效</th></tr>
+    <tr><td>表現好的話，我會多給一點。</td><td>每 10 題點換 50 大卡；合作滿 30 天後，每 10 題點換 60 大卡。</td></tr>
+    <tr><td>看情況決定誰先換。</td><td>預約依合作天數由多到少排序；天數相同時，先預約者優先。</td></tr>
+    <tr><td>看起來可靠的人才能找到我。</td><td>對方的題點每點可換大卡，大於等於 4。</td></tr></tbody></table>
+    <h2 style="margin-top:8mm">填空練習</h2>
+    <p>題點兌換：每 <span class="fill"></span> 點換 <span class="fill"></span> 大卡</p>
+    <p>題點函數：合作每滿 <span class="fill"></span> 天，比例提高 <span class="fill"></span> %，最多提高 <span class="fill"></span> %</p>
+    <p>資源：<span class="fill" style="min-width:50mm"></span>，需要 <span class="fill"></span> 大卡</p>
+    <p>疊加：□ 可以合併多批點數兌現一個資源　□ 不可以</p>`],
+  ['人生行事歷（0–49 歲）', () => lifePaper(0, 49)],
+  ['人生行事歷（50–99 歲）', () => lifePaper(50, 99)],
+  ['表 I　難題表', () => blankTable(['難題編號', '適用規則', '名稱', '情況', '目標', '參與角色', '發生時間', '出發點', '狀態', '對接條件'], 9, true)],
+  ['對接條件填寫頁', () => `<p>每個難題可以設定對接條件，決定誰能排隊加入。條件只看對方的規則表，多條須全部符合。不填代表所有碰撞者都能排隊。</p>
+    <table><tbody><tr><th style="width:26mm">難題編號</th><td></td><th style="width:22mm">難題名稱</th><td></td></tr></tbody></table>
+    ${[1, 2, 3, 4, 5].map(i => `<p style="margin-top:4mm">${i}. □ 題點每點可換大卡　□ 戰點每點可換大卡　□ 可疊加　□ 資源清單包含「<span class="fill" style="min-width:28mm"></span>」　□ 資源項目數　□ 規則版本維持天數　□ 僵局處理與主體相同　□ 與主體的合作天數<br>　□ 大於等於　□ 小於等於　□ 等於　<span class="fill"></span>　　主體成員：□ 每一位　□ 任一位</p>`).join('')}
+    <p style="margin-top:6mm;font-size:11pt">例：題點每點可換大卡　大於等於　30。碰撞時與對接時各檢查一次，不符合的人出發點不成立。</p>`],
+  ['常用尾數紀錄（私人）', () => `<p>和誰約好的尾數，只寫在這裡，不要寫在規則表上。</p><table><thead><tr><th style="width:40mm">秒</th><th>微秒（六位數）</th><th>和誰約好</th></tr></thead><tbody>${`<tr><td class="tall"></td><td>${'<span class="box"></span>'.repeat(6)}</td><td></td></tr>`.repeat(10)}</tbody></table>`]
+];
+function lifePaper(a0, a1) {
+  let g = `<div class="life-p"><div><b>歲</b></div>${[...Array(12)].map((_, i) => `<div><b>${i + 1}</b></div>`).join('')}`;
+  for (let a = a0; a <= a1; a++) g += `<div>${a}</div>` + '<div></div>'.repeat(12);
+  return `<p style="font-size:10pt">每一列是一個年齡，每一格是一個月。發生難題的月份畫一個點；寫下出發點後，在點旁畫一個箭頭。</p>${g}</div>`;
+}
+function multiCopy(title, rowsHtml, copies) {
+  return copies.map((c, i) => `<div class="copy"><div style="display:flex;justify-content:space-between"><b>${title}</b><span>第 ${i + 1} 聯：${c}</span></div>${rowsHtml}</div>${i < copies.length - 1 ? '<div class="cut">沿虛線剪開，各自保存</div>' : ''}`).join('');
+}
+const LOOSE = [
+  ['表 X　角色登記表', () => blankTable(['角色編號', '名稱', '所屬帳號', '出生年月'], 14, true)],
+  ['表 II　規則表', () => `<p style="font-size:10pt">每個角色一張。這張可以給別人看，唯「可見條件」只給符合條件的人看。</p><table><tbody>
+    <tr><th style="width:30mm">規則編號</th><td></td><th style="width:22mm">角色</th><td></td></tr>
+    <tr><th>題點兌換</th><td colspan="3">每 <span class="fill"></span> 點換 <span class="fill"></span> 大卡</td></tr>
+    <tr><th>戰點兌換</th><td colspan="3">每 <span class="fill"></span> 點換 <span class="fill"></span> 大卡</td></tr>
+    <tr><th>題點函數</th><td colspan="3">□ 不變　□ 合作每滿 <span class="fill"></span> 天，提高 <span class="fill"></span> %，最多 <span class="fill"></span> %</td></tr>
+    <tr><th>戰點函數</th><td colspan="3">□ 不變　□ 合作每滿 <span class="fill"></span> 天，提高 <span class="fill"></span> %，最多 <span class="fill"></span> %</td></tr>
+    <tr><th>疊加</th><td colspan="3">□ 可以合併多批點數兌現一個資源　□ 不可以</td></tr>
+    <tr><th>資源</th><td colspan="3">1. <span class="fill" style="min-width:45mm"></span> <span class="fill"></span> 大卡　2. <span class="fill" style="min-width:45mm"></span> <span class="fill"></span> 大卡<br>3. <span class="fill" style="min-width:45mm"></span> <span class="fill"></span> 大卡　4. <span class="fill" style="min-width:45mm"></span> <span class="fill"></span> 大卡</td></tr>
+    <tr><th>兌換優先</th><td colspan="3">□ 依預約先後　□ 合作天數多者優先　□ 所需能量點少者優先</td></tr>
+    <tr><th>僵局處理</th><td colspan="3">□ 找第三方仲裁　□ 擱置　□ 重新拆解　□ 自訂：<span class="fill" style="min-width:40mm"></span></td></tr>
+    <tr><th>退出處理</th><td colspan="3">□ 難題擱置　□ 由排隊第一位接手成為主體</td></tr>
+    <tr><th>排隊規則</th><td colspan="3">最多 <span class="fill"></span> 位，每位最多等 <span class="fill"></span> 天</td></tr>
+    <tr><th>解釋權</th><td colspan="3">□ 規則發出者　□ 雙方共同　□ 第三方：<span class="fill" style="min-width:40mm"></span></td></tr>
+    <tr><th>可見條件</th><td colspan="3">1. <span class="fill" style="min-width:40mm"></span> □大於等於 □小於等於 □等於 <span class="fill"></span><br>2. <span class="fill" style="min-width:40mm"></span> □大於等於 □小於等於 □等於 <span class="fill"></span></td></tr>
+    </tbody></table>`],
+  ['表 III　規則版本表', () => blankTable(['版本號', '角色', '日期', '規則紀錄（該版完整設定）'], 12, true)],
+  ['表 IV　對接紀錄表（三聯）', () => multiCopy('對接紀錄', `<table><tbody><tr><th style="width:26mm">對接編號</th><td></td><th style="width:18mm">輪次</th><td></td></tr><tr><th>出發點</th><td colspan="3">${ptBoxes()}</td></tr>
+    <tr><th>主體成員</th><td colspan="3"></td></tr><tr><th>對接角色</th><td></td><th>日期</th><td></td></tr><tr><th>當輪對接條件</th><td colspan="3" class="tall"></td></tr><tr><th>共同規則</th><td colspan="3" class="tall">僵局處理：　　　　解釋權：　　　　排隊：最多　位，等　天</td></tr>
+    <tr><th>結果</th><td colspan="3">□ 合作　□ 不合作　　全員簽名：</td></tr></tbody></table>`, ['主體保存', '對接角色保存', '代登用'])],
+  ['表 V　融合紀錄表（三聯）', () => multiCopy('融合紀錄', `<table><tbody><tr><th style="width:30mm">融合編號</th><td></td><th style="width:24mm">對接編號</th><td></td></tr><tr><th>融合前難題</th><td colspan="3" class="tall"></td></tr>
+    <tr><th>融合後難題</th><td colspan="3" class="tall"></td></tr><tr><th>融合後主體成員</th><td colspan="3"></td></tr><tr><th>融合後對接條件</th><td colspan="3" class="tall"></td></tr><tr><th>日期</th><td colspan="3"></td></tr></tbody></table>`, ['主體保存', '新加入者保存', '代登用'])],
+  ['表 VI　拆解時間節點表', () => blankTable(['難題編號', '步驟', '挑戰內容', '時間節點（到微秒）', '寫出挑戰的角色', '執行角色（負責角色）', '題點數量', '戰點數量', '狀態'], 10, true)],
+  ['表 VII　難題熱量表', () => blankTable(['難題編號', '角色', '往後需消耗熱量（大卡）'], 16, true)],
+  ['表 VIII　點數紀錄簿', () => blankTable(['點數批號', '類型', '發出者', '持有者', '數量', '剩餘數量', '發出版本號', '發出日期', '來源挑戰'], 16, true)],
+  ['表 IX　兌換預約單', () => [1, 2].map(() => `<div class="copy"><table><tbody><tr><th style="width:28mm">預約編號</th><td></td><th style="width:24mm">預約時間</th><td></td></tr>
+    <tr><th>持有者</th><td></td><th>發出者</th><td></td></tr><tr><th>兌現日</th><td></td><th>兌現資源</th><td></td></tr><tr><th>所需能量點</th><td colspan="3"><span class="fill"></span> 大卡</td></tr>
+    <tr><th>使用點數明細</th><td colspan="3" class="tall">批號／數量／採用版本（發出版本或當前版本）<br><br></td></tr><tr><th>疊加</th><td>□ 是 □ 否</td><th>結果</th><td>□ 核准 □ 未核准</td></tr></tbody></table></div>`).join('<div class="cut">沿虛線剪開</div>')]
+];
+function statementHtml(rid, from, to, blank) {
+  const head = `<table><tbody><tr><th style="width:28mm">角色</th><td>${blank ? '' : esc(roleName(rid))}</td><th style="width:22mm">期間</th><td>${blank ? '<span class="fill"></span> ～ <span class="fill"></span>' : esc(fmtDay(from)) + ' ～ ' + esc(fmtDay(to))}</td></tr></tbody></table>`;
+  if (blank) return head + `<h2 style="margin-top:6mm">持有的點數</h2>${blankTable(['點數批號', '類型', '發出者', '剩餘數量', '發出版本號'], 6)}
+    <h2 style="margin-top:6mm">兌換預約紀錄</h2>${blankTable(['兌現日', '發出者', '資源', '所需能量點', '點數批號與採用版本', '疊加', '結果'], 6)}
+    <h2 style="margin-top:6mm">每日分出的能量點</h2>${blankTable(['日期', '已核准分出', `上限 ${DAILY_CAP}`], 5)}`;
+  const held = DB.list('batches', b => b.holder === rid);
+  const bks = DB.list('bookings', b => b.holder === rid && b.day >= from && b.day <= to);
+  const out = DB.list('bookings', b => b.issuer === rid && b.result === '核准' && b.day >= from && b.day <= to);
+  const days = [...new Set(out.map(b => b.day))].sort((a, b) => a - b);
+  const bal = {}; held.forEach(b => { const k = roleName(b.issuer) + ' 的' + b.type; bal[k] = (bal[k] || 0) + b.remaining; });
+  const t = (h, rows) => `<table><thead><tr>${h.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${h.length}">期間內沒有資料</td></tr>`}</tbody></table>`;
+  return head + `<h2 style="margin-top:6mm">持有的點數（各批）</h2>` + t(['點數批號', '類型', '發出者', '數量', '剩餘', '凍結', '發出版本號'], held.map(b => [b.id.slice(-6), b.type, esc(roleName(b.issuer)), b.n, b.remaining, b.frozen, 'v' + b.version])) +
+    `<h2 style="margin-top:6mm">兌換預約紀錄</h2>` + t(['兌現日', '發出者', '資源', '所需能量點', '使用點數（批號／數量／版本）', '疊加', '結果'], bks.map(b => [fmtDay(b.day), esc(roleName(b.issuer)), esc(b.resource), b.cost, b.uses.map(u => `${u.batchId.slice(-6)}／${u.n}／v${u.versionNo}`).join('<br>'), b.stack ? '是' : '否', b.result])) +
+    `<h2 style="margin-top:6mm">目前餘額</h2>` + t(['點數來源', '剩餘可用'], Object.entries(bal).map(([k, v]) => [esc(k), v])) +
+    `<h2 style="margin-top:6mm">每日分出的能量點</h2>` + t(['日期', '已核准分出', '上限'], days.map(d => [fmtDay(d), out.filter(b => b.day === d).reduce((s, b) => s + b.cost, 0) + ' 大卡', DAILY_CAP + ' 大卡']));
+}
+function buildPages(kind, opts) {
+  if (kind === 'handbook') return HANDBOOK.map(([t, f], i) => page(i === 0 ? '' : t, f(), '個人手冊', i + 1)).join('');
+  if (kind === 'loose') return LOOSE.map(([t, f]) => page(t, f(), '活頁單張')).join('');
+  if (kind.startsWith('loose:')) { const it = LOOSE[+kind.split(':')[1]]; return page(it[0], it[1](), '活頁單張'); }
+  if (kind === 'statement') return page('對帳單', statementHtml(opts.role, opts.from, opts.to, false), '對帳單');
+  if (kind === 'statementBlank') return page('對帳單（手寫版）', statementHtml(null, 0, 0, true), '對帳單');
+  return '';
+}
+function viewPaper() {
+  const r = me(); const now = Clock.now();
+  return `<section class="sec"><h2>紙本</h2><p class="small muted">給不會使用網路的人。表號與欄位名稱都和網站一致，方便由他人代為登錄。字比較大，格子也夠寫。</p>
+    <div class="note">列印時選 A4、邊界設為「無」。手機上可在列印畫面選「存成 PDF」。如果這裡無法直接列印，可以下載列印檔，用瀏覽器打開後再列印。</div></section>
+    <section class="sec"><h3>個人手冊（可裝訂成書）</h3><p class="small muted">頁序：${HANDBOOK.map((h, i) => `${i + 1}. ${h[0]}`).join('　')}。依頁碼疊好，用長尾夾或騎馬釘裝訂。</p>
+    <div class="row"><button class="btn" data-act="pvw" data-k="handbook">預覽</button><button class="btn pri" data-act="prt" data-k="handbook">列印</button><button class="btn" data-act="dlp" data-k="handbook">下載列印檔</button></div></section>
+    <section class="sec"><h3>活頁單張</h3><div class="paper-list">${LOOSE.map((l, i) => `<div class="paper-item"><b>${l[0]}</b><div class="row" style="margin-top:8px"><button class="btn sm" data-act="pvw" data-k="loose:${i}">預覽</button><button class="btn sm pri" data-act="prt" data-k="loose:${i}">列印</button></div></div>`).join('')}</div>
+    <div class="row" style="margin-top:10px"><button class="btn" data-act="prt" data-k="loose">全部列印</button><button class="btn" data-act="dlp" data-k="loose">下載全部列印檔</button></div></section>
+    <section class="sec"><h3>對帳單</h3><form class="grid2" onsubmit="return false" id="stF">
+      <label class="f"><span>角色</span><select name="role">${roleOptions(DB.list('roles', x => x.accountId === role(r).accountId).map(x => x.id), r)}</select></label>
+      <label class="f"><span>起日</span><input type="date" name="from" value="${fmtDay(addDays(now, -60))}"></label><label class="f"><span>迄日</span><input type="date" name="to" value="${fmtDay(addDays(now, 30))}"></label></form>
+    <div class="row"><button class="btn" data-act="pvw" data-k="statement">預覽</button><button class="btn pri" data-act="prt" data-k="statement">列印</button><button class="btn" data-act="pvw" data-k="statementBlank">空白手寫版</button><button class="btn" data-act="prt" data-k="statementBlank">列印空白版</button></div></section>
+    <section class="sec" id="pvSec" ${UI.paper ? '' : 'hidden'}><div class="sec-h"><h3>預覽</h3><button class="btn sm" data-act="pvClose">收起</button></div><div class="preview-wrap"><div id="preview">${UI.paper ? buildPages(UI.paper.k, UI.paper.o) : ''}</div></div></section>`;
+}
+function statementOpts() { const f = $('#stF'); if (!f) return null; const v = formVals(f); const d = s => { const [y, m, dd] = s.split('-').map(Number); return usFrom({ y, mo: m, d: dd }); }; return { role: v.role, from: d(v.from), to: d(v.to) + DAY - 1 }; }
+function printPages(html) {
+  $('#print').innerHTML = html; document.body.classList.add('printing');
+  const done = () => { document.body.classList.remove('printing'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  try { window.print(); } catch (e) { done(); alertBox('無法直接列印', '這個環境不允許直接列印，請改用「下載列印檔」。'); }
+  setTimeout(() => { if (document.body.classList.contains('printing')) done(); }, 60000);
+}
+function standaloneHtml(html) {
+  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+  return `<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>到達那微秒 紙本</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet"><style>${css}
+body{background:#ddd} #print{display:block} #print .page{margin:0 auto 10mm} @media print{#print .page{margin:0}}</style></head><body><div id="print">${html}</div></body></html>`;
+}
+
+/* ===================== 分頁、跳轉與返回 ===================== */
+function renderTabs() {
+  $('#tabs').innerHTML = TABS.map(k => {
+    if (k === '|') return '<span class="sep" aria-hidden="true"></span>';
+    const S = SHEETS[k];
+    return `<a href="#/${k}" data-act="go" data-s="${k}" ${UI.sheet === k ? 'aria-current="page"' : ''}>${S.no ? `<b>${S.no}</b>` : ''}${esc(S.name)}</a>`;
+  }).join('');
+  const cur = $('#tabs [aria-current]'); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  const sel = $('#roleSel');
+  sel.innerHTML = DB.list('accounts').map(a => `<optgroup label="${esc(a.name)}">${DB.list('roles', r => r.accountId === a.id).map(r => `<option value="${r.id}" ${r.id === me() ? 'selected' : ''}>以「${esc(r.name)}」遊玩</option>`).join('')}</optgroup>`).join('');
+  $('#backBtn').disabled = !UI.hist.length;
+}
+function hashOf(t) { return '#/' + t.s + (t.id ? '/' + encodeURIComponent(t.id) : '') + (t.open ? '/open' : '') + (t.q != null ? '?q=' + encodeURIComponent(t.q) : ''); }
+function navigate(t) {
+  const h = hashOf(t);
+  UI.hist.push(location.hash || '#/' + UI.sheet); if (UI.hist.length > 60) UI.hist.shift();
+  if (location.hash === h) { route(); render(); } else location.hash = h;
+}
+function route() {
+  const raw = (location.hash || '').replace(/^#\/?/, '');
+  const [path, query] = raw.split('?'); const parts = path.split('/').filter(Boolean);
+  const s = SHEETS[parts[0]] ? parts[0] : 'life';
+  UI.sheet = s; UI.focus = null;
+  if (parts[1]) {
+    const id = decodeURIComponent(parts[1]); UI.focus = id;
+    if (parts[2] === 'open') (UI.open[s] = UI.open[s] || new Set()).add(id);
+    const st = UI.sheets[s]; if (st && st.q) st.q = '';
+  }
+  const m = (query || '').match(/(?:^|&)q=([^&]*)/);
+  if (m) (UI.sheets[s] = UI.sheets[s] || {}).q = decodeURIComponent(m[1]);
+}
+function focusRow() {
+  if (!UI.focus) return;
+  const tr = document.querySelector(`.ws[data-sheet="${UI.sheet}"] tr[data-row][data-id="${CSS.escape(UI.focus)}"]`);
+  if (!tr) { toast('你目前看不到這一列'); UI.focus = null; return; }
+  tr.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+  tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash');
+  const td = tr.querySelector('td[data-c="0"]'); if (td) selectCell(td);
+  UI.focus = null;
+}
+window.addEventListener('hashchange', () => { route(); render(); });
+$('#backBtn').addEventListener('click', () => { const h = UI.hist.pop(); if (h == null) return; if (location.hash === h) { route(); render(); } else { location.hash = h; } setTimeout(() => { $('#backBtn').disabled = !UI.hist.length; }, 0); });
+$('#roleSel').addEventListener('change', e => { Store.data.meta.currentRole = e.target.value; UI.bk = null; UI.addCh = null; UI.ruleEdit = false; Game.commit(); render(); toast('已切換為 ' + roleName(me())); });
+
+/* ===================== 繪製 ===================== */
+function renderMain() {
+  const sk = UI.sheet; const S = SHEETS[sk];
+  let h;
+  if (sk === 'life') h = viewLife();
+  else if (sk === 'timeline') h = viewTimeline();
+  else if (sk === 'todo') h = viewTodo();
+  else if (sk === 'paper') h = viewPaper();
+  else if (sk === 'settings') h = viewSettings();
+  else h = `<div class="sheet-head">${S.no ? `<span class="no">表 ${S.no}</span>` : ''}<h2>${esc(S.name)}</h2></div>${S.desc ? `<p class="sheet-desc">${S.desc}</p>` : ''}` +
+    (sk === 'paths' ? `<div class="toolbar"><button class="btn sm" data-act="exportPaths">匯出路徑圖 JSON</button></div>` : '') + renderSheet(sk);
+  $('#main').innerHTML = h;
+  document.querySelectorAll('.pt-in').forEach(updatePreview);
+  if (S.cols) applyFilter(sk);
+  if (sk === 'rules' && UI.ruleEdit) updateTry();
+  if (sk === 'timeline') { bindTimeline(); renderTimeline(); }
+  $('#nameBox').textContent = (S.no ? S.no : S.name); $('#fxVal').textContent = ''; $('#nameBox').title = sheetTitle(sk);
+  paintClock();
+}
+function render() {
+  if (!me() || !role(me())) Store.data.meta.currentRole = (DB.list('roles')[0] || {}).id;
+  buildCodes();
+  const scroll = $('#main').scrollTop; const same = render._last === UI.sheet;
+  renderTabs(); renderMain();
+  if (same && !UI.focus) $('#main').scrollTop = scroll; else if (!UI.focus) $('#main').scrollTop = 0;
+  render._last = UI.sheet;
+  focusRow();
+}
+
+/* ===================== 時鐘 ===================== */
+function paintClock() {
+  const f = fmtUs(Clock.now()).split('.');
+  $('#clockT').innerHTML = `${esc(f[0])}.<b>${reduced ? f[1].slice(0, 2) + '····' : f[1]}</b>`;
+  $('#clockSim').textContent = Clock.offset ? '模擬時間（' + (Clock.offset > 0 ? '快轉 ' : '倒退 ') + humanSpan(Math.abs(Clock.offset)) + '）' : '';
+  document.querySelectorAll('[data-count]').forEach(el => { el.textContent = countdownText(+el.dataset.count); });
+}
+function loop() { paintClock(); if (!reduced) requestAnimationFrame(loop); }
+const busy = () => { const a = document.activeElement; return a && (a.form || a.closest('form') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName)) || $('#dlg').open || UI.ruleEdit; };
+setInterval(() => { if (reduced) paintClock(); if (Game.tick()) { Game.commit(); if (!busy()) render(); } }, 1000);
+
+/* ===================== 動作 ===================== */
+const F = el => el.form || el.closest('form');
+function tryDlg(fn, okMsg) { try { fn(); Game.commit(); render(); if (okMsg) toast(okMsg); return true; } catch (e) { alertBox('還不能這樣做', e.message); return false; } }
+const ACT = {
+  go(b) { navigate({ s: b.dataset.s }); },
+  jump(b) { navigate({ s: b.dataset.s, id: b.dataset.id || null, open: b.dataset.open ? 1 : 0, q: b.dataset.q != null ? b.dataset.q : null }); },
+  toggle(b) { const s = b.dataset.s, id = b.dataset.id; const set = UI.open[s] = UI.open[s] || new Set(); if (set.has(id)) set.delete(id); else set.add(id); renderMain(); },
+  collapse(b) { UI.open[b.dataset.s] = new Set(); renderMain(); },
+  sort(b) { const s = b.dataset.s, c = +b.dataset.c; const st = UI.sheets[s] = UI.sheets[s] || {}; if (st.col === c) st.dir = -st.dir; else { st.col = c; st.dir = 1; } renderMain(); },
+  unsort(b) { const st = UI.sheets[b.dataset.s]; if (st) st.col = null; renderMain(); },
+  // 難題
+  addProblem(b) { const f = F(b); const v = formVals(f); const [y, m, d] = (v.occ || '').split('-').map(Number);
+    const p = run(() => Game.addProblem(me(), { name: v.name, situation: v.situation, goal: v.goal, occurredAt: y ? usFrom({ y, mo: m, d, h: 12 }) : NaN, dockConds: [] }));
+    if (p && p.id) navigate({ s: 'problems', id: p.id, open: 1 }); },
+  saveProblem(b) { const f = F(b); const v = formVals(f); const [y, m, d] = (v.occ || '').split('-').map(Number);
+    run(() => Game.editProblem(f.dataset.pid, me(), { name: v.name, situation: v.situation, goal: v.goal, occurredAt: y ? usFrom({ y, mo: m, d, h: 12 }) : NaN }), '已儲存'); },
+  addDockCond(b) { F(b).querySelector('.dc-rows').insertAdjacentHTML('beforeend', dockCondRow(null)); },
+  saveDockConds(b) { const f = F(b); run(() => Game.setDockConds(f.dataset.pid, me(), readDockConds(f), formVals(f)['consent[]'] || []), '已儲存對接條件'); },
+  tail(b) { const f = F(b); const p = b.dataset.p; f.querySelector(`[name="${p}_s"]`).value = pad(+b.dataset.s); f.querySelector(`[name="${p}_micro"]`).value = pad(+b.dataset.u, 6); updatePreview(f.querySelector('.pt-in')); },
+  writeDep(b) {
+    const f = F(b);
+    const res = run(() => Game.writeDeparture(me(), f.dataset.pid, readPoint(f, 'pt')));
+    if (!res) return;
+    const msg = { subject: '已寫下出發點。你是這個出發點的主體，等熟人寫下同一個時間。', queued: '碰撞了！這個出發點已經有主體，你已排進隊伍。', full: '這個出發點的排隊已額滿，出發點不成立。你可以另寫一個，或先擱置。',
+      conds: '碰撞了，但你目前不符合這個難題的對接條件，出發點不成立。你可以調整規則表後重寫，或另寫一個出發點。' }[res.outcome];
+    const title = { full: '排隊已額滿', conds: '不符合對接條件' }[res.outcome] || '出發點已寫下';
+    const target = res.outcome === 'subject' || res.outcome === 'queued' ? { s: 'stations', id: res.station.id, open: res.outcome === 'queued' ? 1 : 0 } : { s: 'departures', id: res.departure.id };
+    openDialog(`<h3>${title}</h3><p>${msg}</p>${res.missing ? `<div class="err">未達到：\n${res.missing.map(esc).join('\n')}</div>` : ''}${readout(res.departure.point)}`,
+      [{ label: '留在這裡' }, { label: target.s === 'stations' ? '前往出發點表' : '前往出發紀錄', cls: 'pri', fn: () => { navigate(target); } }]);
+  },
+  // 出發點
+  leaveQueue(b) { openDialog('<h3>退出排隊？</h3><p>退出後這個難題會擱置，你可以另寫出發點。</p>', [{ label: '取消' }, { label: '退出排隊', cls: 'warn', fn: () => run(() => Game.leaveQueue(b.dataset.st, me(), 'left'), '已退出排隊') }]); },
+  dock(b) {
+    const f = F(b); const v = formVals(f); const accept = b.dataset.ok === '1';
+    const common = { deadlock: { opt: v.dl, text: v.dlt || '' }, interp: { opt: v.ip, text: v.ipt || '' }, queue: { max: int(v.qm), waitDays: int(v.qw), text: '' } };
+    const r = run(() => Game.dock(f.dataset.st, { accept, common, consents: v['consent[]'] || [], fused: { name: v.fn, situation: v.fs, goal: v.fg, dockConds: readDockConds(f) } }), accept ? '已融合，主體擴大了' : '已記錄為不合作');
+    if (r && r.fusion) navigate({ s: 'fusions', id: r.fusion.id });
+  },
+  exitStation(b) { openDialog('<h3>退出這個出發點？</h3><p>退出後你的原始難題改為擱置。已發出的點數都不退回。</p>', [{ label: '取消' }, { label: '退出', cls: 'warn', fn: () => run(() => Game.exitStation(b.dataset.st, me()), '已退出') }]); },
+  // 挑戰
+  addCh(b) { const f = F(b); run(() => { const { c, consents } = readChallengeForm(f); return Game.addChallenge(f.dataset.st, c, consents); }, '已新增挑戰'); },
+  saveCh(b) { const f = F(b); run(() => { const { c, consents } = readChallengeForm(f); Game.editChallenge(f.dataset.ch, c, consents); }, '已修改拆解'); },
+  delCh(b) {
+    const ch = DB.get('challenges', b.dataset.ch); const st = DB.get('stations', ch.stationId);
+    openDialog(`<h3>刪除挑戰「${esc(ch.content)}」？</h3><form onsubmit="return false">${consentBox(st.subject, '主體全員同意刪除')}</form>`, [{ label: '取消' }, { label: '刪除', cls: 'warn', fn: () => tryDlg(() => Game.deleteChallenge(ch.id, formVals($('#dlgBody form'))['consent[]'] || []), '已刪除') }]);
+  },
+  acceptCh(b) { run(() => Game.acceptChallenge(b.dataset.ch, me()), '已接下挑戰，題點已發出'); },
+  declineCh(b) { run(() => Game.declineChallenge(b.dataset.ch, me()), '已婉拒'); },
+  abandonCh(b) { openDialog('<h3>放棄這個挑戰？</h3><p>挑戰會回到待執行、執行角色清空，已發出的題點不退回。</p>', [{ label: '取消' }, { label: '放棄', cls: 'warn', fn: () => run(() => Game.abandonChallenge(b.dataset.ch, me()), '已放棄') }]); },
+  submitCh(b) { run(() => Game.submitChallenge(b.dataset.ch, me()), '已提交判定'); },
+  judgeOk(b) { run(() => Game.judgeChallenge(b.dataset.ch, me(), true), '判定完成，戰點已發出'); },
+  judgeNo(b) { run(() => Game.judgeChallenge(b.dataset.ch, me(), false), '已進入判定爭議'); },
+  resolveCh(b) {
+    const ch = DB.get('challenges', b.dataset.ch); const st = DB.get('stations', ch.stationId);
+    openDialog(`<h3>依共同規則處理</h3><p>共同規則的僵局處理：<b>${esc(optText(st.common.deadlock, DEADLOCK_OPTS))}</b>；解釋權：${esc(optText(st.common.interp, INTERP_OPTS))}。</p><p class="small muted">依規則處理完後，記錄結果。需要寫出者與執行者雙方確認。</p><form onsubmit="return false">${consentBox([ch.writer, ch.executor], '雙方確認結果')}</form>`,
+      [{ label: '取消' }, { label: '裁定未完成', cls: 'warn', fn: () => tryDlg(() => Game.resolveDispute(ch.id, false, formVals($('#dlgBody form'))['consent[]'] || []), '已回到執行中') },
+       { label: '裁定完成', cls: 'pri', fn: () => tryDlg(() => Game.resolveDispute(ch.id, true, formVals($('#dlgBody form'))['consent[]'] || []), '已裁定完成，戰點已發出') }]);
+  },
+  heat(b) { const f = F(b); run(() => Game.fillHeat(f.dataset.st, me(), int(formVals(f).kcal)), '已填入'); },
+  // 規則
+  ruleEdit() { UI.ruleEdit = true; renderMain(); },
+  ruleCancel() { UI.ruleEdit = false; renderMain(); },
+  addRes() { $('#resRows').insertAdjacentHTML('beforeend', resRow(null)); updateTry(); },
+  addCond() { $('#condRows').insertAdjacentHTML('beforeend', condRow(null)); updateTry(); },
+  rmRow(b) { b.closest('.rrow').remove(); updateTry(); },
+  saveRules() { const { rules, conds, note } = readRulesForm($('#rulesForm')); if (run(() => Game.saveRules(me(), rules, conds, null, note || '修改規則'), '已儲存為新版本')) { UI.ruleEdit = false; renderMain(); } },
+  // 點數與兌換
+  useBatch(b) {
+    const bt = DB.get('batches', b.dataset.b); const R = rulesOf(bt.issuer); const k = bt.type === '題點' ? 'q' : 'z'; const cd = coopDays(me(), bt.issuer);
+    const ver = epp(currentVersion(bt.issuer).snapshot, k, cd) >= epp(versionOf(bt.issuer, bt.version).snapshot, k, cd) ? 'current' : 'issue';
+    let res = 0; for (let i = 0; i < R.resources.length; i++) { try { Game.quote(me(), bt.issuer, i, [{ batchId: bt.id, ver }]); res = i; break; } catch (e) { /* 這批點數不夠付這項資源 */ } }
+    UI.bk = { issuer: bt.issuer, res, day: fmtDay(addDays(Clock.now(), 2)), uses: { [bt.id]: ver } };
+    navigate({ s: 'bookings' }); setTimeout(() => { const r = $('.ws tr.addrow'); if (r) r.scrollIntoView({ block: 'center' }); }, 30);
+  },
+  book() { const S = UI.bk; const [y, m, d] = (S.day || '').split('-').map(Number); const uses = Object.entries(S.uses).map(([batchId, ver]) => ({ batchId, ver }));
+    const bk = run(() => Game.book(me(), S.issuer, y ? usFrom({ y, mo: m, d }) : NaN, S.res, uses));
+    if (bk && bk.id) { UI.bk = null; navigate({ s: 'bookings', id: bk.id }); toast(bk.result === '待核准' ? '已送出預約，前一天結束時截止' : '當日申請：' + bk.result); } },
+  cancelBk(b) { run(() => Game.cancelBooking(b.dataset.b, me()), '已取消，點數已解凍'); },
+  // 角色與尾數
+  addRole(b) { const v = formVals(F(b)); run(() => { let acc = v.acc; if (acc === '__new') acc = Game.createAccount((v.name || '新') + '的帳號').id; const r = Game.createRole({ name: v.name, birthY: int(v.by), birthM: int(v.bm), accountId: acc }); Store.data.meta.currentRole = r.id; return r; }, '已建立角色並切換'); },
+  playAs(b) { Store.data.meta.currentRole = b.dataset.r; UI.bk = null; UI.addCh = null; UI.ruleEdit = false; Game.commit(); render(); toast('已切換為 ' + roleName(me())); },
+  addTail(b) { const v = formVals(F(b)); run(() => { if (!/^\d{6}$/.test(v.u || '')) throw new GameError('微秒請填滿六位數'); return Game.addTail(me(), int(v.s), parseInt(v.u, 10), v.l); }, '已新增常用尾數'); },
+  rmTail(b) { run(() => DB.remove('tails', b.dataset.t), '已刪除'); },
+  // 人生行事歷與時間軸
+  calOpen(b) { UI.calMonth = { y: +b.dataset.y, m: +b.dataset.m }; renderMain(); setTimeout(() => { const m = $('#monthBox'); if (m) m.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'nearest' }); }, 30); },
+  calClose() { UI.calMonth = null; renderMain(); },
+  tlLevel(b) { const l = TL_LEVELS.find(x => x[0] === b.dataset.l); const { start, end } = tlWindow(); UI.tl.span = l[1]; UI.tl.center = (start + end) / 2; renderTimeline(); },
+  tlNow() { UI.tl.center = null; renderTimeline(); },
+  tlSel(b) { UI.tlSel = +b.dataset.i; renderTimeline(); },
+  tlFocus(b) { const it = tlItems(me())[+b.dataset.i]; UI.tlSel = +b.dataset.i; UI.tl.span = 1000; UI.tl.center = it.t; renderTimeline(); $('#tl').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' }); },
+  // 紙本
+  pvw(b) { const k = b.dataset.k; UI.paper = { k, o: k === 'statement' ? statementOpts() : null }; renderMain(); setTimeout(() => $('#pvSec') && $('#pvSec').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth' }), 30); },
+  pvClose() { UI.paper = null; renderMain(); },
+  prt(b) { const k = b.dataset.k; printPages(buildPages(k, k === 'statement' ? statementOpts() : null)); },
+  async dlp(b) { await saveFile('到達那微秒-' + (b.dataset.k === 'handbook' ? '個人手冊' : '活頁單張') + '.html', standaloneHtml(buildPages(b.dataset.k))); },
+  // 設定
+  sim(b) { Clock.offset += +b.dataset.d; Store.data.meta.clockOffset = Clock.offset; Game.tick(); Game.commit(); render(); toast('時間已快轉'); },
+  simReset() { Clock.offset = 0; Store.data.meta.clockOffset = 0; Game.commit(); render(); toast('回到真實時間'); },
+  simTo(b) { try { const t = readPoint(F(b), 'sim'); Clock.offset = t - Clock.real(); Store.data.meta.clockOffset = Clock.offset; Game.tick(); Game.commit(); render(); toast('已跳到指定時間'); } catch (e) { alertBox('時間格式不正確', e.message); } },
+  async export() { const s = Store.exportJSON(); const ok = await saveFile('到達那微秒-資料.json', s, true);
+    if (!ok) $('#exportBox').innerHTML = `<p class="small muted" style="margin-top:10px">這裡無法直接下載，請全選下面的文字，複製後存成 .json 檔。</p><textarea readonly style="min-height:160px;font-size:.75rem">${esc(s)}</textarea>`; },
+  async exportPaths() { const s = JSON.stringify({ app: '到達那微秒', kind: '路徑圖', sheets: Object.fromEntries(Object.entries(SHEETS).map(([k, S]) => [k, { name: S.name, no: S.no || null, cols: (S.cols || []).map(c => ({ key: c.k, name: c.h, to: c.to || null })) }])), paths: PATHS().map(({ from, col, to }) => ({ from, col, to })) }, null, 2);
+    const ok = await saveFile('到達那微秒-路徑圖.json', s, true); if (!ok) openDialog(`<h3>路徑圖</h3><p class="small muted">這裡無法直接下載，請全選複製。</p><textarea readonly style="min-height:240px;font-size:.75rem">${esc(s)}</textarea>`, [{ label: '關閉' }]); },
+  importDlg() {
+    openDialog(`<h3>匯入 JSON</h3><p class="small muted">匯入會取代這個瀏覽器目前的全部資料。</p><label class="f"><span>選擇檔案</span><input type="file" accept=".json,application/json" id="impFile"></label><label class="f"><span>或貼上內容</span><textarea id="impText" style="min-height:140px"></textarea></label>`,
+      [{ label: '取消' }, { label: '匯入', cls: 'pri', fn: () => {
+        const go = t => { try { Store.importJSON(t); Clock.offset = Store.data.meta.clockOffset || 0; closeDialog(); render(); toast('已匯入'); } catch (e) { alertBox('無法匯入', e.message); } };
+        const file = $('#impFile').files[0]; if (file) { const rd = new FileReader(); rd.onload = () => go(rd.result); rd.readAsText(file); return false; }
+        go($('#impText').value); return false; } }]);
+  },
+  reseed() { openDialog('<h3>重設為示範資料？</h3><p>目前的資料會被取代。</p>', [{ label: '取消' }, { label: '重設', cls: 'warn', fn: () => { seedDemo(); Clock.offset = 0; UI.bk = null; UI.addCh = null; UI.tl.center = null; UI.open = {}; render(); toast('已重設為示範資料'); } }]); },
+  wipe() { openDialog('<h3>清空全部資料？</h3><p>會留下一個空白角色讓你從頭開始。</p>', [{ label: '取消' }, { label: '清空', cls: 'warn', fn: () => { Store.data = Store.empty(); Clock.offset = 0; const a = Game.createAccount('我的帳號'); const r = Game.createRole({ name: '我', birthY: 1990, birthM: 1, accountId: a.id }); Store.data.meta.currentRole = r.id; UI.open = {}; Game.commit(); render(); toast('已清空，可到角色表修改角色'); } }]); },
+  theme(b) { if (b.dataset.v) document.documentElement.setAttribute('data-theme', b.dataset.v); else document.documentElement.removeAttribute('data-theme'); try { localStorage.setItem('arrive-theme', b.dataset.v); } catch (e) {} }
+};
+async function saveFile(name, data, quiet) {
+  try {
+    if (!UI.downloads && window.claude && window.claude.use) UI.downloads = await window.claude.use('downloads');
+    if (UI.downloads) { await UI.downloads.save({ filename: name, data }); toast('已儲存'); return true; }
+  } catch (e) { if (e && e.code === 'declined') { toast('已取消儲存'); return true; } }
+  if (!quiet) alertBox('無法下載', '這個環境不提供下載。請改用列印，或把頁面存成 PDF。');
+  return false;
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (!b) return; const f = ACT[b.dataset.act]; if (f) { e.preventDefault(); f(b, e); } });
+
+/* ===================== 啟動 ===================== */
+(function boot() {
+  try { const th = localStorage.getItem('arrive-theme'); if (th) document.documentElement.setAttribute('data-theme', th); } catch (e) {}
+  if (!Store.load()) seedDemo();
+  Clock.offset = Store.data.meta.clockOffset || 0;
+  Game.tick(); Game.commit();
+  route(); render(); loop();
+})();
+
+</script>
+</body></html>
