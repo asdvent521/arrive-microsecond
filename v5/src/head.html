@@ -1,0 +1,164 @@
+<title>到達那微秒</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
+<style>
+/* 版面：上面一條標題列，中間整頁 3D 或表世界，下面固定分頁列（延續 v4 的活頁簿） */
+:root{
+  --bg:#E6ECF1; --panel:#F7F9FB; --panel2:#EEF2F6; --ink:#16212D; --muted:#586676; --line:#C7D1DB;
+  --brass:#A2731F; --brass-soft:#F1E4C8; --teal:#1C7A73; --teal-soft:#D5ECE9; --rose:#9C4450; --rose-soft:#F3DDE0; --blue:#2D5A86;
+  --hud:rgba(247,249,251,.88);
+  --sans:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --serif:"Noto Serif TC","Songti TC","PMingLiU",serif;
+  --r-s:6px; --r-m:10px; --tabs-h:46px;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --bg:#0D141B; --panel:#151F29; --panel2:#1B2733; --ink:#E2E9F0; --muted:#93A1B0; --line:#2B3947;
+  --brass:#D8A954; --brass-soft:#3A2E17; --teal:#43B5AA; --teal-soft:#15332F; --rose:#D57F8B; --rose-soft:#3A1E23; --blue:#7FA9D6;
+  --hud:rgba(21,31,41,.88); color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0D141B; --panel:#151F29; --panel2:#1B2733; --ink:#E2E9F0; --muted:#93A1B0; --line:#2B3947;
+  --brass:#D8A954; --brass-soft:#3A2E17; --teal:#43B5AA; --teal-soft:#15332F; --rose:#D57F8B; --rose-soft:#3A1E23; --blue:#7FA9D6;
+  --hud:rgba(21,31,41,.88); color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%;display:flex;flex-direction:column;overflow:hidden}
+h1,h2,h3{font-family:var(--serif);font-weight:700;line-height:1.3;margin:0}
+h2{font-size:1.2rem;text-wrap:balance}
+p{margin:.4em 0}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--brass);outline-offset:1px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:.84rem}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+.top{flex:none;background:var(--panel);border-bottom:1px solid var(--line)}
+.top-in{display:flex;align-items:center;gap:10px;padding:6px 16px;flex-wrap:wrap}
+.brand{font-family:var(--serif);font-weight:700;font-size:1.1rem;letter-spacing:.04em;white-space:nowrap}
+.ver{font-size:.78rem;color:var(--brass);border:1px solid var(--brass);border-radius:999px;padding:0 8px}
+.clock{margin-left:auto;font-variant-numeric:tabular-nums;font-size:.86rem;color:var(--muted)}
+
+.view{flex:1;min-height:0;position:relative}
+#view-sheet{overflow:auto;padding:12px 16px calc(var(--tabs-h) + 20px + env(safe-area-inset-bottom,0px))}
+#stage{position:absolute;inset:0}
+#stage canvas{display:block}
+
+/* HUD：貼在 3D 上面的幾個小板子 */
+.hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px 16px calc(var(--tabs-h) + 12px + env(safe-area-inset-bottom,0px))}
+.hud>*{pointer-events:auto}
+.hud-top{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.pane{background:var(--hud);border:1px solid var(--line);border-radius:var(--r-m);padding:8px 12px;backdrop-filter:blur(6px);max-width:100%}
+.where{font-size:.84rem;color:var(--muted)}
+.code{font-family:var(--serif);font-size:1.6rem;letter-spacing:.12em;line-height:1.1;color:var(--brass);font-variant-numeric:tabular-nums}
+.hint{font-size:.8rem;color:var(--muted)}
+.goal{font-size:.95rem;color:var(--teal);font-weight:500}
+.hud-mid{display:flex;flex-direction:column;gap:8px;align-items:flex-start;max-width:36em}
+.near b{display:block;font-family:var(--serif);color:var(--teal)}
+.near span{white-space:pre-line;font-size:.9rem}
+.msg{background:var(--ink);color:var(--panel);border-radius:var(--r-m);padding:8px 12px;font-size:.92rem;max-width:36em}
+.hud-bottom{display:flex;gap:8px;flex-wrap:wrap}
+.btn{min-height:40px;padding:6px 16px;border-radius:var(--r-s);border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--brass);color:#fff;border-color:var(--brass)}
+.btn.sm{min-height:32px;padding:2px 10px;font-size:.84rem}
+.hud .btn{box-shadow:0 2px 8px rgba(0,0,0,.12)}
+
+/* 表世界 */
+.sheet{max-width:64em}
+.sheet section{margin:0 0 20px}
+.sheet-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 4px}
+.sheet-head .no{font-family:var(--serif);color:var(--brass);font-weight:700}
+.sheet-desc{color:var(--muted);font-size:.86rem;margin:0 0 8px;max-width:40em}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-s);background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;white-space:nowrap}
+th{background:var(--panel2);font-weight:500;color:var(--muted);font-size:.8rem;letter-spacing:.04em}
+tr:last-child td{border-bottom:0}
+td .row{flex-wrap:nowrap;margin-top:4px}
+input[type=text],input[type=number],select{min-height:36px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg);max-width:100%}
+input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;height:36px;padding:2px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 0}
+#codeIn{width:8em;text-transform:uppercase;font-variant-numeric:tabular-nums}
+#records{margin:0;padding-left:1.2em} #records li{margin:4px 0}
+.tag{font-size:.74rem;padding:1px 7px;border-radius:999px;background:var(--teal-soft);color:var(--teal)}
+.tag.shelve{background:var(--rose-soft);color:var(--rose)}
+
+/* 分頁列 */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;align-items:flex-end;background:var(--panel2);border-top:1px solid var(--line);
+  padding:0 8px env(safe-area-inset-bottom,0px);height:calc(var(--tabs-h) + env(safe-area-inset-bottom,0px))}
+.tabs a{flex:none;display:flex;align-items:center;height:36px;padding:0 16px;text-decoration:none;color:var(--ink);font-size:.9rem;white-space:nowrap;border:1px solid transparent;border-bottom:0;border-radius:var(--r-s) var(--r-s) 0 0}
+.tabs a b{font-family:var(--serif);color:var(--brass);margin-right:5px}
+.tabs a[aria-current="page"]{background:var(--panel);border-color:var(--line);font-weight:700;box-shadow:inset 0 -3px 0 var(--brass)}
+
+/* 相遇 */
+.overlay{position:fixed;inset:0;z-index:40;background:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;padding:16px}
+.overlay .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);padding:20px;max-width:30em;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+.overlay h2{color:var(--brass);margin-bottom:8px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<header class="top"><div class="top-in">
+  <span class="brand">到達那微秒</span><span class="ver">v5 原型</span>
+  <span class="clock" id="clock"></span>
+</div></header>
+
+<main id="view-world" class="view">
+  <div id="stage"></div>
+  <div class="hud">
+    <div class="hud-top">
+      <div class="pane" id="hudCodeBox"><div class="where" id="hudWhere"></div><div class="code" id="hudCode">—</div><div class="hint" id="hudCodeHint"></div></div>
+      <div class="pane goal" id="hudGoal" hidden></div>
+    </div>
+    <div class="hud-mid">
+      <div class="pane near" id="hudNear" hidden><b id="hudNearTitle"></b><span id="hudNearBody"></span></div>
+      <div class="msg" id="hudMsg" hidden></div>
+    </div>
+    <div class="hud-bottom">
+      <button class="btn pri" id="btnCircle" hidden>繞一圈</button>
+      <button class="btn" id="btnReset">重走</button>
+      <button class="btn" id="btnHome" hidden>回自己的世界</button>
+    </div>
+  </div>
+</main>
+
+<main id="view-sheet" class="view" hidden><div class="sheet">
+  <p class="sheet-desc">表世界不用走：走法表、功能點表在這裡填好，裡世界照表蓋。想直接找人，輸入代號就開傳送門。</p>
+  <section>
+    <div class="sheet-head"><span class="no">Ⅰ</span><h2>角色表</h2></div>
+    <p class="sheet-desc">出發點是預定開始處理的時間，精確到微秒。原型用「幾秒後」代替手填：設好後傳送過去，站在他的終點上等那一微秒。</p>
+    <div class="tw"><table><thead><tr><th>序號</th><th>代號</th><th>名字</th><th>難題</th><th>規則</th><th>出發點</th></tr></thead><tbody id="tblRoles"></tbody></table></div>
+  </section>
+  <section id="walkBox">
+    <div class="sheet-head"><span class="no">Ⅱ</span><h2>走法表</h2><span class="muted small">我的世界 J1</span></div>
+    <p class="sheet-desc">繞某個物件一圈是哪個字母（兩圈就是前一個字母）；從甲走到乙是哪個數字。字母同時決定後面要走幾個數字：J 一個、I 兩個……</p>
+    <div class="tw"><table><thead><tr><th>繞這個物件</th><th>一圈是</th><th></th><th></th></tr></thead><tbody id="tblCircles"></tbody></table></div>
+    <div class="tools"><button class="btn sm" id="addCircle">加一條繞圈</button></div>
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th>從</th><th>走到</th><th>是數字</th><th></th></tr></thead><tbody id="tblMoves"></tbody></table></div>
+    <div class="tools"><button class="btn sm" id="addMove">加一條走到</button></div>
+    <div class="tools"><label for="codeIn">直接輸入代號</label><input type="text" id="codeIn" placeholder="J2" autocapitalize="characters"><button class="btn" id="codeGo">開傳送門</button></div>
+  </section>
+  <section>
+    <div class="sheet-head"><span class="no">Ⅲ</span><h2>功能點表</h2><select id="objRole" aria-label="哪個世界"></select></div>
+    <p class="sheet-desc">功能固定，外觀自由。改外觀、換顏色、搬位置，走法表記的是物件本身，代號照樣有效。</p>
+    <div class="tw"><table><thead><tr><th>名稱</th><th>功能</th><th>外觀</th><th>顏色</th><th>x</th><th>z</th><th></th></tr></thead><tbody id="tblObjects"></tbody></table></div>
+  </section>
+  <section>
+    <div class="sheet-head"><span class="no">Ⅳ</span><h2>紀錄</h2></div>
+    <ul id="records"></ul>
+    <div class="tools"><button class="btn sm" id="btnDefault">全部還原成預設</button></div>
+  </section>
+</div></main>
+
+<nav class="tabs"><a href="#world" data-tab="world"><b>裡</b>裡世界</a><a href="#sheet" data-tab="sheet"><b>表</b>表世界</a></nav>
+
+<div class="overlay" id="meet" hidden><div class="card">
+  <h2>到達那微秒</h2>
+  <p id="meetText"></p>
+  <p class="muted small" id="meetProblems"></p>
+  <p class="muted small">接下來是融合、拆解、分工，原型先到這裡。</p>
+  <div class="tools"><button class="btn pri" id="meetClose">回自己的世界</button></div>
+</div></div>
