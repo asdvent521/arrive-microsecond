@@ -29,7 +29,7 @@ var WORLD = (function () {
     labelLayer.className = 'labels';
     host.appendChild(labelLayer);
     flashEl = document.createElement('div');
-    flashEl.className = 'flash';
+    flashEl.className = 'whiteflash';
     host.appendChild(flashEl);
 
     scene = new THREE.Scene();

@@ -46,13 +46,15 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   assert(m.indexOf('傳送門') >= 0, '傳送門打開：' + m);
   await pg.screenshot({ path: OUT + '/3_portal.png' });
 
-  // 表世界：設阿澄的出發點，並用輸入代號的方式再開一次傳送門
-  await pg.click('.tabs a[data-tab=sheet]');
+  // 表世界：出發點頁設阿澄的出發點，走法頁輸入代號再開一次傳送門
+  await pg.click('#tabs a[data-s="depart"]');
   await pg.waitForTimeout(200);
   await pg.screenshot({ path: OUT + '/4_sheet.png', fullPage: false });
-  await pg.click('[data-dep="1"][data-s="30"]');                 // 阿澄的出發點：30 秒後
+  await pg.click('[data-act="setDepart"][data-id="00000000002"][data-s="30"]');   // 阿澄的出發點：30 秒後
+  await pg.waitForTimeout(150);
+  await pg.click('#tabs a[data-s="walk"]'); await pg.waitForTimeout(150);
   await pg.fill('#codeIn', 'J2');
-  await pg.click('#codeGo');
+  await pg.click('[data-act="portalIn"]');
   await pg.waitForTimeout(300);
   assert(await pg.isHidden('#view-sheet'), '回到裡世界');
   await pg.evaluate("APP.enterPortal()");
@@ -81,14 +83,15 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   await pg.click('#meetClose');
   await pg.waitForTimeout(200);
   assert((await pg.textContent('#hudWhere')).indexOf('自己的世界') >= 0, '回到自己的世界');
-  await pg.click('.tabs a[data-tab=sheet]');
+  await pg.click('#tabs a[data-s="records"]');
   await pg.waitForTimeout(200);
-  assert((await pg.textContent('#records')).indexOf('相遇') >= 0, '紀錄有相遇');
+  assert((await pg.textContent('#main')).indexOf('相遇') >= 0, '紀錄頁有相遇');
 
-  // 改外觀不影響走法：把規則屋改成樹，再走一次 J
-  await pg.selectOption('[data-o="0"][data-k="look"]', '樹');
+  // 改外觀不影響走法：世界頁把規則屋改成樹，再走一次 J
+  await pg.click('#tabs a[data-s="world"]'); await pg.waitForTimeout(150);
+  await pg.selectOption('select[data-ed="objLook"][data-id="rule"]', '樹');
   await pg.waitForTimeout(200);
-  await pg.click('.tabs a[data-tab=world]');
+  await pg.click('#tabs a[data-act="world"]');
   await pg.evaluate("WORLD.walkTo({x:-6, z:1})");
   await pg.waitForFunction("!WORLD.isMoving()", null, { timeout: 8000 });
   await pg.waitForTimeout(200);
@@ -102,7 +105,7 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   assert(errs.length === 0, '整段沒有錯誤 ' + errs.join(' | '));
 
   // ---- 第二批 ----
-  await pg.click('.tabs a[data-tab=world]');
+  await pg.click('#tabs a[data-act="world"]');
   await pg.evaluate("APP.dec().reset(); WORLD.hidePortal()");
   // 標籤：每個功能點頭上有名字
   var labels = await pg.evaluate("[...document.querySelectorAll('.label')].map(l=>l.textContent)");
@@ -150,16 +153,21 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   await pg.evaluate("(function(){ var m=APP.me(); m.departUs = DATA.nowUs() + 1.5e6; m.departDone=false; APP.save(); })()");
   await pg.waitForFunction("APP.state().records.some(function(x){ return x.kind==='shelve' && x.text.indexOf('一個人都沒來')>=0; })", null, { timeout: 6000 });
   assert(true, '自己的出發點沒人來就擱置');
-  await pg.click('.tabs a[data-tab=sheet]');
+  await pg.click('#tabs a[data-s="depart"]');
   await pg.waitForTimeout(200);
-  var rolesTxt = await pg.textContent('#tblRoles');
-  assert(rolesTxt.indexOf('擱置') >= 0 && rolesTxt.indexOf('已過') >= 0, '角色表標了擱置');
+  assert((await pg.textContent('#main')).indexOf('已過') >= 0, '出發點頁標了已過');
+  await pg.click('#tabs a[data-s="problems"]');
+  await pg.waitForTimeout(200);
+  assert((await pg.textContent('#main')).indexOf('擱置') >= 0, '難題頁標了擱置');
 
-  // 換角色：我是 J2
-  await pg.check('input[name=meIs][value="1"]');
+  // 換角色：角色頁選「我是」J2
+  await pg.click('#tabs a[data-s="roles"]'); await pg.waitForTimeout(150);
+  await pg.check('input[name=meIs][data-id="00000000002"]');
   await pg.waitForTimeout(300);
-  assert((await pg.textContent('#walkWho')).indexOf('J2') >= 0, '走法表變成 J2 的');
-  await pg.click('.tabs a[data-tab=world]');
+  assert((await pg.evaluate("APP.me().serial")) === '00000000002', '我是 J2');
+  await pg.click('#tabs a[data-s="walk"]'); await pg.waitForTimeout(150);
+  assert((await pg.textContent('#main')).indexOf('小山') >= 0, '走法頁變成 J2 的');
+  await pg.click('#tabs a[data-act="world"]');
   await pg.waitForTimeout(200);
   assert((await pg.textContent('#hudWhere')).indexOf('J2') >= 0, '裡世界變成 J2 的');
   var route2 = await pg.textContent('#hudRouteText');
@@ -170,9 +178,8 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   assert((await pg.textContent('#hudWhere')).indexOf('J2') >= 0, '重新整理後還記得我是 J2');
 
   // 走法表數字 0 可以設
-  await pg.click('.tabs a[data-tab=sheet]');
-  await pg.click('#addMove'); await pg.waitForTimeout(100);
-  var zero = await pg.evaluate("[...document.querySelectorAll('#tblMoves select[data-k=digit]')].pop().querySelector('option[value=\"0\"]') !== null");
+  await pg.click('#tabs a[data-s="walk"]'); await pg.waitForTimeout(150);
+  var zero = await pg.evaluate("document.querySelector('#addMoveDigit option[value=\"0\"]') !== null && [...document.querySelectorAll('select[data-ed=moveDigit] option[value=\"0\"]')].length > 0");
   assert(zero, '走法表有數字 0');
 
   assert(errs.length === 0, '第二批沒有錯誤 ' + errs.join(' | '));

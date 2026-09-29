@@ -86,14 +86,49 @@ var DATA = (function () {
     return r;
   }
 
+  /* ---------- 難題與規則的輔助 ---------- */
+  // 角色目前的難題：最後一個進行中或融合中的；出發點就是它的
+  function activeProblem(r) {
+    for (var i = (r.problems || []).length - 1; i >= 0; i--) if (r.problems[i].status === 'open' || r.problems[i].status === 'fused') return r.problems[i];
+    return null;
+  }
+  // 目前生效的規則版本（最後一版）
+  function currentRules(r) {
+    var vs = r.ruleVersions || [];
+    return vs.length ? vs[vs.length - 1] : { no: 0, atUs: 0, items: [], ratios: { idea: 100, battle: 100 }, resources: [] };
+  }
+  var pidSeq = 0;
+  function newId(prefix) { return prefix + Date.now().toString(36) + (pidSeq++).toString(36); }
+  // 立難題；prev 是擱置的前身（可不填）
+  function addProblem(r, text, prev) {
+    if (!text || !String(text).trim()) throw new Error('難題要寫內容');
+    if (activeProblem(r)) throw new Error('目前的難題還在進行，先擱置或完成它');
+    var p = { id: newId('p'), text: String(text).trim(), status: 'open', createdUs: nowUs(), prev: prev || null };
+    r.problems.push(p);
+    return p;
+  }
+  // 儲存規則：產生新版本
+  function saveRules(r, draft) {
+    var items = (draft.items || []).map(function (x) { return { text: String(x.text || '').trim(), visible: x.visible === 'self' ? 'self' : 'all' }; }).filter(function (x) { return x.text; });
+    var ratios = { idea: +draft.ratios.idea, battle: +draft.ratios.battle };
+    if (!(ratios.idea > 0) || !(ratios.battle > 0)) throw new Error('點數比例要是大於 0 的數字');
+    var resources = (draft.resources || []).map(function (x) { return { name: String(x.name || '').trim(), kcal: +x.kcal }; }).filter(function (x) { return x.name; });
+    if (resources.some(function (x) { return !(x.kcal >= 0); })) throw new Error('資源的大卡要是數字');
+    var cur = currentRules(r);
+    var v = { no: cur.no + 1, atUs: nowUs(), items: items, ratios: ratios, resources: resources };
+    (r.ruleVersions = r.ruleVersions || []).push(v);
+    r.rules = items;
+    return v;
+  }
+
   /* ---------- 預設世界（原型：兩個角色） ---------- */
   function defaultRoles() {
-    return [
+    return withRules([
       {
         serial: '00000000001', name: '我', color: '#A2731F',
         departUs: null,
-        rules: [{ text: '早上十點前不回訊息。', visible: 'all' }],
-        problems: [{ text: '每天都想早起，但每天都做不到。', status: 'open' }],
+        ruleVersions: [{ no: 1, atUs: 1790640000000000, items: [{ text: '早上十點前不回訊息。', visible: 'all' }], ratios: { idea: 100, battle: 100 }, resources: [{ name: '陪跑一小時', kcal: 300 }] }],
+        problems: [{ id: 'p1', text: '每天都想早起，但每天都做不到。', status: 'open', createdUs: 1790640000000000, prev: null }],
         start: [0, 6],
         objects: [
           { id: 'rule',    name: '規則屋', func: 'rule',    pos: [-6, -2], look: '屋', parts: look('屋', '#B8894A') },
@@ -111,8 +146,8 @@ var DATA = (function () {
       {
         serial: '00000000002', name: '阿澄', color: '#1C7A73',
         departUs: null,
-        rules: [{ text: '晚上九點以後只做安靜的事。', visible: 'all' }],
-        problems: [{ text: '晚上總是拖到很晚才睡。', status: 'open' }],
+        ruleVersions: [{ no: 1, atUs: 1790640000000000, items: [{ text: '晚上九點以後只做安靜的事。', visible: 'all' }, { text: '欠的人情要記帳。', visible: 'self' }], ratios: { idea: 80, battle: 120 }, resources: [] }],
+        problems: [{ id: 'p2', text: '晚上總是拖到很晚才睡。', status: 'open', createdUs: 1790640000000000, prev: null }],
         start: [-9, 8],
         objects: [
           { id: 'rule',    name: '規則樹', func: 'rule',    pos: [-5, 3],  look: '樹', parts: look('樹', '#3F8A5A') },
@@ -131,8 +166,8 @@ var DATA = (function () {
       {
         serial: '00000000003', name: '小樂', color: '#9C4450',
         departUs: null,
-        rules: [{ text: '週末不排任何事。', visible: 'all' }],
-        problems: [{ text: '答應的事太多，每件都做一半。', status: 'open' }],
+        ruleVersions: [{ no: 1, atUs: 1790640000000000, items: [{ text: '週末不排任何事。', visible: 'all' }], ratios: { idea: 100, battle: 100 }, resources: [] }],
+        problems: [{ id: 'p3', text: '答應的事太多，每件都做一半。', status: 'open', createdUs: 1790640000000000, prev: null }],
         start: [0, 9],
         objects: [
           { id: 'rule',    name: '規則塔', func: 'rule',    pos: [-6, 0],  look: '塔', parts: look('塔', '#B07A82') },
@@ -147,8 +182,9 @@ var DATA = (function () {
           moves: [{ from: 'rule', to: 'problem', digit: '1' }, { from: 'problem', to: 'fusion', digit: '2' }, { from: 'fusion', to: 'stage', digit: '3' }]
         }
       }
-    ];
+    ]);
   }
+  function withRules(roles) { roles.forEach(function (r) { r.rules = currentRules(r).items; }); return roles; }
 
   /* ---------- 走法解碼：畫面層丟事件進來，這裡算出走出來的代號 ---------- */
   // 事件：{type:'circle', object, count}（離開物件時送一次）、{type:'arrive', object}
@@ -237,7 +273,20 @@ var DATA = (function () {
   }
   function cleanText(t, what) {
     obj(t, what);
-    return { text: str(t.text, LIMITS.text, what), visible: t.visible === 'self' ? 'self' : 'all', status: ['shelved', 'fused', 'exited'].indexOf(t.status) >= 0 ? t.status : 'open' };
+    return { text: str(t.text, LIMITS.text, what), visible: t.visible === 'self' ? 'self' : 'all' };
+  }
+  function cleanProblem(t) {
+    obj(t, '難題');
+    return { id: ident(t.id || 'p0', '難題'), text: str(t.text, LIMITS.text, '難題'), status: ['shelved', 'fused', 'exited', 'done'].indexOf(t.status) >= 0 ? t.status : 'open',
+             createdUs: t.createdUs == null ? 0 : num(t.createdUs, '難題時間'), prev: t.prev == null ? null : ident(t.prev, '難題前身') };
+  }
+  function cleanVersion(v) {
+    obj(v, '規則版本');
+    var ratios = obj(v.ratios || {}, '點數比例');
+    return { no: num(v.no, '版本號'), atUs: num(v.atUs || 0, '版本時間'),
+             items: list(v.items || [], LIMITS.rules, '規則').map(function (t) { return cleanText(t, '規則'); }),
+             ratios: { idea: num(ratios.idea == null ? 100 : ratios.idea, '題點比例'), battle: num(ratios.battle == null ? 100 : ratios.battle, '戰點比例') },
+             resources: list(v.resources || [], LIMITS.rules, '資源').map(function (x) { obj(x, '資源'); return { name: str(x.name, LIMITS.name, '資源'), kcal: num(x.kcal, '資源大卡') }; }) };
   }
   function cleanWorld(w) {
     obj(w, '世界');
@@ -248,8 +297,8 @@ var DATA = (function () {
       color: color(w.color || '#888888', '角色'),
       departUs: w.departUs == null ? null : num(w.departUs, '出發點'),
       departDone: !!w.departDone,
-      rules: list(w.rules || [], LIMITS.rules, '規則').map(function (t) { return cleanText(t, '規則'); }),
-      problems: list(w.problems || [], LIMITS.rules, '難題').map(function (t) { return cleanText(t, '難題'); }),
+      ruleVersions: list(w.ruleVersions || [], 500, '規則版本').map(cleanVersion),
+      problems: list(w.problems || [], 500, '難題').map(cleanProblem),
       start: vec(w.start || [0, 0], 2, '起點'),
       objects: list(w.objects, LIMITS.objects, '功能點').map(function (o) {
         obj(o, '功能點');
@@ -261,6 +310,9 @@ var DATA = (function () {
       path: list(w.path || [], LIMITS.path, '路').map(function (p) { return vec(p, 2, '路'); }),
       walk: { circles: [], moves: [] }
     };
+    // 舊格式只有 rules 沒有版本：當成第 1 版
+    if (!out.ruleVersions.length && Array.isArray(w.rules) && w.rules.length) out.ruleVersions = [{ no: 1, atUs: 0, items: list(w.rules, LIMITS.rules, '規則').map(function (t) { return cleanText(t, '規則'); }), ratios: { idea: 100, battle: 100 }, resources: [] }];
+    out.rules = currentRules(out).items;
     var ids = {};
     out.objects.forEach(function (o) { if (ids[o.id]) bad('功能點代號重複：' + o.id); ids[o.id] = true; });
     var walk = obj(w.walk || {}, '走法表');
@@ -328,6 +380,7 @@ var DATA = (function () {
     abbrev: abbrev, expand: expand, digitsAfter: digitsAfter,
     FUNCS: FUNCS, SHAPES: SHAPES, LOOKS: LOOKS, look: look, radiusOf: radiusOf,
     defaultRoles: defaultRoles, Decoder: Decoder, route: route, cleanWorld: cleanWorld, tryClean: tryClean,
+    activeProblem: activeProblem, currentRules: currentRules, addProblem: addProblem, saveRules: saveRules, newId: newId,
     fmtUs: fmtUs, nowUs: nowUs, load: load, save: save, fresh: fresh, findRole: findRole
   };
 })();
