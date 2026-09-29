@@ -169,6 +169,8 @@ h3.tt{font-family:var(--serif);font-size:1rem;margin:14px 0 4px}
     <div class="hud-bottom">
       <button class="btn pri" id="btnCircle" hidden>繞一圈</button>
       <button class="btn" id="btnReset">重走</button>
+      <button class="btn pri" id="btnEnter" hidden>進門</button>
+      <button class="btn" id="btnLeave" hidden>出門</button>
       <button class="btn" id="btnOpen" hidden>打開融合</button>
       <button class="btn" id="btnHome" hidden>回自己的世界</button>
     </div>
@@ -222,8 +224,12 @@ var DATA = (function () {
     goal:    { label: '終點', visible: 'all',    defaultLook: '台' },
     fusion:  { label: '融合', visible: 'member', defaultLook: '殿' },
     stage:   { label: '階段', visible: 'member', defaultLook: '工坊' },
+    market:  { label: '兌換', visible: 'both',   defaultLook: '市集' },
     none:    { label: '地標', visible: 'all',    defaultLook: '—' }
   };
+  // 可見條件：所有人／融合過的人／只有自己
+  var VIS = { all: '所有人', fused: '融合過的人', self: '只有自己' };
+  var DAILY_KCAL = 1800;   // 每個角色每天發出的能量點兌換總量上限
   var SHAPES = { box: '方塊', cylinder: '圓柱', sphere: '球', cone: '錐' };
 
   /* ---------- 預設外觀（都是基本形體的組合；主人隨時可改） ---------- */
@@ -259,6 +265,11 @@ var DATA = (function () {
       { shape: 'sphere', size: [1.2, 1.2, 1.2], color: '#9CC9E8', offset: [0, 2.6, 0] } ]; },
     '山': function (c) { return [
       { shape: 'cone', size: [6, 5, 6], color: c, offset: [0, 2.5, 0] } ]; },
+    '市集': function (c) { return [
+      { shape: 'box', size: [4, 1.6, 2.6], color: c, offset: [0, 0.8, 0] },
+      { shape: 'box', size: [4.6, 0.3, 3.2], color: '#B23A48', offset: [0, 1.85, 0] },
+      { shape: 'cylinder', size: [0.3, 1.8, 0.3], color: '#7A4B32', offset: [-2, 0.9, 1.4] },
+      { shape: 'cylinder', size: [0.3, 1.8, 0.3], color: '#7A4B32', offset: [2, 0.9, 1.4] } ]; },
     '塔': function (c) { return [
       { shape: 'cylinder', size: [2, 4, 2], color: c, offset: [0, 2, 0] },
       { shape: 'cone', size: [2.4, 1.6, 2.4], color: '#5C6670', offset: [0, 4.8, 0] } ]; }
@@ -293,13 +304,13 @@ var DATA = (function () {
   function addProblem(r, text, prev) {
     if (!text || !String(text).trim()) throw new Error('難題要寫內容');
     if (activeProblem(r)) throw new Error('目前的難題還在進行，先擱置或完成它');
-    var p = { id: newId('p'), text: String(text).trim(), status: 'open', createdUs: nowUs(), prev: prev || null };
+    var p = { id: newId('p'), text: String(text).trim(), status: 'open', createdUs: nowUs(), prev: prev || null, visible: 'all' };
     r.problems.push(p);
     return p;
   }
   // 儲存規則：產生新版本
   function saveRules(r, draft) {
-    var items = (draft.items || []).map(function (x) { return { text: String(x.text || '').trim(), visible: x.visible === 'self' ? 'self' : 'all' }; }).filter(function (x) { return x.text; });
+    var items = (draft.items || []).map(function (x) { return { text: String(x.text || '').trim(), visible: cleanVis(x.visible) }; }).filter(function (x) { return x.text; });
     var ratios = { idea: +draft.ratios.idea, battle: +draft.ratios.battle };
     if (!(ratios.idea > 0) || !(ratios.battle > 0)) throw new Error('點數比例要是大於 0 的數字');
     var resources = (draft.resources || []).map(function (x) { return { name: String(x.name || '').trim(), kcal: +x.kcal }; }).filter(function (x) { return x.name; });
@@ -324,8 +335,11 @@ var DATA = (function () {
           { id: 'rule',    name: '規則屋', func: 'rule',    pos: [-6, -2], look: '屋', parts: look('屋', '#B8894A') },
           { id: 'problem', name: '難題碑', func: 'problem', pos: [0, -6],  look: '碑', parts: look('碑', '#6E7C8C') },
           { id: 'goal',    name: '終點台', func: 'goal',    pos: [6, -2],  look: '台', parts: look('台', '#C9A96A') },
-          { id: 'fusion',  name: '融合殿', func: 'fusion',  pos: [6, 6],   look: '殿', parts: look('殿', '#D9CFB8') },
-          { id: 'stage',   name: '工坊',   func: 'stage',   pos: [-6, 6],  look: '工坊', parts: look('工坊', '#8C7B62') }
+          { id: 'fusion',  name: '融合殿', func: 'fusion',  pos: [6, 6],   look: '殿', parts: look('殿', '#D9CFB8'),
+            door: { visible: 'all', start: [0, 4], objects: [
+              { id: 'pillar', name: '殿內石柱', func: 'none', pos: [0, -3], look: '塔', parts: look('塔', '#D9CFB8') } ] } },
+          { id: 'stage',   name: '工坊',   func: 'stage',   pos: [-6, 6],  look: '工坊', parts: look('工坊', '#8C7B62') },
+          { id: 'market',  name: '市集',   func: 'market',  pos: [12, 2],  look: '市集', parts: look('市集', '#C9B47A') }
         ],
         path: [[0, 6], [6, -2]],
         walk: {
@@ -337,15 +351,18 @@ var DATA = (function () {
         serial: '00000000002', name: '阿澄', color: '#1C7A73',
         departUs: null,
         ruleVersions: [{ no: 1, atUs: 1790640000000000, items: [{ text: '晚上九點以後只做安靜的事。', visible: 'all' }, { text: '欠的人情要記帳。', visible: 'self' }], ratios: { idea: 80, battle: 120 }, resources: [] }],
-        problems: [{ id: 'p2', text: '晚上總是拖到很晚才睡。', status: 'open', createdUs: 1790640000000000, prev: null }],
+        problems: [{ id: 'p2', text: '晚上總是拖到很晚才睡。', status: 'open', createdUs: 1790640000000000, prev: null, visible: 'fused' }],
         start: [-9, 8],
         objects: [
-          { id: 'rule',    name: '規則樹', func: 'rule',    pos: [-5, 3],  look: '樹', parts: look('樹', '#3F8A5A') },
+          { id: 'rule',    name: '規則樹', func: 'rule',    pos: [-5, 3],  look: '樹', parts: look('樹', '#3F8A5A'),
+            door: { visible: 'fused', start: [0, 4], objects: [
+              { id: 'treeheart', name: '樹心', func: 'none', pos: [0, -3], look: '井', parts: look('井', '#3F8A5A') } ] } },
           { id: 'problem', name: '難題井', func: 'problem', pos: [2, 5],   look: '井', parts: look('井', '#8A8F96') },
           { id: 'goal',    name: '終點台', func: 'goal',    pos: [7, -3],  look: '台', parts: look('台', '#6FB3AC') },
           { id: 'fusion',  name: '噴泉',   func: 'fusion',  pos: [-2, -6], look: '噴泉', parts: look('噴泉', '#9BB7C9') },
           { id: 'stage',   name: '塔',     func: 'stage',   pos: [6, 6],   look: '塔', parts: look('塔', '#7C8A99') },
-          { id: 'hill',    name: '小山',   func: 'none',    pos: [-8, -4], look: '山', parts: look('山', '#6B7F5A') }
+          { id: 'hill',    name: '小山',   func: 'none',    pos: [-8, -4], look: '山', parts: look('山', '#6B7F5A') },
+          { id: 'market',  name: '市集',   func: 'market',  pos: [10, 3],  look: '市集', parts: look('市集', '#9BB7C9') }
         ],
         path: [[-9, 8], [-5, 6.5], [2, 1], [7, -3]],
         walk: {
@@ -364,7 +381,8 @@ var DATA = (function () {
           { id: 'problem', name: '難題霧', func: 'problem', pos: [0, -5],  look: '球', parts: [{ shape: 'sphere', size: [3, 3, 3], color: '#C9CED4', offset: [0, 1.5, 0] }] },
           { id: 'goal',    name: '終點台', func: 'goal',    pos: [6, 0],   look: '台', parts: look('台', '#D9A0A8') },
           { id: 'fusion',  name: '融合井', func: 'fusion',  pos: [5, 7],   look: '井', parts: look('井', '#8A8F96') },
-          { id: 'stage',   name: '工坊',   func: 'stage',   pos: [-5, 7],  look: '工坊', parts: look('工坊', '#7A6A72') }
+          { id: 'stage',   name: '工坊',   func: 'stage',   pos: [-5, 7],  look: '工坊', parts: look('工坊', '#7A6A72') },
+          { id: 'market',  name: '市集',   func: 'market',  pos: [11, -4], look: '市集', parts: look('市集', '#D9A0A8') }
         ],
         path: [[0, 9], [6, 0]],
         walk: {
@@ -461,14 +479,50 @@ var DATA = (function () {
     if (!SHAPES[p.shape]) bad('形體種類不認得：' + p.shape);
     return { shape: p.shape, size: vec(p.size, 3, '形體大小'), color: color(p.color, '形體'), offset: vec(p.offset || [0, 0, 0], 3, '形體位置') };
   }
+  function cleanVis(v) { return VIS[v] ? v : 'all'; }
   function cleanText(t, what) {
     obj(t, what);
-    return { text: str(t.text, LIMITS.text, what), visible: t.visible === 'self' ? 'self' : 'all' };
+    return { text: str(t.text, LIMITS.text, what), visible: cleanVis(t.visible) };
   }
+  // 兩個角色融合過（同一個融合的參與者，退出也算）
+  function fusedWith(state, a, b) {
+    return (state.fusions || []).some(function (f) { return f.members.indexOf(a) >= 0 && f.members.indexOf(b) >= 0; });
+  }
+  // viewer 看不看得到 owner 設了 visible 的東西
+  function canSee(state, owner, viewer, visible) {
+    if (owner === viewer) return true;
+    if (visible === 'self') return false;
+    if (visible === 'fused') return fusedWith(state, owner, viewer);
+    return true;
+  }
+  // 內部空間：一層一層洗，最多 3 層
+  function cleanObjects(list0, depth, what) {
+    if (depth > 3) bad('內部空間最多 3 層');
+    var out = list(list0, LIMITS.objects, what).map(function (o) {
+      obj(o, '功能點');
+      if (!FUNCS[o.func]) bad('功能不認得：' + o.func);
+      var c = { id: ident(o.id, '功能點'), name: str(o.name, LIMITS.name, '功能點名稱'), func: o.func,
+                pos: vec(o.pos, 2, '功能點位置'), look: o.look ? str(o.look, 20, '外觀') : undefined,
+                parts: list(o.parts, LIMITS.parts, '形體').map(cleanPart) };
+      if (o.door != null) {
+        obj(o.door, '門');
+        c.door = { visible: cleanVis(o.door.visible), start: vec(o.door.start || [0, 4], 2, '門內起點'), objects: cleanObjects(o.door.objects || [], depth + 1, '內部物件') };
+      }
+      return c;
+    });
+    return out;
+  }
+  // 世界裡所有物件（含內部），附層數
+  function allObjects(w) {
+    var out = [];
+    (function walkIn(objs, depth, path) { objs.forEach(function (o) { out.push({ o: o, depth: depth, path: path }); if (o.door) walkIn(o.door.objects, depth + 1, path.concat(o.id)); }); })(w.objects, 0, []);
+    return out;
+  }
+  function findObject(w, id) { var hit = allObjects(w).find(function (x) { return x.o.id === id; }); return hit ? hit.o : null; }
   function cleanProblem(t) {
     obj(t, '難題');
     return { id: ident(t.id || 'p0', '難題'), text: str(t.text, LIMITS.text, '難題'), status: ['shelved', 'fused', 'exited', 'done'].indexOf(t.status) >= 0 ? t.status : 'open',
-             createdUs: t.createdUs == null ? 0 : num(t.createdUs, '難題時間'), prev: t.prev == null ? null : ident(t.prev, '難題前身') };
+             createdUs: t.createdUs == null ? 0 : num(t.createdUs, '難題時間'), prev: t.prev == null ? null : ident(t.prev, '難題前身'), visible: cleanVis(t.visible) };
   }
   function cleanVersion(v) {
     obj(v, '規則版本');
@@ -490,13 +544,7 @@ var DATA = (function () {
       ruleVersions: list(w.ruleVersions || [], 500, '規則版本').map(cleanVersion),
       problems: list(w.problems || [], 500, '難題').map(cleanProblem),
       start: vec(w.start || [0, 0], 2, '起點'),
-      objects: list(w.objects, LIMITS.objects, '功能點').map(function (o) {
-        obj(o, '功能點');
-        if (!FUNCS[o.func]) bad('功能不認得：' + o.func);
-        return { id: ident(o.id, '功能點'), name: str(o.name, LIMITS.name, '功能點名稱'), func: o.func,
-                 pos: vec(o.pos, 2, '功能點位置'), look: o.look ? str(o.look, 20, '外觀') : undefined,
-                 parts: list(o.parts, LIMITS.parts, '形體').map(cleanPart) };
-      }),
+      objects: cleanObjects(w.objects, 1, '功能點'),
       path: list(w.path || [], LIMITS.path, '路').map(function (p) { return vec(p, 2, '路'); }),
       walk: { circles: [], moves: [] }
     };
@@ -504,7 +552,7 @@ var DATA = (function () {
     if (!out.ruleVersions.length && Array.isArray(w.rules) && w.rules.length) out.ruleVersions = [{ no: 1, atUs: 0, items: list(w.rules, LIMITS.rules, '規則').map(function (t) { return cleanText(t, '規則'); }), ratios: { idea: 100, battle: 100 }, resources: [] }];
     out.rules = currentRules(out).items;
     var ids = {};
-    out.objects.forEach(function (o) { if (ids[o.id]) bad('功能點代號重複：' + o.id); ids[o.id] = true; });
+    allObjects(out).forEach(function (x) { if (ids[x.o.id]) bad('功能點代號重複：' + x.o.id); ids[x.o.id] = true; });
     var walk = obj(w.walk || {}, '走法表');
     out.walk.circles = list(walk.circles || [], LIMITS.rules, '繞圈').map(function (c) {
       obj(c, '繞圈'); if (!ids[c.object]) bad('繞圈指到不存在的物件'); if (!/^[A-J]$/.test(String(c.letter))) bad('繞圈字母錯');
@@ -533,7 +581,7 @@ var DATA = (function () {
 
   /* ---------- 存檔：只存資料 ---------- */
   var KEY = 'arrive-v5';
-  function fresh() { return { v: 5, me: 0, roles: defaultRoles(), records: [], fusions: [], points: [] }; }
+  function fresh() { return { v: 5, me: 0, roles: defaultRoles(), records: [], fusions: [], points: [], exchanges: [] }; }
   function load() {
     try {
       var s = localStorage.getItem(KEY);
@@ -549,10 +597,11 @@ var DATA = (function () {
           var points = list(j.points || [], 5000, '點數').map(function (p) {
             obj(p, '點數'); if (p.kind !== 'idea' && p.kind !== 'battle') bad('點數種類錯');
             return { id: str(p.id, 60, '點數'), kind: p.kind, from: str(p.from, 11, '點數'), to: str(p.to, 11, '點數'), amount: num(p.amount, '點數'),
-                     atUs: num(p.atUs, '點數'), fusion: str(p.fusion || '', 60, '點數'), stage: str(p.stage || '', 60, '點數'), ruleVersion: str(p.ruleVersion || '', 10, '點數'), sig: p.sig == null ? null : str(p.sig, 200, '簽章') };
+                     atUs: num(p.atUs, '點數'), fusion: str(p.fusion || '', 60, '點數'), stage: str(p.stage || '', 60, '點數'), ruleVersion: str(p.ruleVersion || '', 10, '點數'), sig: p.sig == null ? null : str(p.sig, 200, '簽章'), spent: p.spent == null ? null : str(p.spent, 60, '點數') };
           });
+          var exchanges = list(j.exchanges || [], 5000, '兌換').map(function (x) { obj(x, '兌換'); return JSON.parse(JSON.stringify(x)); });
           var me = (typeof j.me === 'number' && j.me >= 0 && j.me < roles.length) ? j.me : 0;
-          return { v: 5, me: me, roles: roles, records: recs, fusions: fusions, points: points };
+          return { v: 5, me: me, roles: roles, records: recs, fusions: fusions, points: points, exchanges: exchanges };
         }
       }
     } catch (e) { /* 壞掉或沒有儲存空間：用預設 */ }
@@ -568,7 +617,8 @@ var DATA = (function () {
 
   return {
     abbrev: abbrev, expand: expand, digitsAfter: digitsAfter,
-    FUNCS: FUNCS, SHAPES: SHAPES, LOOKS: LOOKS, look: look, radiusOf: radiusOf,
+    FUNCS: FUNCS, VIS: VIS, DAILY_KCAL: DAILY_KCAL, SHAPES: SHAPES, LOOKS: LOOKS, look: look, radiusOf: radiusOf,
+    canSee: canSee, fusedWith: fusedWith, allObjects: allObjects, findObject: findObject,
     defaultRoles: defaultRoles, Decoder: Decoder, route: route, cleanWorld: cleanWorld, tryClean: tryClean,
     activeProblem: activeProblem, currentRules: currentRules, addProblem: addProblem, saveRules: saveRules, newId: newId,
     fmtUs: fmtUs, nowUs: nowUs, load: load, save: save, fresh: fresh, findRole: findRole
@@ -792,12 +842,93 @@ var FUSION = (function () {
 })();
 if (typeof module !== 'undefined') module.exports = FUSION;
 
+/* ===== 點數兌換市集：規則與資料，不碰畫面 =====
+ * 點數綁定發出者，只能向發出者兌換能量點或資源；每點換多少大卡看那一點記下的規則版本。
+ * 每個角色每天發出的能量點兌換總量不超過 1800 大卡（含資源的大卡）。
+ */
+var EXCHANGE = (function () {
+  'use strict';
+  function bad(m) { throw new Error(m); }
+  var seq = 0;
+  function id() { return 'ex_' + Date.now().toString(36) + '_' + (seq++).toString(36); }
+  function dayOf(us) { var d = new Date(Math.floor(us / 1000)); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function role(state, s) { return state.roles.find(function (r) { return r.serial === s; }) || null; }
+
+  // 這一點值多少大卡：發出者在那個版本的比例
+  function kcalOf(state, p) {
+    var r = role(state, p.from); if (!r) return 0;
+    var v = (r.ruleVersions || []).find(function (x) { return String(x.no) === p.ruleVersion; }) || DATA.currentRules(r);
+    return p.amount * (v.ratios[p.kind] || 0);
+  }
+  // 手上還沒用掉的點數，照發出者、種類分組
+  function holdings(state, holder) {
+    var groups = {};
+    state.points.forEach(function (p) {
+      if (p.to !== holder || p.spent) return;
+      var k = p.from + ':' + p.kind;
+      var g = groups[k] || (groups[k] = { issuer: p.from, kind: p.kind, points: [], kcal: 0 });
+      g.points.push(p); g.kcal += kcalOf(state, p);
+    });
+    return Object.keys(groups).map(function (k) { var g = groups[k]; g.points.sort(function (a, b) { return a.atUs - b.atUs; }); return g; });
+  }
+  // 發出者今天已經發出多少大卡、還剩多少
+  function issuedToday(state, issuer, atUs) {
+    var day = dayOf(atUs);
+    return (state.exchanges || []).filter(function (x) { return x.issuer === issuer && dayOf(x.atUs) === day; }).reduce(function (s, x) { return s + x.kcal; }, 0);
+  }
+  function remainingToday(state, issuer, atUs) { return Math.max(0, DATA.DAILY_KCAL - issuedToday(state, issuer, atUs)); }
+
+  // 兌換：want = 'energy'（用 n 點換能量）或 {resource: 名稱}（用夠的點換一項資源）
+  function exchange(state, req, atUs) {
+    atUs = atUs || DATA.nowUs();
+    var holder = req.holder, issuer = req.issuer, kind = req.kind;
+    if (holder === issuer) bad('自己發給自己的點數沒有價值');
+    var r = role(state, issuer); if (!r) bad('沒有這個發出者');
+    var g = holdings(state, holder).find(function (x) { return x.issuer === issuer && x.kind === kind; });
+    if (!g || !g.points.length) bad('你手上沒有 ' + r.name + ' 發的' + (kind === 'idea' ? '題點' : '戰點'));
+    var use = [], kcal = 0, resource = null;
+    if (req.resource) {
+      resource = DATA.currentRules(r).resources.find(function (x) { return x.name === req.resource; });
+      if (!resource) bad(r.name + ' 目前的規則裡沒有「' + req.resource + '」');
+      for (var i = 0; i < g.points.length && kcal < resource.kcal; i++) { use.push(g.points[i]); kcal += kcalOf(state, g.points[i]); }
+      if (kcal < resource.kcal) bad('點數不夠：「' + resource.name + '」要 ' + resource.kcal + ' 大卡，你的點數只值 ' + kcal + ' 大卡');
+      kcal = resource.kcal;                       // 多出來的價值算捐給發出者，不找零
+    } else {
+      var n = Math.floor(+req.n);
+      if (!(n >= 1)) bad('要換幾點？');
+      if (n > g.points.length) bad('你只有 ' + g.points.length + ' 點');
+      use = g.points.slice(0, n);
+      kcal = use.reduce(function (s, p) { return s + kcalOf(state, p); }, 0);
+    }
+    var left = remainingToday(state, issuer, atUs);
+    if (kcal > left) bad(r.name + ' 今天只剩 ' + left + ' 大卡的額度（每天 ' + DATA.DAILY_KCAL + '），這筆要 ' + kcal + ' 大卡，明天再來');
+    var x = { id: id(), atUs: atUs, holder: holder, issuer: issuer, kind: kind, pointIds: use.map(function (p) { return p.id; }), n: use.length, kcal: kcal,
+              want: resource ? 'resource' : 'energy', resource: resource ? resource.name : null, ruleVersions: use.map(function (p) { return p.ruleVersion; }).filter(function (v, i, a) { return a.indexOf(v) === i; }) };
+    use.forEach(function (p) { p.spent = x.id; });
+    (state.exchanges = state.exchanges || []).push(x);
+    return x;
+  }
+  // 我能向 issuer 換什麼：能量（每點幾大卡）、資源清單與缺多少
+  function offers(state, holder, issuer) {
+    var r = role(state, issuer); if (!r) return [];
+    var cur = DATA.currentRules(r);
+    return holdings(state, holder).filter(function (g) { return g.issuer === issuer; }).map(function (g) {
+      return { kind: g.kind, n: g.points.length, kcal: g.kcal, perPoint: cur.ratios[g.kind],
+               resources: cur.resources.map(function (x) { return { name: x.name, kcal: x.kcal, enough: g.kcal >= x.kcal }; }) };
+    });
+  }
+  return { exchange: exchange, holdings: holdings, kcalOf: kcalOf, issuedToday: issuedToday, remainingToday: remainingToday, offers: offers, dayOf: dayOf };
+})();
+if (typeof module !== 'undefined') module.exports = EXCHANGE;
+
 /* ===== 畫面層：Three.js 照資料蓋世界 =====
  * 只讀資料、畫畫面、回報事件（靠近、到達、繞圈、點到傳送門）。規則都在 data.js。
  */
 var WORLD = (function () {
   'use strict';
-  var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl;
+  var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl, wallGroup;
+  var stack = [];            // 進門的層：[{objects, pos}]，最多 3 層
+  var sceneInfo = { depth: 0, visiting: false };
   var objects = [];          // [{data, mesh, radius, top, pos:Vector3, label, inside, arrived, angle, startAngle, turned, count}]
   var waypoints = [];
   var handlers = {};
@@ -845,6 +976,7 @@ var WORLD = (function () {
 
     objGroup = new THREE.Group(); scene.add(objGroup);
     pathGroup = new THREE.Group(); scene.add(pathGroup);
+    wallGroup = new THREE.Group(); scene.add(wallGroup);   // 內部空間的地板與牆（只是畫面）
 
     // 角色：圓柱身體 + 球頭
     player = new THREE.Group();
@@ -983,12 +1115,28 @@ var WORLD = (function () {
   // world：角色的世界資料（已經過純資料檢查）；opts.visiting：傳送過去逛，畫出對方設定的路
   function loadWorld(world, opts) {
     opts = opts || {};
-    clear(objGroup); clear(pathGroup);
+    stack = [];
+    sceneInfo = { depth: 0, visiting: !!opts.visiting };
+    loadScene(world.objects, world.start || [0, 0], world.path, opts.visiting);
+  }
+  // 一層場景：外部或某扇門裡面
+  function loadScene(objs, start, path, visiting) {
+    clear(objGroup); clear(pathGroup); clear(wallGroup);
     labelLayer.innerHTML = '';
-    objects = world.objects.map(function (o) { var e = makeEntry(o); objGroup.add(e.mesh); return e; });
-    if (opts.visiting && world.path && world.path.length > 1) {
-      for (var i = 0; i < world.path.length - 1; i++) {
-        var a = world.path[i], b = world.path[i + 1];
+    var inner = sceneInfo.depth > 0;
+    objects = objs.map(function (o) { var e = makeEntry(o); objGroup.add(e.mesh); return e; });
+    if (inner) {
+      // 內部：一塊地板和四面矮牆，讓人知道在屋裡
+      var floor = new THREE.Mesh(new THREE.BoxGeometry(26, 0.1, 26), new THREE.MeshLambertMaterial({ color: 0xb8ad9c }));
+      floor.position.y = 0.02; wallGroup.add(floor);
+      [[0, -13], [0, 13], [-13, 0], [13, 0]].forEach(function (p, i) {
+        var w = new THREE.Mesh(new THREE.BoxGeometry(i < 2 ? 26 : 0.6, 2.4, i < 2 ? 0.6 : 26), new THREE.MeshLambertMaterial({ color: 0xa79c8b }));
+        w.position.set(p[0], 1.2, p[1]); wallGroup.add(w);
+      });
+    }
+    if (!inner && visiting && path && path.length > 1) {
+      for (var i = 0; i < path.length - 1; i++) {
+        var a = path[i], b = path[i + 1];
         var dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
         var seg = new THREE.Mesh(new THREE.BoxGeometry(len, 0.06, 1.2), new THREE.MeshLambertMaterial({ color: 0xf3e9d2 }));
         seg.position.set((a[0] + b[0]) / 2, 0.03, (a[1] + b[1]) / 2);
@@ -996,18 +1144,41 @@ var WORLD = (function () {
         pathGroup.add(seg);
       }
     }
-    var st = world.start || [0, 0];
-    player.position.set(st[0], 0, st[1]);
+    player.position.set(start[0], 0, start[1]);
     waypoints = [];
     hidePortal();
     arc.visible = false;
     detect.lastNear = undefined;
-    player.children[0].material.color = new THREE.Color(opts.visiting ? 0x5c6670 : 0x2d5a86);
-    scene.background = new THREE.Color(opts.visiting ? 0xe4e0d6 : 0xdfe6ec);
+    objects.forEach(function (o) { o.arrived = false; o.inside = false; });
+    player.children[0].material.color = new THREE.Color(sceneInfo.visiting ? 0x5c6670 : 0x2d5a86);
+    scene.background = new THREE.Color(inner ? 0xcfc6b6 : sceneInfo.visiting ? 0xe4e0d6 : 0xdfe6ec);
     scene.fog.color = scene.background;
+    scene.fog.near = inner ? 30 : 40; scene.fog.far = inner ? 60 : 90;
+    ground.visible = !inner;
     camera.position.copy(player.position).add(camOffset());
     camera.lookAt(player.position);
   }
+  // 進門：換到那個物件的內部場景；門開不開由接線層先判
+  function enter(id) {
+    var o = objects.find(function (x) { return x.data.id === id; });
+    if (!o || !o.data.door) return false;
+    if (stack.length >= 3) return false;
+    stack.push({ objects: objects.map(function (x) { return x.data; }), pos: [player.position.x, player.position.z] });
+    sceneInfo.depth = stack.length;
+    loadScene(o.data.door.objects, o.data.door.start || [0, 4], null, sceneInfo.visiting);
+    emit('scene', sceneInfo.depth);
+    return true;
+  }
+  // 出門：回到上一層，站在門口
+  function leave() {
+    var prev = stack.pop();
+    if (!prev) return false;
+    sceneInfo.depth = stack.length;
+    loadScene(prev.objects, prev.pos, null, sceneInfo.visiting);
+    emit('scene', sceneInfo.depth);
+    return true;
+  }
+  function depth() { return sceneInfo.depth; }
 
   function refreshObject(id) {
     var i = objects.findIndex(function (x) { return x.data.id === id; });
@@ -1215,7 +1386,7 @@ var WORLD = (function () {
     return objects.some(function (o) { return Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) < o.radius + AVOID - 0.05; });
   }
 
-  return { init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround,
+  return { init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
            stop: stop, showPortal: showPortal, hidePortal: hidePortal, flash: flash, setArcFilter: setArcFilter,
            playerPos: playerPos, isMoving: isMoving, distanceTo: distanceTo, insideAny: insideAny, resize: resize,
            camera: cam, zoomTo: zoomTo };
@@ -1259,7 +1430,7 @@ var WORLD = (function () {
     target = cur0;
     var box = $('hudRoute');
     if (!target) { box.hidden = true; return; }
-    var rt = DATA.route(me.walk, me.objects, target);
+    var rt = DATA.route(me.walk, DATA.allObjects(me).map(function (x) { return x.o; }), target);
     var doneN = dec.code().length;
     if (rt.missing) { $('hudRouteText').textContent = '要去 ' + target + '：' + rt.missing + '，到表世界改走法表。'; }
     else {
@@ -1276,7 +1447,9 @@ var WORLD = (function () {
   }
   function drawWhere() {
     var r = cur.role;
-    $('hudWhere').textContent = cur.visiting ? '在 ' + DATA.abbrev(r.serial) + ' ' + r.name + ' 的世界' : '自己的世界 ' + DATA.abbrev(r.serial);
+    var d = WORLD.depth ? WORLD.depth() : 0;
+    $('hudWhere').textContent = (cur.visiting ? '在 ' + DATA.abbrev(r.serial) + ' ' + r.name + ' 的世界' : '自己的世界 ' + DATA.abbrev(r.serial)) + (d ? '，內部第 ' + d + ' 層' : '');
+    $('btnLeave').hidden = !d;
     $('btnHome').hidden = !cur.visiting;
     $('hudCodeBox').hidden = cur.visiting;
     $('hudRoute').hidden = cur.visiting;
@@ -1286,14 +1459,21 @@ var WORLD = (function () {
   function canCircle(o) {
     return !cur.visiting && !!o && me.walk.circles.some(function (c) { return c.object === o.id; });
   }
+  var openTarget = null;   // 「打開」按鈕要去哪一頁
   function drawNear(o) {
     var box = $('hudNear');
-    $('btnOpen').hidden = true;
+    $('btnOpen').hidden = true; $('btnEnter').hidden = true;
     if (!o) { box.hidden = true; $('btnCircle').hidden = true; return; }
     var f = DATA.FUNCS[o.func] || DATA.FUNCS.none;
     var r = cur.role, body = '';
-    if (o.func === 'rule') body = visibleTo(DATA.currentRules(r).items, f);
-    else if (o.func === 'problem') { var p = DATA.activeProblem(r); body = p ? p.text : '（還沒立難題）'; }
+    if (o.func === 'rule') body = visibleTo(DATA.currentRules(r).items);
+    else if (o.func === 'problem') { var p = DATA.activeProblem(r); body = !p ? '（還沒立難題）' : DATA.canSee(state, r.serial, me.serial, p.visible) ? p.text : '主人沒有開放給你看。'; }
+    else if (o.func === 'market') {
+      if (!cur.visiting) { var hs = EXCHANGE.holdings(state, me.serial); body = '我今天還能發出 ' + EXCHANGE.remainingToday(state, me.serial, DATA.nowUs()) + ' 大卡。\n手上有 ' + hs.reduce(function (n, g) { return n + g.points.length; }, 0) + ' 點可以拿去換。'; }
+      else { var offs = EXCHANGE.offers(state, me.serial, r.serial); body = offs.length ? offs.map(function (x) { return (x.kind === 'idea' ? '題點' : '戰點') + ' ' + x.n + ' 點，值 ' + x.kcal + ' 大卡' + (x.resources.filter(function (q) { return q.enough; }).length ? '，換得到：' + x.resources.filter(function (q) { return q.enough; }).map(function (q) { return q.name; }).join('、') : ''); }).join('\n') + '\n' + r.name + ' 今天還能發出 ' + EXCHANGE.remainingToday(state, r.serial, DATA.nowUs()) + ' 大卡。' : '你手上沒有 ' + r.name + ' 發的點數。'; }
+      openTarget = { sheet: 'exchange', id: cur.visiting ? r.serial + ':' : null };
+      $('btnOpen').hidden = false; $('btnOpen').textContent = '打開兌換';
+    }
     else if (o.func === 'goal') body = '出發點：' + DATA.fmtUs(r.departUs);
     else if (o.func === 'fusion' || o.func === 'stage') {
       var fo = FUSION.openFor(state, r.serial);
@@ -1301,21 +1481,25 @@ var WORLD = (function () {
       else if (!FUSION.isMember(fo, me.serial)) body = '只有參與者看得到。';
       else if (o.func === 'fusion') body = '融合難題：' + fo.text + '\n下一個出發點：' + (fo.nextUs == null ? '還沒約' : DATA.fmtUs(fo.nextUs));
       else body = fo.stages.length ? fo.stages.map(function (st) { return '・' + st.text + '（' + FUSION.STATUS[st.status] + '）'; }).join('\n') : '還沒有階段。';
-      $('btnOpen').hidden = !fo || !FUSION.isMember(fo, me.serial);
+      openTarget = { sheet: 'fusion', id: fo ? fo.id : null };
+      $('btnOpen').hidden = !fo || !FUSION.isMember(fo, me.serial); $('btnOpen').textContent = '打開融合';
     }
     else body = '純地標，沒有功能。';
+    // 門：可見條件管得到；看不到的人只看到門關著
+    if (o.door) {
+      var open = DATA.canSee(state, r.serial, me.serial, o.door.visible);
+      body += (body ? '\n' : '') + (open ? '有一扇門。' : '有一扇門，關著。');
+      $('btnEnter').hidden = !open || WORLD.depth() >= 3;
+    }
     $('hudNearTitle').textContent = '這裡是' + f.label + '：' + o.name;
     $('hudNearBody').textContent = body;
     box.hidden = false;
     $('btnCircle').hidden = !canCircle(o);
   }
-  function visibleTo(list, f) {
+  function visibleTo(list) {
     if (!list || !list.length) return '（空的）';
-    if (cur.visiting && f.visible === 'cond') {
-      var open = list.filter(function (x) { return x.visible !== 'self'; });
-      return open.length ? open.map(function (x) { return x.text; }).join('\n') : '主人沒有開放。';
-    }
-    return list.map(function (x) { return x.text; }).join('\n');
+    var open = list.filter(function (x) { return DATA.canSee(state, cur.role.serial, me.serial, x.visible); });
+    return open.length ? open.map(function (x) { return x.text; }).join('\n') : '主人沒有開放給你看。';
   }
 
   /* ---------- 世界事件 ---------- */
@@ -1365,7 +1549,10 @@ var WORLD = (function () {
   }
   $('btnHome').addEventListener('click', goHome);
   function openFusion() { var f = FUSION.openFor(state, me.serial); showTab('sheet'); SHEET.navigate('fusion', f ? f.id : null); }
-  $('btnOpen').addEventListener('click', openFusion);
+  $('btnOpen').addEventListener('click', function () { if (!openTarget) return openFusion(); showTab('sheet'); SHEET.navigate(openTarget.sheet, openTarget.id); });
+  function enterDoor() { if (nearObj && WORLD.enter(nearObj.id)) { WORLD.flash(); drawWhere(); drawNear(null); msg('進到 ' + nearObj.name + ' 裡面。', false); } }
+  $('btnEnter').addEventListener('click', enterDoor);
+  $('btnLeave').addEventListener('click', function () { if (WORLD.leave()) { WORLD.flash(); drawWhere(); drawNear(null); } });
   $('meetOpen').addEventListener('click', function () { $('meet').hidden = true; goHome(); openFusion(); });
   $('btnReset').addEventListener('click', function () { dec.reset(); drawCode(); WORLD.hidePortal(); portalRole = null; msg('重走'); });
   $('btnCircle').addEventListener('click', function () { if (nearObj) WORLD.circleAround(nearObj.id); });
@@ -1482,7 +1669,7 @@ var WORLD = (function () {
     state: function () { return state; }, me: function () { return me; }, cur: function () { return cur; }, dec: function () { return dec; },
     save: function () { DATA.save(state); }, msg: msg, becomeMe: becomeMe, goHome: goHome, showTab: showTab, isWorld: function () { return $('view-world') && !$('view-world').hidden; },
     openPortal: function (code) { showTab('world'); if (cur.visiting) goHome(); dec.reset(); drawCode(); openPortal(code); },
-    enterPortal: function () { if (portalRole) teleport(portalRole); }, teleportTo: teleport,
+    enterPortal: function () { if (portalRole) teleport(portalRole); }, teleportTo: teleport, enterDoor: enterDoor, nearObj: function () { return nearObj; },
     walkChanged: walkChanged, worldRefresh: worldRefresh, resetAll: resetAll, record: record, refresh: refresh, esc: esc, opt: opt
   };
 })();
@@ -1498,8 +1685,8 @@ var SHEET = (function () {
   var opt = function (v, l, sel) { return APP.opt(v, l, sel); };
   var S = function () { return APP.state(); };
   var me = function () { return APP.me(); };
-  var UI = { sheet: 'next', hist: [], focus: null, sel: null, worldRole: null, rulesRole: null, draft: null, draftFor: null, prevPick: null };
-  var ORDER = ['next', 'roles', 'problems', 'rules', 'world', 'walk', 'depart', 'fusion', 'points', 'records'];
+  var UI = { sheet: 'next', hist: [], focus: null, sel: null, worldRole: null, worldPath: [], rulesRole: null, draft: null, draftFor: null, prevPick: null, exIssuer: null };
+  var ORDER = ['next', 'roles', 'problems', 'rules', 'world', 'walk', 'depart', 'fusion', 'points', 'exchange', 'records'];
 
   /* ---------- 小工具 ---------- */
   var colLetter = function (i) { var s = ''; i++; while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
@@ -1515,6 +1702,8 @@ var SHEET = (function () {
   var fusionOf = function (fid) { return S().fusions.find(function (f) { return f.id === fid; }) || null; };
   var objName = function (r, id) { var o = r.objects.find(function (x) { return x.id === id; }); return o ? o.name : id; };
   var PSTATUS = { open: '進行中', fused: '融合中', shelved: '擱置', exited: '退出', done: '可處理' };
+  var visSel = function (ed, id, v) { return '<select data-ed="' + ed + '" data-id="' + esc(id) + '" aria-label="誰看得到">' + Object.keys(DATA.VIS).map(function (k) { return opt(k, DATA.VIS[k], v); }).join('') + '</select>'; };
+  var allObjs = function (r) { return DATA.allObjects(r).map(function (x) { return x.o; }); };
   var DSTATUS = { none: '還沒寫', wait: '等待那一微秒', past: '已過', fusion: '融合的期限' };
 
   // 連結：跳到某張表的某一列
@@ -1529,10 +1718,10 @@ var SHEET = (function () {
     out.push({ id: 'role', no: '①', name: '角色', ok: !!m.name, status: DATA.abbrev(m.serial) + ' ' + m.name, sheet: 'roles', row: m.serial, hint: '你是誰。可以改名字或換角色。' });
     out.push({ id: 'problem', no: '②', name: '難題', ok: !!p, status: p ? p.text + '（' + PSTATUS[p.status] + '）' : '還沒立難題', sheet: 'problems', row: p ? p.id : null, hint: '自己想不出辦法的情況，寫下來。' });
     out.push({ id: 'rules', no: '③', name: '規則', ok: cur.items.length > 0, status: cur.no ? '第 ' + cur.no + ' 版，' + cur.items.length + ' 條，題點 ' + cur.ratios.idea + '、戰點 ' + cur.ratios.battle + ' 大卡' : '還沒有規則', sheet: 'rules', row: cur.no ? m.serial + ':' + cur.no : null, hint: '你的規則和點數比例，來訪者沿路看得到公開的。' });
-    var funcs = ['rule', 'problem', 'goal', 'fusion', 'stage'], has = funcs.filter(function (f) { return m.objects.some(function (o) { return o.func === f; }); });
-    out.push({ id: 'world', no: '④', name: '世界', ok: has.length === funcs.length, status: has.length === funcs.length ? m.objects.length + ' 個物件，五個功能點都有' : '缺功能點：' + funcs.filter(function (f) { return has.indexOf(f) < 0; }).map(function (f) { return DATA.FUNCS[f].label; }).join('、'), sheet: 'world', row: null, hint: '功能固定、外觀自由。' });
+    var funcs = ['rule', 'problem', 'goal', 'fusion', 'stage'], has = funcs.filter(function (f) { return allObjs(m).some(function (o) { return o.func === f; }); });
+    out.push({ id: 'world', no: '④', name: '世界', ok: has.length === funcs.length, status: has.length === funcs.length ? allObjs(m).length + ' 個物件，五個功能點都有' : '缺功能點：' + funcs.filter(function (f) { return has.indexOf(f) < 0; }).map(function (f) { return DATA.FUNCS[f].label; }).join('、'), sheet: 'world', row: null, hint: '功能固定、外觀自由。' });
     var others = st.roles.filter(function (r) { return r !== m; });
-    var rt = others.length ? DATA.route(m.walk, m.objects, DATA.abbrev(others[0].serial)) : { missing: '沒有別的角色' };
+    var rt = others.length ? DATA.route(m.walk, allObjs(m), DATA.abbrev(others[0].serial)) : { missing: '沒有別的角色' };
     out.push({ id: 'walk', no: '⑤', name: '走法', ok: !rt.missing, status: rt.missing ? rt.missing : '要去 ' + DATA.abbrev(others[0].serial) + '：' + rt.steps.join('，'), sheet: 'walk', row: null, hint: '繞哪個物件是哪個字母、從甲到乙是哪個數字。' });
     var f = FUSION.openFor(st, m.serial);
     var dep = m.departUs == null ? 'none' : m.departDone ? 'past' : FUSION.byDepart(st, m.departUs) ? 'fusion' : 'wait';
@@ -1587,7 +1776,8 @@ var SHEET = (function () {
         cols: [
           { k: 'id', h: '編號', v: function (x) { return '<span class="num">' + esc(x.p.id) + '</span>'; } },
           { k: 'role', h: '角色', v: function (x) { return L('roles', x.role.serial, esc(roleName(x.role.serial))); } },
-          { k: 'text', h: '難題', v: function (x) { return x.role === me() && x.p.status === 'open' ? inp('problemText', x.p.id, x.p.text, ' aria-label="難題"') : esc(x.p.text); }, wrap: true },
+          { k: 'text', h: '難題', v: function (x) { if (!DATA.canSee(S(), x.role.serial, me().serial, x.p.visible)) return '<span class="muted">（' + DATA.VIS[x.p.visible] + '才看得到）</span>'; return x.role === me() && x.p.status === 'open' ? inp('problemText', x.p.id, x.p.text, ' aria-label="難題"') : esc(x.p.text); }, wrap: true },
+          { k: 'vis', h: '誰看得到', v: function (x) { return x.role === me() ? visSel('problemVis', x.p.id, x.p.visible || 'all') : DATA.VIS[x.p.visible || 'all']; } },
           { k: 'status', h: '狀態', v: function (x) { return tag(x.p.status, PSTATUS[x.p.status] || x.p.status); } },
           { k: 'prev', h: '前身', v: function (x) { return x.p.prev ? L('problems', x.p.prev, esc(x.p.prev)) : dash; } },
           { k: 'depart', h: '出發點', v: function (x) { return DATA.activeProblem(x.role) === x.p && x.role.departUs != null ? L('depart', x.role.serial, esc(DATA.fmtUs(x.role.departUs))) : dash; } },
@@ -1602,7 +1792,7 @@ var SHEET = (function () {
         add: { cells: function () {
           var m = me(); if (DATA.activeProblem(m)) return { text: '<span class="auto">目前的難題還在進行，先擱置或完成它</span>' };
           var shelved = m.problems.filter(function (p) { return p.status === 'shelved' || p.status === 'exited'; });
-          return { role: '<span class="small">' + esc(roleName(m.serial)) + '</span>', text: '<input type="text" id="addProblemText" placeholder="寫下自己想不出辦法的情況" aria-label="新難題">',
+          return { role: '<span class="small">' + esc(roleName(m.serial)) + '</span>', text: '<input type="text" id="addProblemText" placeholder="寫下自己想不出辦法的情況" aria-label="新難題">', vis: '<select id="addProblemVis" aria-label="誰看得到">' + Object.keys(DATA.VIS).map(function (k) { return opt(k, DATA.VIS[k], 'all'); }).join('') + '</select>',
                    prev: shelved.length ? '<select id="addProblemPrev" aria-label="前身">' + opt('', '（沒有前身）', UI.prevPick || '') + shelved.map(function (p) { return opt(p.id, p.id + ' ' + p.text.slice(0, 10), UI.prevPick || ''); }).join('') + '</select>' : '<span class="auto">沒有擱置的</span>',
                    act: btn('addProblem', '立難題', '', 'pri') }; } } }] },
 
@@ -1610,14 +1800,14 @@ var SHEET = (function () {
       toolbar: function () { return '<label class="small">看誰的規則 <select data-ed="rulesRole" aria-label="哪個角色的規則">' + S().roles.map(function (r) { return opt(r.serial, roleName(r.serial), rulesRole().serial); }).join('') + '</select></label>' + (rulesRole() === me() && draftDirty() ? '<span class="tag open">有沒儲存的修改</span>' + btn('discardDraft', '放棄修改') : ''); },
       tables: [
         { id: 'items', title: '規則條目', rowId: function (x, i) { return 'i' + i; },
-          rows: function () { return editing() ? draft().items : DATA.currentRules(rulesRole()).items.filter(function (x) { return x.visible !== 'self' || rulesRole() === me(); }); },
+          rows: function () { return editing() ? draft().items : DATA.currentRules(rulesRole()).items.filter(function (x) { return DATA.canSee(S(), rulesRole().serial, me().serial, x.visible); }); },
           cols: [
             { k: 'no', h: '條', v: function (x, i) { return String(i + 1); } },
             { k: 'text', h: '內容', v: function (x, i) { return editing() ? inp('ruleText', i, x.text, ' aria-label="規則內容"') : esc(x.text); }, wrap: true },
-            { k: 'vis', h: '誰看得到', v: function (x, i) { return editing() ? '<select data-ed="ruleVis" data-id="' + i + '" aria-label="誰看得到">' + opt('all', '公開', x.visible) + opt('self', '只有自己', x.visible) + '</select>' : (x.visible === 'self' ? '只有自己' : '公開'); } },
+            { k: 'vis', h: '誰看得到', v: function (x, i) { return editing() ? visSel('ruleVis', i, x.visible) : DATA.VIS[x.visible] || '所有人'; } },
             { k: 'act', h: '動作', v: function (x, i) { return editing() ? btn('delRule', '刪', ' data-id="' + i + '"') : ''; } }
           ],
-          add: { when: editing, cells: function () { return { text: '<input type="text" id="addRuleText" placeholder="新的一條規則" aria-label="新規則">', vis: '<select id="addRuleVis" aria-label="誰看得到"><option value="all">公開</option><option value="self">只有自己</option></select>', act: btn('addRule', '新增條目', '', 'pri') }; } },
+          add: { when: editing, cells: function () { return { text: '<input type="text" id="addRuleText" placeholder="新的一條規則" aria-label="新規則">', vis: '<select id="addRuleVis" aria-label="誰看得到">' + Object.keys(DATA.VIS).map(function (k) { return opt(k, DATA.VIS[k], 'all'); }).join('') + '</select>', act: btn('addRule', '新增條目', '', 'pri') }; } },
           empty: '還沒有規則條目。' },
         { id: 'ratios', title: '點數比例', rowId: function (x) { return x.k; },
           rows: function () { var r = editing() ? draft().ratios : DATA.currentRules(rulesRole()).ratios; return [{ k: 'idea', name: '題點', kcal: r.idea }, { k: 'battle', name: '戰點', kcal: r.battle }]; },
@@ -1650,9 +1840,13 @@ var SHEET = (function () {
           empty: '還沒有版本。' }
       ] },
 
-    world: { no: 'Ⅳ', name: '世界', desc: '功能固定，外觀自由。改外觀、換顏色、搬位置，走法表記的是物件本身，代號照樣有效。',
-      toolbar: function () { return '<label class="small">哪個世界 <select data-ed="worldRole" aria-label="哪個世界">' + S().roles.map(function (r) { return opt(r.serial, roleName(r.serial), worldRole().serial); }).join('') + '</select></label>'; },
-      tables: [{ id: 'objects', rowId: function (o) { return worldRole().serial + ':' + o.id; }, rows: function () { return worldRole().objects; },
+    world: { no: 'Ⅳ', name: '世界', desc: '功能固定，外觀自由。改外觀、換顏色、搬位置，走法表記的是物件本身，代號照樣有效。任何物件都能設一扇門，進門是它的內部空間，同樣用基本形體蓋，最多 3 層；可見條件管得到門。',
+      toolbar: function () {
+        var crumbs = ['<button type="button" class="lk" data-act="worldUp" data-n="0">外部</button>'];
+        UI.worldPath.forEach(function (id, i) { var o = DATA.findObject(worldRole(), id); crumbs.push('<button type="button" class="lk" data-act="worldUp" data-n="' + (i + 1) + '">' + esc(o ? o.name : id) + '</button>'); });
+        return '<label class="small">哪個世界 <select data-ed="worldRole" aria-label="哪個世界">' + S().roles.map(function (r) { return opt(r.serial, roleName(r.serial), worldRole().serial); }).join('') + '</select></label><span class="small">' + crumbs.join(' › ') + (UI.worldPath.length ? '（第 ' + UI.worldPath.length + ' 層內部）' : '') + '</span>' + (UI.worldPath.length ? btn('worldUp', '出來', ' data-n="' + (UI.worldPath.length - 1) + '"') : '');
+      },
+      tables: [{ id: 'objects', rowId: function (o) { return worldRole().serial + ':' + o.id; }, rows: function () { return levelObjects(); },
         cols: [
           { k: 'name', h: '名稱', v: function (o) { return inp('objName', o.id, o.name, ' aria-label="名稱"'); } },
           { k: 'func', h: '功能', v: function (o) { return '<select data-ed="objFunc" data-id="' + o.id + '" aria-label="功能">' + Object.keys(DATA.FUNCS).map(function (k) { return opt(k, DATA.FUNCS[k].label, o.func); }).join('') + '</select>'; } },
@@ -1661,6 +1855,11 @@ var SHEET = (function () {
           { k: 'x', h: 'x', num: true, v: function (o) { return '<input type="number" class="xy" data-ed="objX" data-id="' + o.id + '" value="' + o.pos[0] + '" step="1" aria-label="x">'; } },
           { k: 'z', h: 'z', num: true, v: function (o) { return '<input type="number" class="xy" data-ed="objZ" data-id="' + o.id + '" value="' + o.pos[1] + '" step="1" aria-label="z">'; } },
           { k: 'parts', h: '形體', num: true, v: function (o) { return String(o.parts.length); } },
+          { k: 'door', h: '門', v: function (o) {
+            if (UI.worldPath.length >= 2) return o.door ? '<span class="auto">已是第 3 層</span>' : '<span class="auto">第 3 層不能再開門</span>';
+            var sel = '<select data-ed="objDoor" data-id="' + o.id + '" aria-label="門">' + opt('', '沒有門', o.door ? o.door.visible : '') + Object.keys(DATA.VIS).map(function (k) { return opt(k, '門：' + DATA.VIS[k], o.door ? o.door.visible : ''); }).join('') + '</select>';
+            return sel + (o.door ? ' ' + btn('worldIn', '進去編輯（' + o.door.objects.length + '）', ' data-id="' + o.id + '"') : '');
+          } },
           { k: 'walk', h: '走法用到', v: function (o) { var r = worldRole(), w = r.walk, out = []; w.circles.forEach(function (c, i) { if (c.object === o.id) out.push(r === me() ? L('walk', 'c' + i, '繞圈 ' + c.letter) : '繞圈 ' + c.letter); }); w.moves.forEach(function (m, i) { if (m.from === o.id || m.to === o.id) out.push(r === me() ? L('walk', 'm' + i, '走到 ' + m.digit) : '走到 ' + m.digit); }); return out.length ? out.join('、') : dash; } },
           { k: 'act', h: '動作', v: function (o) { return btn('delObj', '刪', ' data-id="' + o.id + '"'); } }
         ],
@@ -1670,26 +1869,26 @@ var SHEET = (function () {
       tables: [
         { id: 'circles', title: '繞圈', rowId: function (c, i) { return 'c' + i; }, rows: function () { return me().walk.circles; },
           cols: [
-            { k: 'obj', h: '繞這個物件', v: function (c, i) { return '<select data-ed="circleObj" data-id="' + i + '" aria-label="物件">' + me().objects.map(function (o) { return opt(o.id, o.name, c.object); }).join('') + '</select> ' + L('world', me().serial + ':' + c.object, '⇢'); } },
+            { k: 'obj', h: '繞這個物件', v: function (c, i) { return '<select data-ed="circleObj" data-id="' + i + '" aria-label="物件">' + objOpts(c.object) + '</select> ' + L('world', me().serial + ':' + c.object, '⇢'); } },
             { k: 'letter', h: '一圈是', v: function (c, i) { return '<select data-ed="circleLetter" data-id="' + i + '" aria-label="一圈是">' + 'JIHGFEDCBA'.split('').map(function (Lx) { return opt(Lx, Lx, c.letter); }).join('') + '</select>'; } },
             { k: 'more', h: '兩圈、三圈', v: function (c) { return '<span class="muted small">' + prev(c.letter, 1) + '、' + prev(c.letter, 2) + '</span>'; } },
             { k: 'act', h: '動作', v: function (c, i) { return btn('delCircle', '刪', ' data-id="' + i + '"'); } }
           ],
-          add: { cells: function () { return { obj: '<select id="addCircleObj" aria-label="物件">' + me().objects.map(function (o) { return opt(o.id, o.name, ''); }).join('') + '</select>', letter: '<select id="addCircleLetter" aria-label="一圈是">' + 'JIHGFEDCBA'.split('').map(function (Lx) { return opt(Lx, Lx, 'J'); }).join('') + '</select>', act: btn('addCircle', '加一條', '', 'pri') }; } },
+          add: { cells: function () { return { obj: '<select id="addCircleObj" aria-label="物件">' + objOpts('') + '</select>', letter: '<select id="addCircleLetter" aria-label="一圈是">' + 'JIHGFEDCBA'.split('').map(function (Lx) { return opt(Lx, Lx, 'J'); }).join('') + '</select>', act: btn('addCircle', '加一條', '', 'pri') }; } },
           empty: '還沒有繞圈的走法。' },
         { id: 'moves', title: '走到', rowId: function (m, i) { return 'm' + i; }, rows: function () { return me().walk.moves; },
           cols: [
-            { k: 'from', h: '從', v: function (m, i) { return '<select data-ed="moveFrom" data-id="' + i + '" aria-label="從">' + me().objects.map(function (o) { return opt(o.id, o.name, m.from); }).join('') + '</select> ' + L('world', me().serial + ':' + m.from, '⇢'); } },
-            { k: 'to', h: '走到', v: function (m, i) { return '<select data-ed="moveTo" data-id="' + i + '" aria-label="走到">' + me().objects.map(function (o) { return opt(o.id, o.name, m.to); }).join('') + '</select> ' + L('world', me().serial + ':' + m.to, '⇢'); } },
+            { k: 'from', h: '從', v: function (m, i) { return '<select data-ed="moveFrom" data-id="' + i + '" aria-label="從">' + objOpts(m.from) + '</select> ' + L('world', me().serial + ':' + m.from, '⇢'); } },
+            { k: 'to', h: '走到', v: function (m, i) { return '<select data-ed="moveTo" data-id="' + i + '" aria-label="走到">' + objOpts(m.to) + '</select> ' + L('world', me().serial + ':' + m.to, '⇢'); } },
             { k: 'digit', h: '是數字', v: function (m, i) { return '<select data-ed="moveDigit" data-id="' + i + '" aria-label="數字">' + '0123456789'.split('').map(function (d) { return opt(d, d, m.digit); }).join('') + '</select>'; } },
             { k: 'act', h: '動作', v: function (m, i) { return btn('delMove', '刪', ' data-id="' + i + '"'); } }
           ],
-          add: { cells: function () { var os = me().objects; return { from: '<select id="addMoveFrom" aria-label="從">' + os.map(function (o) { return opt(o.id, o.name, os[0].id); }).join('') + '</select>', to: '<select id="addMoveTo" aria-label="走到">' + os.map(function (o) { return opt(o.id, o.name, (os[1] || os[0]).id); }).join('') + '</select>', digit: '<select id="addMoveDigit" aria-label="數字">' + '0123456789'.split('').map(function (d) { return opt(d, d, '1'); }).join('') + '</select>', act: btn('addMove', '加一條', '', 'pri') }; } },
+          add: { cells: function () { var os = allObjs(me()); return { from: '<select id="addMoveFrom" aria-label="從">' + objOpts(os[0].id) + '</select>', to: '<select id="addMoveTo" aria-label="走到">' + objOpts((os[1] || os[0]).id) + '</select>', digit: '<select id="addMoveDigit" aria-label="數字">' + '0123456789'.split('').map(function (d) { return opt(d, d, '1'); }).join('') + '</select>', act: btn('addMove', '加一條', '', 'pri') }; } },
           empty: '還沒有走到的走法。' },
         { id: 'targets', title: '要去哪裡', rowId: function (r) { return r.serial; }, rows: function () { return S().roles.filter(function (r) { return r !== me(); }); },
           cols: [
             { k: 'code', h: '代號', v: function (r) { return L('roles', r.serial, '<b>' + DATA.abbrev(r.serial) + '</b> ' + esc(r.name)); } },
-            { k: 'route', h: '用我的走法怎麼走', v: function (r) { var rt = DATA.route(me().walk, me().objects, DATA.abbrev(r.serial)); return rt.missing ? '<span class="tag shelve">' + esc(rt.missing) + '</span>' : esc(rt.steps.join('，')); }, wrap: true },
+            { k: 'route', h: '用我的走法怎麼走', v: function (r) { var rt = DATA.route(me().walk, allObjs(me()), DATA.abbrev(r.serial)); return rt.missing ? '<span class="tag shelve">' + esc(rt.missing) + '</span>' : esc(rt.steps.join('，')); }, wrap: true },
             { k: 'act', h: '動作', v: function (r) { return btn('portal', '直接開傳送門', ' data-id="' + DATA.abbrev(r.serial) + '"'); } }
           ],
           add: { cells: function () { return { code: '<input type="text" id="codeIn" placeholder="輸入代號，例如 J2" autocapitalize="characters" aria-label="代號" style="width:9em">', act: btn('portalIn', '開傳送門', '', 'pri') }; } } }
@@ -1764,7 +1963,41 @@ var SHEET = (function () {
           { k: 'stage', h: '階段', v: function (p) { var x = findStage(p.stage); return x ? L('fusion', x.st.id, esc(x.st.text)) : dash; }, wrap: true }
         ], empty: '還沒有點數。' }] },
 
-    records: { no: 'Ⅸ', name: '紀錄', desc: '相遇、擱置、退出的紀錄。',
+    exchange: { no: 'Ⅸ', name: '兌換', desc: '用手上的題點、戰點向發出者換能量點或資源；每點值多少大卡照發出者發點時的規則版本。每個角色每天發出的能量點兌換總量不超過 ' + DATA.DAILY_KCAL + ' 大卡，不夠就明天再來。',
+      toolbar: function () { return tag('open', '我今天還能發出 ' + EXCHANGE.remainingToday(S(), me().serial, DATA.nowUs()) + ' 大卡'); },
+      tables: [
+        { id: 'holdings', title: '手上的點數', rowId: function (g) { return g.issuer + ':' + g.kind; }, rows: function () { return EXCHANGE.holdings(S(), me().serial); },
+          cols: [
+            { k: 'issuer', h: '發出者', v: function (g) { return L('roles', g.issuer, esc(roleName(g.issuer))); } },
+            { k: 'kind', h: '種類', v: function (g) { return g.kind === 'idea' ? '題點' : '戰點'; } },
+            { k: 'n', h: '點數', num: true, v: function (g) { return String(g.points.length); } },
+            { k: 'kcal', h: '值多少大卡', num: true, v: function (g) { return String(g.kcal); } },
+            { k: 'left', h: '發出者今天剩', num: true, v: function (g) { return String(EXCHANGE.remainingToday(S(), g.issuer, DATA.nowUs())); } },
+            { k: 'energy', h: '換能量', v: function (g) { return '<input type="number" class="kc" min="1" max="' + g.points.length + '" value="1" id="exN_' + g.issuer + '_' + g.kind + '" aria-label="幾點"> 點 ' + btn('exEnergy', '換能量', ' data-id="' + g.issuer + '" data-kind="' + g.kind + '"', 'pri'); } },
+            { k: 'res', h: '換資源', v: function (g) { var rs = DATA.currentRules(roleOf(g.issuer)).resources; if (!rs.length) return '<span class="auto">他沒有列資源</span>'; return '<select id="exR_' + g.issuer + '_' + g.kind + '" aria-label="資源">' + rs.map(function (x) { return opt(x.name, x.name + '（' + x.kcal + ' 大卡' + (g.kcal >= x.kcal ? '' : '，不夠') + '）', ''); }).join('') + '</select> ' + btn('exResource', '換資源', ' data-id="' + g.issuer + '" data-kind="' + g.kind + '"'); }, wrap: true },
+            { k: 'ver', h: '版本', v: function (g) { var vs = g.points.map(function (p) { return p.ruleVersion; }).filter(function (x, i, a) { return a.indexOf(x) === i; }); return vs.map(function (vn) { return L('rules', g.issuer + ':' + vn, '第 ' + esc(vn) + ' 版'); }).join('、'); } }
+          ], empty: '手上沒有可以換的點數。' },
+        { id: 'quota', title: '今天的額度', rowId: function (r) { return r.serial; }, rows: function () { return S().roles; }, mine: function (r) { return r === me(); },
+          cols: [
+            { k: 'role', h: '角色', v: function (r) { return L('roles', r.serial, esc(roleName(r.serial))); } },
+            { k: 'used', h: '今天已發出', num: true, v: function (r) { return String(EXCHANGE.issuedToday(S(), r.serial, DATA.nowUs())); } },
+            { k: 'left', h: '剩餘', num: true, v: function (r) { return String(EXCHANGE.remainingToday(S(), r.serial, DATA.nowUs())); } },
+            { k: 'cap', h: '每日上限', num: true, v: function () { return String(DATA.DAILY_KCAL); } }
+          ] },
+        { id: 'exchanges', title: '兌換紀錄', rowId: function (x) { return x.id; }, rows: function () { return (S().exchanges || []).slice().reverse(); }, mine: function (x) { return x.holder === me().serial || x.issuer === me().serial; },
+          cols: [
+            { k: 'at', h: '時間', v: function (x) { return num(x.atUs); } },
+            { k: 'holder', h: '拿點的人', v: function (x) { return L('roles', x.holder, esc(roleName(x.holder))); } },
+            { k: 'issuer', h: '發出者', v: function (x) { return L('roles', x.issuer, esc(roleName(x.issuer))); } },
+            { k: 'kind', h: '種類', v: function (x) { return x.kind === 'idea' ? '題點' : '戰點'; } },
+            { k: 'n', h: '用了幾點', num: true, v: function (x) { return String(x.n); } },
+            { k: 'kcal', h: '大卡', num: true, v: function (x) { return String(x.kcal); } },
+            { k: 'got', h: '換到', v: function (x) { return x.want === 'resource' ? '資源：' + esc(x.resource) : '能量點 ' + x.kcal + ' 大卡'; } },
+            { k: 'ver', h: '版本', v: function (x) { return x.ruleVersions.map(function (vn) { return L('rules', x.issuer + ':' + vn, '第 ' + esc(vn) + ' 版'); }).join('、'); } }
+          ], empty: '還沒有兌換。' }
+      ] },
+
+    records: { no: 'Ⅹ', name: '紀錄', desc: '相遇、擱置、退出的紀錄。',
       toolbar: function () { return btn('resetAll', '全部還原成預設'); },
       tables: [{ id: 'records', rowId: function (x, i) { return 'r' + i; }, rows: function () { return S().records.slice().reverse(); },
         cols: [
@@ -1791,6 +2024,13 @@ var SHEET = (function () {
 
   /* ---------- 規則草稿 ---------- */
   function rulesRole() { return roleOf(UI.rulesRole) || me(); }
+  // 世界頁目前這一層的物件清單（外部或某扇門裡）
+  function levelObjects() {
+    var r = worldRole(), lv = r.objects;
+    for (var i = 0; i < UI.worldPath.length; i++) { var o = lv.find(function (x) { return x.id === UI.worldPath[i]; }); if (!o || !o.door) { UI.worldPath = UI.worldPath.slice(0, i); break; } lv = o.door.objects; }
+    return lv;
+  }
+  function objOpts(sel) { return DATA.allObjects(me()).map(function (x) { return opt(x.o.id, (x.depth ? '　'.repeat(x.depth) + '└ ' : '') + x.o.name, sel); }).join(''); }
   function worldRole() { return roleOf(UI.worldRole) || me(); }
   function editing() { return rulesRole() === me(); }
   function draft() {
@@ -1871,7 +2111,8 @@ var SHEET = (function () {
     UI.hist.push({ sheet: UI.sheet }); if (UI.hist.length > 60) UI.hist.shift();
     UI.sheet = sheet; UI.focus = id || null;
     // 跳到別人的世界那一列：先切到那個世界
-    if (sheet === 'world' && id && id.indexOf(':') > 0) UI.worldRole = id.split(':')[0];
+    if (sheet === 'world' && id && id.indexOf(':') > 0) { UI.worldRole = id.split(':')[0]; var oid = id.split(':')[1]; var hit = oid && DATA.allObjects(worldRole()).find(function (x) { return x.o.id === oid; }); UI.worldPath = hit ? hit.path : []; }
+    if (sheet === 'exchange' && id && id.indexOf(':') > 0) { UI.exIssuer = id.split(':')[0]; UI.focus = null; }
     if (sheet === 'rules' && id && id.indexOf(':') > 0) UI.rulesRole = id.split(':')[0];
     if (!APP.isWorld()) render(); else { APP.showTab('sheet'); }
   }
@@ -1899,7 +2140,7 @@ var SHEET = (function () {
       S().roles.push(DATA.cleanWorld(r));
     }, '新增了角色'); },
     // 難題
-    addProblem: function () { run(function () { var p = DATA.addProblem(me(), v('addProblemText'), v('addProblemPrev') || null); UI.prevPick = null; UI.focus = p.id; }, '立了難題'); },
+    addProblem: function () { run(function () { var p = DATA.addProblem(me(), v('addProblemText'), v('addProblemPrev') || null); p.visible = v('addProblemVis') || 'all'; UI.prevPick = null; UI.focus = p.id; }, '立了難題'); },
     recreate: function (b) { UI.prevPick = b.dataset.id; render(); var el = $('addProblemText'); if (el) el.focus(); },
     shelveProblem: function (b) { run(function () { var x = findProblem(b.dataset.id); if (!x || x.role !== me()) throw new Error('只能擱置自己的難題'); if (FUSION.openFor(S(), me().serial)) throw new Error('在融合裡的難題，退出融合才會擱置'); x.p.status = 'shelved'; me().departUs = null; me().departDone = false; APP.record('shelve', roleName(me().serial) + ' 主動擱置難題「' + x.p.text + '」。'); }, '擱置了'); },
     // 規則
@@ -1914,16 +2155,23 @@ var SHEET = (function () {
       var r = worldRole(), name = v('addObjName').trim(); if (!name) throw new Error('先寫名稱');
       var id = 'o' + Date.now().toString(36);
       var o = { id: id, name: name, func: 'none', pos: [+v('addObjX') || 0, +v('addObjZ') || 0], look: v('addObjLook') || '山', parts: DATA.look(v('addObjLook') || '山', v('addObjColor') || '#8A8F96') };
-      r.objects.push(o); APP.worldRefresh(r); UI.focus = r.serial + ':' + id;
+      levelObjects().push(o); APP.worldRefresh(r); UI.focus = r.serial + ':' + id;
     }, '新增了地標'); },
     delObj: function (b) { run(function () {
-      var r = worldRole(), id = b.dataset.id;
-      if (r.objects.length <= 1) throw new Error('至少留一個物件');
-      r.objects = r.objects.filter(function (o) { return o.id !== id; });
-      r.walk.circles = r.walk.circles.filter(function (c) { return c.object !== id; });
-      r.walk.moves = r.walk.moves.filter(function (m) { return m.from !== id && m.to !== id; });
+      var r = worldRole(), id = b.dataset.id, lv = levelObjects();
+      if (!UI.worldPath.length && lv.length <= 1) throw new Error('至少留一個物件');
+      var gone = {}; var o0 = lv.find(function (o) { return o.id === id; });
+      if (o0) DATA.allObjects({ objects: [o0] }).forEach(function (x) { gone[x.o.id] = true; });   // 連同它裡面的都刪
+      lv.splice(lv.indexOf(o0), 1);
+      r.walk.circles = r.walk.circles.filter(function (c) { return !gone[c.object]; });
+      r.walk.moves = r.walk.moves.filter(function (m) { return !gone[m.from] && !gone[m.to]; });
       APP.worldRefresh(r); if (r === me()) APP.walkChanged();
     }, '刪掉了，用到它的走法也一起刪'); },
+    worldIn: function (b) { UI.worldPath.push(b.dataset.id); render(); },
+    worldUp: function (b) { UI.worldPath = UI.worldPath.slice(0, +b.dataset.n); render(); },
+    // 兌換
+    exEnergy: function (b) { run(function () { var x = EXCHANGE.exchange(S(), { holder: me().serial, issuer: b.dataset.id, kind: b.dataset.kind, n: +v('exN_' + b.dataset.id + '_' + b.dataset.kind) }); UI.focus = x.id; }, '換到了'); },
+    exResource: function (b) { run(function () { var x = EXCHANGE.exchange(S(), { holder: me().serial, issuer: b.dataset.id, kind: b.dataset.kind, resource: v('exR_' + b.dataset.id + '_' + b.dataset.kind) }); UI.focus = x.id; }, '換到了'); },
     // 走法
     addCircle: function () { run(function () { me().walk.circles.push({ object: v('addCircleObj'), letter: v('addCircleLetter') || 'J' }); APP.walkChanged(); }); },
     delCircle: function (b) { run(function () { me().walk.circles.splice(+b.dataset.id, 1); APP.walkChanged(); }); },
@@ -1959,8 +2207,10 @@ var SHEET = (function () {
     me: function (id) { APP.becomeMe(roleIdx(roleOf(id))); },
     roleName: function (id, val) { roleOf(id).name = val; },
     problemText: function (id, val) { var x = findProblem(id); if (x) x.p.text = val; },
+    problemVis: function (id, val) { var x = findProblem(id); if (x && x.role === me()) x.p.visible = DATA.VIS[val] ? val : 'all'; },
+    objDoor: function (id, val) { objEdit(id, function (o) { if (!val) delete o.door; else if (o.door) o.door.visible = val; else o.door = { visible: val, start: [0, 4], objects: [] }; }); },
     rulesRole: function (id, val) { UI.rulesRole = val; },
-    worldRole: function (id, val) { UI.worldRole = val; },
+    worldRole: function (id, val) { UI.worldRole = val; UI.worldPath = []; },
     ruleText: function (id, val) { draft().items[+id].text = val; },
     ruleVis: function (id, val) { draft().items[+id].visible = val; },
     ratio: function (id, val) { draft().ratios[id] = +val; },
@@ -1979,7 +2229,7 @@ var SHEET = (function () {
     moveDigit: function (id, val) { me().walk.moves[+id].digit = val; APP.walkChanged(); },
     kcal: function (id, val) { FUSION.setCalories(S(), fusionOf(id), me().serial, +val); }
   };
-  function objEdit(id, fn) { var r = worldRole(), o = r.objects.find(function (x) { return x.id === id; }); if (!o) return; fn(o); APP.worldRefresh(r, o.id); }
+  function objEdit(id, fn) { var r = worldRole(), o = levelObjects().find(function (x) { return x.id === id; }); if (!o) return; fn(o); APP.worldRefresh(r, UI.worldPath.length ? null : o.id); }
 
   var busy = false;
   document.addEventListener('click', function (e) {
