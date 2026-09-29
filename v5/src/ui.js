@@ -201,7 +201,7 @@
       // 這個出發點是融合難題的期限：第三個人到任何一位參與者的終點都算有人來
       var res = FUSION.deadline(state, fz, now, onIt ? [me.serial] : []);
       DATA.save(state); renderRoles(); renderFusions(); renderRecords();
-      var tx = { done: '融合難題已經可處理，完成。', joined: '你加入了這個融合，大家要再約下一個出發點。', again: '有人到了，融合繼續，再約下一個出發點。', shelved: '沒有人到終點，融合難題和原難題一起擱置。' }[res] || '';
+      var tx = { done: '融合難題已經可處理，完成。', joined: '你加入了這個融合，大家要再約下一個出發點。', shelved: FUSION.isMember(fz, me.serial) && onIt ? '只有參與者自己在終點，沒有別人來，融合難題和原難題一起擱置。' : '沒有人到終點，融合難題和原難題一起擱置。' }[res] || '';
       $('hudGoal').textContent = res === 'shelved' ? '錯過了，擱置' : '到了';
       msg(tx, true); $('btnOpen').hidden = res === 'shelved';
       return;
@@ -361,9 +361,11 @@
         next = esc(roleName(f.nextProposal.by)) + ' 提議 <span class="num">' + DATA.fmtUs(f.nextProposal.us) + '</span>，同意的：' + f.nextProposal.agreed.map(roleName).map(esc).join('、') +
           (mine && open && f.nextProposal.agreed.indexOf(me.serial) < 0 ? ' <button class="btn sm pri" data-f="' + f.id + '" data-act="agreeNext">同意</button>' : '');
       } else next = '還沒約' + (mine && open ? ' <button class="btn sm" data-f="' + f.id + '" data-act="proposeNext" data-s="60">60 秒後</button> <button class="btn sm" data-f="' + f.id + '" data-act="proposeNext" data-s="180">3 分鐘後</button>' : '');
+      var ready = f.nextUs != null;                       // 沒約好下一個出發點：只能約，不能提階段、不能執行
       var stages = f.stages.map(function (st) {
         var a = '';
-        if (mine && open) {
+        if (mine && open && !ready) a = '<span class="muted small">先約下一個出發點</span>';
+        else if (mine && open) {
           if (st.status === 'proposed' && st.agreed.indexOf(me.serial) < 0) a = btn(f, st, 'agreeStage', '同意', 'pri');
           else if (st.status === 'proposed') a = '<span class="muted small">等其他人同意</span>';
           else if (st.status === 'agreed') a = btn(f, st, 'claimStage', '我來執行');
@@ -381,7 +383,7 @@
         '<h3><span class="tag ' + f.status + '">' + FUSION.FSTATUS[f.status] + '</span> ' + esc(f.text) + '</h3>' +
         '<dl class="kv"><dt>參與者</dt><dd>' + members + '</dd><dt>下一個出發點</dt><dd>' + next + '</dd><dt>熱量</dt><dd>' + kcal + '</dd></dl>' +
         '<div class="tw"><table><thead><tr><th>階段</th><th>構思</th><th>狀態</th><th>執行者</th><th></th></tr></thead><tbody>' + (stages || '<tr><td colspan="5" class="muted">還沒有階段。</td></tr>') + '</tbody></table></div>' +
-        (mine && open ? '<div class="tools"><input type="text" data-stage-in="' + f.id + '" placeholder="拆一個階段，例如：訂出開工時間" aria-label="新階段"><button class="btn sm" data-f="' + f.id + '" data-act="proposeStage">提出階段</button><button class="btn sm" data-f="' + f.id + '" data-act="exit" style="margin-left:auto">退出</button></div>' : '') +
+        (mine && open ? '<div class="tools">' + (ready ? '<input type="text" data-stage-in="' + f.id + '" placeholder="拆一個階段，例如：訂出開工時間" aria-label="新階段"><button class="btn sm" data-f="' + f.id + '" data-act="proposeStage">提出階段</button>' : '<span class="tag open">先約下一個出發點</span><span class="muted small">約好才能拆階段、執行。</span>') + '<button class="btn sm" data-f="' + f.id + '" data-act="exit" style="margin-left:auto">退出</button></div>' : '') +
         '<ul class="log">' + f.log.slice(-4).map(function (l) { return '<li>' + esc(l.text) + '</li>'; }).join('') + '</ul></div>';
     }).join('');
   }

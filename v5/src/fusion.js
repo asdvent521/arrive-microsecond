@@ -67,8 +67,9 @@ var FUSION = (function () {
   }
 
   /* ---------- 階段：提出 → 全員同意（發題點）→ 認領執行 → 交判 → 判定 ---------- */
+  function needNext(f) { if (f.nextUs == null) bad('先約下一個出發點'); }
   function proposeStage(state, f, s, text) {
-    need(f, s); if (f.status !== 'open') bad('這個融合已經結束');
+    need(f, s); if (f.status !== 'open') bad('這個融合已經結束'); needNext(f);
     if (!text || !String(text).trim()) bad('階段要寫內容');
     var st = { id: id('st'), text: String(text).trim(), by: s, status: 'proposed', agreed: [s], owner: null, judges: {}, dispute: {} };
     f.stages.push(st);
@@ -88,12 +89,12 @@ var FUSION = (function () {
     log(f, nowUs(), '階段「' + st.text + '」全員同意');
   }
   function claimStage(state, f, sid, s) {
-    need(f, s); var st = stage(f, sid);
+    need(f, s); needNext(f); var st = stage(f, sid);
     if (st.status !== 'agreed') bad('這個階段不能認領');
     st.status = 'doing'; st.owner = s;
   }
   function submitStage(state, f, sid, s) {
-    var st = stage(f, sid);
+    needNext(f); var st = stage(f, sid);
     if (st.status !== 'doing' || st.owner !== s) bad('只有執行者能交判');
     st.status = 'judging'; st.judges = {};
   }
@@ -158,7 +159,8 @@ var FUSION = (function () {
     if (f.status === 'shelved' || f.nextUs == null || atUs < f.nextUs) return null;
     var result;
     if (f.status === 'done') result = 'done';                   // 已經可處理：完成
-    else if (arrivals.length) {
+    else if (arrivals.some(function (s) { return !isMember(f, s); })) {
+      // 只有非參與者算「有人來」；參與者自己站在終點不算
       var joined = [];
       arrivals.forEach(function (s) {
         if (isMember(f, s)) return;
@@ -170,8 +172,8 @@ var FUSION = (function () {
         joined.push(r.name);
       });
       f.nextUs = null;                                          // 要再約下一個出發點
-      log(f, atUs, joined.length ? joined.join('、') + ' 加入融合，再約下一個出發點' : '有人到了，再約下一個出發點');
-      result = joined.length ? 'joined' : 'again';
+      log(f, atUs, joined.join('、') + ' 加入融合，再約下一個出發點');
+      result = 'joined';
     } else {
       f.status = 'shelved';
       state.roles.forEach(function (r) { if (f.members.indexOf(r.serial) >= 0 && r.problems[0] && r.problems[0].status === 'fused') r.problems[0].status = 'shelved'; });

@@ -20,6 +20,8 @@ assert.strictEqual(f.members.length, 2);
 assert.strictEqual(A.problems[0].status, 'fused');
 assert.strictEqual(F.openFor(st, A.serial), f);
 assert.strictEqual(F.openFor(st, C.serial), null);
+// 還沒約出發點：不能提階段
+throws(function () { F.proposeStage(st, f, A.serial, '太早'); }, '先約下一個出發點');
 
 // 約下一個出發點：全員同意才算；約好後兩人的出發點一樣
 F.proposeNext(st, f, A.serial, now + 60e6);
@@ -91,6 +93,9 @@ F.proposeNext(st2, g, a.serial, now + 30e6); F.agreeNext(st2, g, b.serial);
 assert.strictEqual(F.deadline(st2, g, now + 30e6, [c.serial]), 'joined');
 assert.ok(F.isMember(g, c.serial)); assert.strictEqual(c.problems[0].status, 'fused');
 assert.strictEqual(g.nextUs, null, '加入後要再約');
+// 加入後還沒再約：不能提階段、不能認領
+throws(function () { F.proposeStage(st2, g, c.serial, '太早'); }, '先約下一個出發點');
+F.proposeNext(st2, g, a.serial, now + 60e6); F.agreeNext(st2, g, b.serial); F.agreeNext(st2, g, c.serial);
 // 三個人：階段要三個人同意，題點兩份
 var s3 = F.proposeStage(st2, g, c.serial, '三個人一起');
 F.agreeStage(st2, g, s3.id, a.serial);
@@ -107,6 +112,13 @@ assert.strictEqual(st2.points.length, 2, '點數不能取消');
 assert.deepStrictEqual(F.active(g), [b.serial, c.serial]);
 throws(function () { F.claimStage(st2, g, s3.id, a.serial); }, '參與者');
 assert.strictEqual(st2.records.slice(-1)[0].kind, 'exit');
+
+// 只有參與者自己站在終點 = 沒人來 → 擱置
+var st3 = fresh(); var h = F.create(st3, [st3.roles[0], st3.roles[1]], now);
+F.proposeNext(st3, h, st3.roles[0].serial, now + 30e6); F.agreeNext(st3, h, st3.roles[1].serial);
+assert.strictEqual(F.deadline(st3, h, now + 30e6, [st3.roles[0].serial]), 'shelved', 'J1 站在自己的終點不算有人來');
+assert.strictEqual(h.status, 'shelved');
+assert.strictEqual(st3.roles[0].problems[0].status, 'shelved');
 
 // 沒人來 → 融合和原難題一起擱置
 F.proposeNext(st2, g, b.serial, now + 90e6); F.agreeNext(st2, g, c.serial);

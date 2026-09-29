@@ -28,6 +28,8 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   assert((await pg.textContent('#meetProblems')).indexOf('融合難題') === 0, '相遇畫面顯示融合難題');
   await pg.click('#meetOpen'); await pg.waitForTimeout(300);
   assert(!(await pg.isHidden('#fusionBox')), '打開融合區');
+  var ftxt = await pg.textContent('#fusions');
+  assert(ftxt.indexOf('先約下一個出發點') >= 0 && (await pg.$('[data-stage-in]')) === null, '沒約好出發點：提示先約，不能提階段');
   await pg.screenshot({ path: OUT + '/f1_open.png' });
 
   // 2. 約下一個出發點：J1 提、J2 同意 → 兩人的出發點一樣
@@ -110,6 +112,7 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   assert((await pg.textContent('#records')).indexOf('退出') >= 0, '紀錄有退出');
   assert((await pg.evaluate("APP.state().points.length")) === 2, '退出者已發的題點照舊');
 
+  // 7b. 加入後還沒再約：不能提階段（畫面上是提示）—— 已在第 6 步後由規則層擋，這裡看畫面
   // 8. 期限到了沒人來 → 擱置
   await pg.evaluate("(function(){ var s=APP.state(); s.fusions[0].nextUs = DATA.nowUs() + 1e6; APP.save(); })()");
   await pg.waitForFunction("APP.state().fusions[0].status === 'shelved'", null, { timeout: 6000 });
@@ -121,6 +124,17 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   // 9. 重新整理，存檔還在
   await pg.reload(); await pg.waitForTimeout(800);
   f = await fus(); assert(f && f.status === 'shelved' && f.members.length === 3, '重新整理後融合還在');
+
+  // 10. 只有參與者自己站在自己的終點 → 沒人來 → 擱置
+  await pg.evaluate("(function(){ var s=APP.state(); s.fusions=[]; s.points=[]; s.roles.forEach(function(r){ r.departUs=null; r.departDone=false; r.problems[0].status='open'; }); var f=FUSION.create(s,[s.roles[0],s.roles[1]],DATA.nowUs()); FUSION.proposeNext(s,f,s.roles[0].serial,DATA.nowUs()+5e6); FUSION.agreeNext(s,f,s.roles[1].serial); APP.save(); })()");
+  await pg.evaluate("APP.becomeMe(0)");
+  await pg.evaluate("APP.teleportTo(APP.state().roles[0])");   // J1 去自己的終點
+  await pg.evaluate("WORLD.walkTo({x:6, z:0.2})");
+  await pg.waitForFunction("WORLD.distanceTo('goal') < 1", null, { timeout: 8000 });
+  await pg.waitForFunction("APP.state().fusions[0].status !== 'open'", null, { timeout: 8000 });
+  f = await fus();
+  assert(f.status === 'shelved' && f.members.length === 2, '只有 J1 站在自己終點 → 擱置');
+  assert((await pg.textContent('#hudMsg')).indexOf('只有參與者自己') >= 0, '畫面說只有參與者自己在終點');
 
   assert(errs.length === 0, '沒有錯誤 ' + errs.join(' | '));
   await browser.close();
