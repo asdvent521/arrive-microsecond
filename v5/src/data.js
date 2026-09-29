@@ -143,8 +143,9 @@ var DATA = (function () {
   Decoder.prototype.code = function () {
     return (this.letter || '') + this.digits;
   };
+  // 還要走幾個數字：有字母看字母，沒字母就是 11 位
   Decoder.prototype.need = function () {
-    return this.letter ? digitsAfter(this.letter) - this.digits.length : null;
+    return (this.letter ? digitsAfter(this.letter) : 11) - this.digits.length;
   };
   Decoder.prototype.feed = function (ev) {
     if (this.done) return { type: 'ignored' };
@@ -158,15 +159,104 @@ var DATA = (function () {
     }
     if (ev.type === 'arrive') {
       var from = this.lastAt; this.lastAt = ev.object;
-      if (!this.letter || !from || from === ev.object) return { type: 'ignored' };
+      if (!from || from === ev.object) return { type: 'ignored' };
       var mv = this.walk.moves.find(function (r) { return r.from === from && r.to === ev.object; });
       if (!mv) return { type: 'ignored' };
+      if (!this.letter && !this.digits && mv.digit === '0') return { type: 'ignored' };   // 11 位數不能 0 開頭
       this.digits += mv.digit;
       if (this.need() === 0) { this.done = this.code(); return { type: 'done', code: this.done }; }
       return { type: 'digit', digit: mv.digit, need: this.need() };
     }
     return { type: 'ignored' };
   };
+
+  /* ---------- 路線說明：用自己的走法，怎麼走出某個代號 ---------- */
+  // 回傳 {steps:[文字…]}，走法表湊不出來就回傳 {missing:'缺什麼'}
+  function route(walk, objects, code) {
+    var serial = expand(code);
+    if (!serial) return { missing: code + ' 不是代號' };
+    var ab = abbrev(serial);
+    var name = function (id) { var o = objects.find(function (x) { return x.id === id; }); return o ? o.name : id; };
+    var steps = [], letter = /^[A-J]/.test(ab) ? ab[0] : null, digits = letter ? ab.slice(1) : ab;
+    if (letter) {
+      var best = null;
+      walk.circles.forEach(function (c) {
+        var n = c.letter.charCodeAt(0) - letter.charCodeAt(0) + 1;
+        if (n >= 1 && (!best || n < best.n)) best = { c: c, n: n };
+      });
+      if (!best) return { missing: '走法表裡沒有物件能繞出 ' + letter };
+      steps.push('繞' + name(best.c.object) + (best.n === 1 ? '一圈' : ' ' + best.n + ' 圈') + '（' + letter + '）');
+    }
+    var at = null;
+    for (var i = 0; i < digits.length; i++) {
+      var d = digits[i];
+      var mv = walk.moves.find(function (m) { return m.digit === d && m.from === at; }) ||
+               walk.moves.find(function (m) { return m.digit === d; });
+      if (!mv) return { missing: '走法表裡沒有哪一段路是 ' + d };
+      if (mv.from !== at) steps.push('走到' + name(mv.from));
+      steps.push('再走到' + name(mv.to) + '（' + d + '）');
+      at = mv.to;
+    }
+    return { steps: steps, code: ab };
+  }
+
+  /* ---------- 純資料檢查：讀進來的世界只能是資料，不能是程式 ---------- */
+  // 只抄已知欄位、檢查型別，回傳乾淨的新物件；不合格就丟出錯誤訊息
+  var LIMITS = { objects: 60, parts: 24, path: 200, rules: 50, text: 2000, name: 60 };
+  function bad(msg) { throw new Error(msg); }
+  function str(v, max, what) { if (typeof v !== 'string') bad(what + ' 不是文字'); if (v.length > max) bad(what + ' 太長'); return v; }
+  function num(v, what) { if (typeof v !== 'number' || !isFinite(v)) bad(what + ' 不是數字'); return v; }
+  function vec(v, n, what) { if (!Array.isArray(v) || v.length !== n) bad(what + ' 不是 ' + n + ' 個數字'); return v.map(function (x) { return num(x, what); }); }
+  function list(v, max, what) { if (!Array.isArray(v)) bad(what + ' 不是清單'); if (v.length > max) bad(what + ' 太多'); return v; }
+  function obj(v, what) { if (!v || typeof v !== 'object' || Array.isArray(v)) bad(what + ' 不是資料'); return v; }
+  function color(v, what) { if (!/^#[0-9a-fA-F]{6}$/.test(String(v))) bad(what + ' 顏色格式錯'); return v; }
+  function ident(v, what) { if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(v))) bad(what + ' 代號只能是英數'); return v; }
+  function cleanPart(p) {
+    obj(p, '形體');
+    if (!SHAPES[p.shape]) bad('形體種類不認得：' + p.shape);
+    return { shape: p.shape, size: vec(p.size, 3, '形體大小'), color: color(p.color, '形體'), offset: vec(p.offset || [0, 0, 0], 3, '形體位置') };
+  }
+  function cleanText(t, what) {
+    obj(t, what);
+    return { text: str(t.text, LIMITS.text, what), visible: t.visible === 'self' ? 'self' : 'all', status: t.status === 'shelved' ? 'shelved' : 'open' };
+  }
+  function cleanWorld(w) {
+    obj(w, '世界');
+    if (!/^\d{11}$/.test(String(w.serial)) || !abbrev(w.serial)) bad('序號格式錯');
+    var out = {
+      serial: w.serial,
+      name: str(w.name, LIMITS.name, '名字'),
+      color: color(w.color || '#888888', '角色'),
+      departUs: w.departUs == null ? null : num(w.departUs, '出發點'),
+      departDone: !!w.departDone,
+      rules: list(w.rules || [], LIMITS.rules, '規則').map(function (t) { return cleanText(t, '規則'); }),
+      problems: list(w.problems || [], LIMITS.rules, '難題').map(function (t) { return cleanText(t, '難題'); }),
+      start: vec(w.start || [0, 0], 2, '起點'),
+      objects: list(w.objects, LIMITS.objects, '功能點').map(function (o) {
+        obj(o, '功能點');
+        if (!FUNCS[o.func]) bad('功能不認得：' + o.func);
+        return { id: ident(o.id, '功能點'), name: str(o.name, LIMITS.name, '功能點名稱'), func: o.func,
+                 pos: vec(o.pos, 2, '功能點位置'), look: o.look ? str(o.look, 20, '外觀') : undefined,
+                 parts: list(o.parts, LIMITS.parts, '形體').map(cleanPart) };
+      }),
+      path: list(w.path || [], LIMITS.path, '路').map(function (p) { return vec(p, 2, '路'); }),
+      walk: { circles: [], moves: [] }
+    };
+    var ids = {};
+    out.objects.forEach(function (o) { if (ids[o.id]) bad('功能點代號重複：' + o.id); ids[o.id] = true; });
+    var walk = obj(w.walk || {}, '走法表');
+    out.walk.circles = list(walk.circles || [], LIMITS.rules, '繞圈').map(function (c) {
+      obj(c, '繞圈'); if (!ids[c.object]) bad('繞圈指到不存在的物件'); if (!/^[A-J]$/.test(String(c.letter))) bad('繞圈字母錯');
+      return { object: c.object, letter: c.letter };
+    });
+    out.walk.moves = list(walk.moves || [], LIMITS.rules, '走到').map(function (m) {
+      obj(m, '走到'); if (!ids[m.from] || !ids[m.to]) bad('走到指到不存在的物件'); if (!/^[0-9]$/.test(String(m.digit))) bad('走到的數字錯');
+      return { from: m.from, to: m.to, digit: m.digit };
+    });
+    return out;
+  }
+  // 讀外來資料前先過 cleanWorld：只留資料，任何函式、未知欄位都不會被抄過來
+  function tryClean(w) { try { return { world: cleanWorld(w) }; } catch (e) { return { error: e.message }; } }
 
   /* ---------- 出發點：微秒 ---------- */
   function fmtUs(us) {
@@ -182,12 +272,23 @@ var DATA = (function () {
 
   /* ---------- 存檔：只存資料 ---------- */
   var KEY = 'arrive-v5';
+  function fresh() { return { v: 5, me: 0, roles: defaultRoles(), records: [] }; }
   function load() {
     try {
       var s = localStorage.getItem(KEY);
-      if (s) { var j = JSON.parse(s); if (j && j.v === 5 && Array.isArray(j.roles)) return j; }
-    } catch (e) { /* 沒有儲存空間也能玩 */ }
-    return { v: 5, roles: defaultRoles(), records: [] };
+      if (s) {
+        var j = JSON.parse(s);
+        if (j && j.v === 5 && Array.isArray(j.roles) && j.roles.length) {
+          var roles = j.roles.map(cleanWorld);          // 存檔也是外來資料，一樣洗過
+          var recs = list(j.records || [], 500, '紀錄').map(function (r) {
+            return { kind: r.kind === 'meet' ? 'meet' : 'shelve', at: num(r.at, '紀錄時間'), text: str(r.text, LIMITS.text, '紀錄') };
+          });
+          var me = (typeof j.me === 'number' && j.me >= 0 && j.me < roles.length) ? j.me : 0;
+          return { v: 5, me: me, roles: roles, records: recs };
+        }
+      }
+    } catch (e) { /* 壞掉或沒有儲存空間：用預設 */ }
+    return fresh();
   }
   function save(state) {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 忽略 */ }
@@ -200,8 +301,8 @@ var DATA = (function () {
   return {
     abbrev: abbrev, expand: expand, digitsAfter: digitsAfter,
     FUNCS: FUNCS, SHAPES: SHAPES, LOOKS: LOOKS, look: look, radiusOf: radiusOf,
-    defaultRoles: defaultRoles, Decoder: Decoder,
-    fmtUs: fmtUs, nowUs: nowUs, load: load, save: save, findRole: findRole
+    defaultRoles: defaultRoles, Decoder: Decoder, route: route, cleanWorld: cleanWorld, tryClean: tryClean,
+    fmtUs: fmtUs, nowUs: nowUs, load: load, save: save, fresh: fresh, findRole: findRole
   };
 })();
 if (typeof module !== 'undefined') module.exports = DATA;

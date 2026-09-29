@@ -3,16 +3,19 @@
  */
 var WORLD = (function () {
   'use strict';
-  var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock;
-  var objects = [];          // [{data, mesh, radius, pos:Vector3, near:false, inside:false, angle, turned}]
+  var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl;
+  var objects = [];          // [{data, mesh, radius, top, pos:Vector3, label, inside, arrived, angle, startAngle, turned, count}]
   var waypoints = [];
   var handlers = {};
   var SPEED = 5;
-  var camOffset = new THREE.Vector3(0, 16, 14);
+  var AVOID = 0.55;          // 走路離物件邊緣的距離
   var raycaster = new THREE.Raycaster();
   var pointer = new THREE.Vector2();
-  var down = null;
   var hostEl;
+  // 鏡頭：繞著角色轉（yaw）、固定俯角、可拉遠拉近
+  var cam = { yaw: 0, pitch: 0.85, dist: 26, min: 10, max: 60 };
+  var pointers = {};         // 目前按著的手指
+  var gesture = null;        // {tap, x, y, yaw, dist, pinch}
 
   function on(name, fn) { handlers[name] = fn; }
   function emit(name, a, b) { if (handlers[name]) handlers[name](a, b); }
@@ -22,20 +25,25 @@ var WORLD = (function () {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     host.appendChild(renderer.domElement);
+    labelLayer = document.createElement('div');
+    labelLayer.className = 'labels';
+    host.appendChild(labelLayer);
+    flashEl = document.createElement('div');
+    flashEl.className = 'flash';
+    host.appendChild(flashEl);
+
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xdfe6ec);
     scene.fog = new THREE.Fog(0xdfe6ec, 40, 90);
     camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
 
-    var hemi = new THREE.HemisphereLight(0xffffff, 0x8d9aa8, 0.9);
-    scene.add(hemi);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8d9aa8, 0.9));
     var sun = new THREE.DirectionalLight(0xfff4e0, 0.8);
     sun.position.set(10, 20, 8);
     scene.add(sun);
 
     ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshLambertMaterial({ color: 0xcfd8df }));
     ground.rotation.x = -Math.PI / 2;
-    ground.name = 'ground';
     scene.add(ground);
     var grid = new THREE.GridHelper(120, 60, 0xb9c4cd, 0xc4ced6);
     grid.position.y = 0.01;
@@ -53,12 +61,19 @@ var WORLD = (function () {
     player.add(body); player.add(head);
     scene.add(player);
 
-    // 白光傳送門：發光的環
+    // 繞圈進度弧：畫在地上
+    arc = new THREE.Mesh(new THREE.RingGeometry(1, 1.2, 8, 1, 0, 0.01), new THREE.MeshBasicMaterial({ color: 0xa2731f, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+    arc.rotation.x = -Math.PI / 2;
+    arc.position.y = 0.03;
+    arc.visible = false;
+    scene.add(arc);
+
+    // 白光傳送門：光柱 + 環
     portal = new THREE.Group();
-    var ring = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.18, 12, 40), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    var glow = new THREE.Mesh(new THREE.CircleGeometry(1.5, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
     var beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.8, 9, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
     beam.position.y = 2.6;
+    var ring = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.18, 12, 40), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    var glow = new THREE.Mesh(new THREE.CircleGeometry(1.5, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
     portal.add(beam); portal.add(ring); portal.add(glow);
     portal.position.y = 1.8;
     portal.visible = false;
@@ -69,14 +84,54 @@ var WORLD = (function () {
     window.addEventListener('resize', resize);
     var el = renderer.domElement;
     el.style.touchAction = 'none';
-    el.addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; });
-    el.addEventListener('pointerup', function (e) {
-      if (!down) return;
-      var moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
-      down = null;
-      if (moved < 12) tap(e.clientX, e.clientY);
-    });
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+    el.addEventListener('wheel', function (e) { e.preventDefault(); zoomTo(cam.dist * (e.deltaY > 0 ? 1.1 : 0.9)); }, { passive: false });
     requestAnimationFrame(loop);
+  }
+
+  /* ---------- 手勢：單指點＝走、單指拖＝轉鏡頭、兩指＝縮放 ---------- */
+  function count() { return Object.keys(pointers).length; }
+  function spread() {
+    var ids = Object.keys(pointers);
+    if (ids.length < 2) return 0;
+    var a = pointers[ids[0]], b = pointers[ids[1]];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+  function onDown(e) {
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch (err) { /* 桌機沒差 */ }
+    if (count() === 1) gesture = { tap: true, x: e.clientX, y: e.clientY, yaw: cam.yaw };
+    else if (count() === 2) gesture = { tap: false, dist: cam.dist, pinch: spread() };
+  }
+  function onMove(e) {
+    if (!pointers[e.pointerId] || !gesture) return;
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (count() === 1) {
+      var dx = e.clientX - gesture.x, dy = e.clientY - gesture.y;
+      if (gesture.tap && Math.hypot(dx, dy) > 10) gesture.tap = false;
+      if (!gesture.tap) cam.yaw = gesture.yaw - dx * 0.008;
+    } else if (count() >= 2 && gesture.pinch) {
+      zoomTo(gesture.dist * gesture.pinch / Math.max(spread(), 1));
+    }
+  }
+  function onUp(e) {
+    var was = gesture;
+    delete pointers[e.pointerId];
+    if (count() === 0) {
+      gesture = null;
+      if (was && was.tap) tap(e.clientX, e.clientY);
+    } else if (count() === 1) {
+      var id = Object.keys(pointers)[0];
+      gesture = { tap: false, x: pointers[id].x, y: pointers[id].y, yaw: cam.yaw };
+    }
+  }
+  function zoomTo(d) { cam.dist = Math.max(cam.min, Math.min(cam.max, d)); }
+  function camOffset() {
+    var r = cam.dist * Math.cos(cam.pitch);
+    return new THREE.Vector3(Math.sin(cam.yaw) * r, cam.dist * Math.sin(cam.pitch), Math.cos(cam.yaw) * r);
   }
 
   function resize() {
@@ -86,10 +141,10 @@ var WORLD = (function () {
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
     camera.aspect = w / h;
-    // 直式手機：鏡頭拉遠、視角開大，五個功能點才看得全
+    // 直式手機：視角開大、預設拉遠，五個功能點才看得全
     var portrait = w < h;
     camera.fov = portrait ? 52 : 45;
-    camOffset.set(0, portrait ? 27 : 16, portrait ? 23 : 14);
+    if (!resize.done) { cam.dist = portrait ? 36 : 22; resize.done = true; }
     camera.updateProjectionMatrix();
   }
 
@@ -105,7 +160,6 @@ var WORLD = (function () {
       default:         return new THREE.BoxGeometry(s[0], s[1], s[2]);
     }
   }
-
   function buildObject(o) {
     var g = new THREE.Group();
     (o.parts || []).forEach(function (p) {
@@ -116,20 +170,28 @@ var WORLD = (function () {
       g.add(m);
     });
     g.position.set(o.pos[0], 0, o.pos[1]);
-    g.userData.objectId = o.id;
     return g;
   }
+  function topOf(o) {
+    var t = 1;
+    (o.parts || []).forEach(function (p) { var y = (p.offset ? p.offset[1] : 0) + p.size[1] / 2; if (y > t) t = y; });
+    return t;
+  }
+  function makeEntry(o) {
+    var label = document.createElement('div');
+    label.className = 'label ' + (o.func || 'none');
+    label.textContent = o.name;
+    labelLayer.appendChild(label);
+    return { data: o, mesh: buildObject(o), radius: DATA.radiusOf(o), top: topOf(o), pos: new THREE.Vector3(o.pos[0], 0, o.pos[1]),
+             label: label, inside: false, arrived: false, angle: 0, startAngle: 0, turned: 0, count: 0 };
+  }
 
-  // world：角色的世界資料；opts.visiting：是傳送過去逛，畫出對方設定的路
+  // world：角色的世界資料（已經過純資料檢查）；opts.visiting：傳送過去逛，畫出對方設定的路
   function loadWorld(world, opts) {
     opts = opts || {};
     clear(objGroup); clear(pathGroup);
-    objects = world.objects.map(function (o) {
-      var mesh = buildObject(o);
-      objGroup.add(mesh);
-      return { data: o, mesh: mesh, radius: DATA.radiusOf(o), pos: new THREE.Vector3(o.pos[0], 0, o.pos[1]),
-               near: false, inside: false, arrived: false, angle: 0, turned: 0, count: 0 };
-    });
+    labelLayer.innerHTML = '';
+    objects = world.objects.map(function (o) { var e = makeEntry(o); objGroup.add(e.mesh); return e; });
     if (opts.visiting && world.path && world.path.length > 1) {
       for (var i = 0; i < world.path.length - 1; i++) {
         var a = world.path[i], b = world.path[i + 1];
@@ -144,22 +206,29 @@ var WORLD = (function () {
     player.position.set(st[0], 0, st[1]);
     waypoints = [];
     hidePortal();
-    var col = new THREE.Color(opts.visiting ? 0x5c6670 : 0x2d5a86);
-    player.children[0].material.color = col;
+    arc.visible = false;
+    detect.lastNear = undefined;
+    player.children[0].material.color = new THREE.Color(opts.visiting ? 0x5c6670 : 0x2d5a86);
     scene.background = new THREE.Color(opts.visiting ? 0xe4e0d6 : 0xdfe6ec);
     scene.fog.color = scene.background;
-    camera.position.copy(player.position).add(camOffset);
+    camera.position.copy(player.position).add(camOffset());
     camera.lookAt(player.position);
   }
 
   function refreshObject(id) {
-    var o = objects.find(function (x) { return x.data.id === id; });
-    if (!o) return;
-    objGroup.remove(o.mesh);
-    o.mesh = buildObject(o.data);
-    objGroup.add(o.mesh);
-    o.radius = DATA.radiusOf(o.data);
-    o.pos.set(o.data.pos[0], 0, o.data.pos[1]);
+    var i = objects.findIndex(function (x) { return x.data.id === id; });
+    if (i < 0) return;
+    objGroup.remove(objects[i].mesh);
+    labelLayer.removeChild(objects[i].label);
+    objects[i] = makeEntry(objects[i].data);
+    objGroup.add(objects[i].mesh);
+  }
+
+  // 傳送時畫面閃白
+  function flash() {
+    flashEl.classList.remove('go');
+    void flashEl.offsetWidth;
+    flashEl.classList.add('go');
   }
 
   /* ---------- 走路 ---------- */
@@ -168,14 +237,10 @@ var WORLD = (function () {
     pointer.x = ((cx - r.left) / r.width) * 2 - 1;
     pointer.y = -((cy - r.top) / r.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    if (portal.visible) {
-      var hp = raycaster.intersectObject(portal, true);
-      if (hp.length) { emit('portal'); return; }
-    }
+    if (portal.visible && raycaster.intersectObject(portal, true).length) { emit('portal'); return; }
     var hits = raycaster.intersectObjects(objGroup.children, true);
     if (hits.length) {
-      var id = hits[0].object.userData.objectId;
-      var o = objects.find(function (x) { return x.data.id === id; });
+      var o = objects.find(function (x) { return x.data.id === hits[0].object.userData.objectId; });
       if (o) { walkTo(edgePoint(o)); return; }
     }
     var hg = raycaster.intersectObject(ground);
@@ -184,11 +249,19 @@ var WORLD = (function () {
   function edgePoint(o) {
     var dir = new THREE.Vector3().subVectors(player.position, o.pos); dir.y = 0;
     if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
-    dir.normalize().multiplyScalar(o.radius + 0.6);
+    dir.normalize().multiplyScalar(o.radius + AVOID + 0.15);
     return new THREE.Vector3().addVectors(o.pos, dir);
   }
-  function walkTo(p) { waypoints = [new THREE.Vector3(p.x, 0, p.z)]; }
-  function walkPath(points) { waypoints = points.map(function (p) { return new THREE.Vector3(p.x, 0, p.z); }); }
+  // 目標點如果在物件裡，推到物件邊上
+  function outside(p) {
+    objects.forEach(function (o) {
+      var dx = p.x - o.pos.x, dz = p.z - o.pos.z, d = Math.hypot(dx, dz), need = o.radius + AVOID + 0.1;
+      if (d < need) { if (d < 0.01) { dx = 1; dz = 0; d = 1; } p.x = o.pos.x + dx / d * need; p.z = o.pos.z + dz / d * need; }
+    });
+    return p;
+  }
+  function walkTo(p) { waypoints = [outside(new THREE.Vector3(p.x, 0, p.z))]; }
+  function walkPath(points) { waypoints = points.map(function (p) { return outside(new THREE.Vector3(p.x, 0, p.z)); }); }
   // 繞某個物件一圈：排一圈路徑點
   function circleAround(id) {
     var o = objects.find(function (x) { return x.data.id === id; });
@@ -203,6 +276,32 @@ var WORLD = (function () {
     walkPath(pts);
   }
   function stop() { waypoints = []; }
+
+  // 一步：想往 d 走，前面有物件就沿著它的邊滑過去
+  function step(d, len, dt) {
+    var move = Math.min(SPEED * dt, len);
+    var dir = d.clone().normalize();
+    var ahead = Math.min(len, 2.5);
+    objects.forEach(function (o) {
+      var need = o.radius + AVOID;
+      var to = new THREE.Vector3().subVectors(o.pos, player.position); to.y = 0;
+      var along = to.dot(dir);
+      if (along <= 0 || along > ahead + need) return;                    // 在後面或太遠
+      var side = Math.sqrt(Math.max(to.lengthSq() - along * along, 0));
+      if (side >= need) return;                                          // 擦不到
+      var tangent = new THREE.Vector3(-to.z, 0, to.x).normalize();       // 沿邊走
+      if (tangent.dot(dir) < 0) tangent.negate();
+      dir.copy(tangent);
+      if (to.length() < need + 0.2) dir.add(to.clone().normalize().multiplyScalar(-0.5)).normalize();  // 太貼就往外一點
+    });
+    player.position.add(dir.multiplyScalar(move));
+    player.rotation.y = Math.atan2(dir.x, dir.z);
+    // 硬推：不管怎樣都不會站進物件裡
+    objects.forEach(function (o) {
+      var dx = player.position.x - o.pos.x, dz = player.position.z - o.pos.z, dd = Math.hypot(dx, dz), need = o.radius + AVOID;
+      if (dd < need && dd > 0.001) { player.position.x = o.pos.x + dx / dd * need; player.position.z = o.pos.z + dz / dd * need; }
+    });
+  }
 
   // 傳送門開在空地上：從最近的物件往外推，不會開在建築裡
   function showPortal() {
@@ -219,6 +318,7 @@ var WORLD = (function () {
   function hidePortal() { portal.visible = false; }
 
   /* ---------- 每一格：走、看、算 ---------- */
+  var stuck = 0;
   function loop() {
     requestAnimationFrame(loop);
     var dt = Math.min(clock.getDelta(), 0.05);
@@ -226,17 +326,20 @@ var WORLD = (function () {
       var t = waypoints[0];
       var d = new THREE.Vector3().subVectors(t, player.position); d.y = 0;
       var len = d.length();
-      if (len < 0.08) waypoints.shift();
+      if (len < 0.12) { waypoints.shift(); stuck = 0; }
       else {
-        var step = Math.min(SPEED * dt, len);
-        player.position.add(d.normalize().multiplyScalar(step));
-        player.rotation.y = Math.atan2(d.x, d.z);
+        var before = player.position.clone();
+        step(d, len, dt);
+        stuck = player.position.distanceTo(before) < SPEED * dt * 0.2 ? stuck + dt : 0;
+        if (stuck > 1.2) { waypoints.shift(); stuck = 0; }        // 卡住就放棄這個點
       }
     }
     detect();
+    drawArc();
+    drawLabels();
     if (portal.visible) { portal.children[1].lookAt(camera.position); portal.children[2].lookAt(camera.position); }
-    var want = new THREE.Vector3().copy(player.position).add(camOffset);
-    camera.position.lerp(want, 0.08);
+    var want = new THREE.Vector3().copy(player.position).add(camOffset());
+    camera.position.lerp(want, gesture ? 0.5 : 0.08);
     camera.lookAt(player.position.x, 1, player.position.z);
     renderer.render(scene, camera);
   }
@@ -256,12 +359,12 @@ var WORLD = (function () {
       var ringR = o.radius + 3.0;
       var ang = Math.atan2(dz, dx);
       if (dist < ringR) {
-        if (!o.inside) { o.inside = true; o.turned = 0; o.count = 0; }
+        if (!o.inside) { o.inside = true; o.turned = 0; o.count = 0; o.startAngle = ang; }
         else {
           var da = ang - o.angle;
           if (da > Math.PI) da -= Math.PI * 2; else if (da < -Math.PI) da += Math.PI * 2;
           o.turned += da;
-          if (Math.abs(o.turned) >= Math.PI * 2 - 0.05) { o.count++; o.turned = 0; emit('turn', o.data, o.count); }
+          if (Math.abs(o.turned) >= Math.PI * 2 - 0.05) { o.count++; o.turned = 0; o.startAngle = ang; emit('turn', o.data, o.count); }
         }
         o.angle = ang;
       } else if (o.inside) {
@@ -274,14 +377,52 @@ var WORLD = (function () {
     if (nid !== detect.lastNear) { detect.lastNear = nid; emit('near', nearest ? nearest.data : null); }
   }
 
+  // 進度弧：正在繞的那個物件，地上畫出已經轉了多少
+  var arcKey = '';
+  function drawArc() {
+    var o = null;
+    for (var i = 0; i < objects.length; i++) if (objects[i].inside && Math.abs(objects[i].turned) > 0.05 && arcOk(objects[i])) { o = objects[i]; break; }
+    if (!o) { arc.visible = false; arcKey = ''; return; }
+    var key = o.data.id + ':' + o.turned.toFixed(2);
+    if (key === arcKey) return;
+    arcKey = key;
+    var r = o.radius + 1.4;
+    // RingGeometry 的角度在旋轉後方向相反，所以取負
+    var len = Math.abs(o.turned);
+    var start = o.turned > 0 ? -o.startAngle - o.turned : -o.startAngle;
+    arc.geometry.dispose();
+    arc.geometry = new THREE.RingGeometry(r - 0.18, r + 0.18, Math.max(8, Math.ceil(len * 10)), 1, start, len);
+    arc.position.set(o.pos.x, 0.03, o.pos.z);
+    arc.visible = true;
+  }
+  var arcFilter = function () { return true; };
+  function arcOk(o) { return arcFilter(o.data); }
+  function setArcFilter(fn) { arcFilter = fn || function () { return true; }; }
+
+  // 名稱標籤：投影到物件頂上
+  var v = new THREE.Vector3();
+  function drawLabels() {
+    var w = hostEl.clientWidth, h = hostEl.clientHeight;
+    objects.forEach(function (o) {
+      v.set(o.pos.x, o.top + 0.7, o.pos.z).project(camera);
+      var ok = v.z < 1 && v.x > -1.1 && v.x < 1.1 && v.y > -1.1 && v.y < 1.1;
+      o.label.hidden = !ok;
+      if (ok) o.label.style.transform = 'translate(-50%,-100%) translate(' + ((v.x + 1) / 2 * w).toFixed(0) + 'px,' + ((1 - v.y) / 2 * h).toFixed(0) + 'px)';
+    });
+  }
+
   function playerPos() { return { x: player.position.x, z: player.position.z }; }
   function isMoving() { return waypoints.length > 0; }
   function distanceTo(id) {
     var o = objects.find(function (x) { return x.data.id === id; });
     return o ? Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) - o.radius : Infinity;
   }
+  function insideAny() {
+    return objects.some(function (o) { return Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) < o.radius + AVOID - 0.05; });
+  }
 
   return { init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround,
-           stop: stop, showPortal: showPortal, hidePortal: hidePortal, playerPos: playerPos, isMoving: isMoving,
-           distanceTo: distanceTo, resize: resize };
+           stop: stop, showPortal: showPortal, hidePortal: hidePortal, flash: flash, setArcFilter: setArcFilter,
+           playerPos: playerPos, isMoving: isMoving, distanceTo: distanceTo, insideAny: insideAny, resize: resize,
+           camera: cam, zoomTo: zoomTo };
 })();

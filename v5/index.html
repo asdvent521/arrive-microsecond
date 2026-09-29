@@ -47,6 +47,12 @@ button,input,select{font:inherit;color:inherit}
 #view-sheet{overflow:auto;padding:12px 16px calc(var(--tabs-h) + 20px + env(safe-area-inset-bottom,0px))}
 #stage{position:absolute;inset:0}
 #stage canvas{display:block}
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.label{position:absolute;left:0;top:0;font-size:.78rem;padding:1px 8px;border-radius:999px;background:var(--hud);border:1px solid var(--line);color:var(--ink);white-space:nowrap;will-change:transform}
+.label.rule{color:var(--teal)} .label.problem{color:var(--muted)} .label.goal{color:var(--brass)} .label.fusion,.label.stage{color:var(--blue)}
+.flash{position:absolute;inset:0;pointer-events:none;background:#fff;opacity:0}
+.flash.go{animation:flash .9s ease-out forwards}
+@keyframes flash{0%{opacity:1}100%{opacity:0}}
 
 /* HUD：貼在 3D 上面的幾個小板子 */
 .hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px 16px calc(var(--tabs-h) + 12px + env(safe-area-inset-bottom,0px))}
@@ -57,6 +63,10 @@ button,input,select{font:inherit;color:inherit}
 .code{font-family:var(--serif);font-size:1.6rem;letter-spacing:.12em;line-height:1.1;color:var(--brass);font-variant-numeric:tabular-nums}
 .hint{font-size:.8rem;color:var(--muted)}
 .goal{font-size:.95rem;color:var(--teal);font-weight:500}
+.route{font-size:.86rem;line-height:1.5;max-width:36em;flex-basis:100%}
+.route s{color:var(--muted)}
+.route select{min-height:28px;padding:0 4px;font-size:.8rem;margin-left:4px}
+.me{display:flex;align-items:center;gap:4px;white-space:nowrap} .me input{width:20px;height:20px;margin:0}
 .hud-mid{display:flex;flex-direction:column;gap:8px;align-items:flex-start;max-width:36em}
 .near b{display:block;font-family:var(--serif);color:var(--teal)}
 .near span{white-space:pre-line;font-size:.9rem}
@@ -113,6 +123,7 @@ input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;
     <div class="hud-top">
       <div class="pane" id="hudCodeBox"><div class="where" id="hudWhere"></div><div class="code" id="hudCode">—</div><div class="hint" id="hudCodeHint"></div></div>
       <div class="pane goal" id="hudGoal" hidden></div>
+      <div class="pane route" id="hudRoute" hidden><span id="hudRouteText"></span> <select id="hudTarget" aria-label="要去哪個代號"></select></div>
     </div>
     <div class="hud-mid">
       <div class="pane near" id="hudNear" hidden><b id="hudNearTitle"></b><span id="hudNearBody"></span></div>
@@ -127,15 +138,15 @@ input[type=text]{width:12em} input.xy{width:4.5em} input[type=color]{width:44px;
 </main>
 
 <main id="view-sheet" class="view" hidden><div class="sheet">
-  <p class="sheet-desc">表世界不用走：走法表、功能點表在這裡填好，裡世界照表蓋。想直接找人，輸入代號就開傳送門。</p>
+  <p class="sheet-desc">表世界不用走：走法表、功能點表在這裡填好，裡世界照表蓋。想直接找人，輸入代號就開傳送門。裡世界：點地面走路、單指拖曳轉鏡頭、兩指縮放。</p>
   <section>
     <div class="sheet-head"><span class="no">Ⅰ</span><h2>角色表</h2></div>
-    <p class="sheet-desc">出發點是預定開始處理的時間，精確到微秒。原型用「幾秒後」代替手填：設好後傳送過去，站在他的終點上等那一微秒。</p>
-    <div class="tw"><table><thead><tr><th>序號</th><th>代號</th><th>名字</th><th>難題</th><th>規則</th><th>出發點</th></tr></thead><tbody id="tblRoles"></tbody></table></div>
+    <p class="sheet-desc">選「我是」就換角色玩。出發點是預定開始處理的時間，精確到微秒；原型用「幾秒後」代替手填。設好後傳送過去，站在他的終點上等那一微秒；自己的出發點到了沒人來，難題就擱置，留紀錄。</p>
+    <div class="tw"><table><thead><tr><th>我是</th><th>序號</th><th>代號</th><th>名字</th><th>難題</th><th>規則</th><th>出發點</th></tr></thead><tbody id="tblRoles"></tbody></table></div>
   </section>
   <section id="walkBox">
-    <div class="sheet-head"><span class="no">Ⅱ</span><h2>走法表</h2><span class="muted small">我的世界 J1</span></div>
-    <p class="sheet-desc">繞某個物件一圈是哪個字母（兩圈就是前一個字母）；從甲走到乙是哪個數字。字母同時決定後面要走幾個數字：J 一個、I 兩個……</p>
+    <div class="sheet-head"><span class="no">Ⅱ</span><h2>走法表</h2><span class="muted small" id="walkWho"></span></div>
+    <p class="sheet-desc">繞某個物件一圈是哪個字母（兩圈就是前一個字母）；從甲走到乙是哪個數字。字母同時決定後面要走幾個數字：J 一個、I 兩個……沒有字母就直接走 11 個數字。</p>
     <div class="tw"><table><thead><tr><th>繞這個物件</th><th>一圈是</th><th></th><th></th></tr></thead><tbody id="tblCircles"></tbody></table></div>
     <div class="tools"><button class="btn sm" id="addCircle">加一條繞圈</button></div>
     <div class="tw" style="margin-top:10px"><table><thead><tr><th>從</th><th>走到</th><th>是數字</th><th></th></tr></thead><tbody id="tblMoves"></tbody></table></div>
@@ -310,8 +321,9 @@ var DATA = (function () {
   Decoder.prototype.code = function () {
     return (this.letter || '') + this.digits;
   };
+  // 還要走幾個數字：有字母看字母，沒字母就是 11 位
   Decoder.prototype.need = function () {
-    return this.letter ? digitsAfter(this.letter) - this.digits.length : null;
+    return (this.letter ? digitsAfter(this.letter) : 11) - this.digits.length;
   };
   Decoder.prototype.feed = function (ev) {
     if (this.done) return { type: 'ignored' };
@@ -325,15 +337,104 @@ var DATA = (function () {
     }
     if (ev.type === 'arrive') {
       var from = this.lastAt; this.lastAt = ev.object;
-      if (!this.letter || !from || from === ev.object) return { type: 'ignored' };
+      if (!from || from === ev.object) return { type: 'ignored' };
       var mv = this.walk.moves.find(function (r) { return r.from === from && r.to === ev.object; });
       if (!mv) return { type: 'ignored' };
+      if (!this.letter && !this.digits && mv.digit === '0') return { type: 'ignored' };   // 11 位數不能 0 開頭
       this.digits += mv.digit;
       if (this.need() === 0) { this.done = this.code(); return { type: 'done', code: this.done }; }
       return { type: 'digit', digit: mv.digit, need: this.need() };
     }
     return { type: 'ignored' };
   };
+
+  /* ---------- 路線說明：用自己的走法，怎麼走出某個代號 ---------- */
+  // 回傳 {steps:[文字…]}，走法表湊不出來就回傳 {missing:'缺什麼'}
+  function route(walk, objects, code) {
+    var serial = expand(code);
+    if (!serial) return { missing: code + ' 不是代號' };
+    var ab = abbrev(serial);
+    var name = function (id) { var o = objects.find(function (x) { return x.id === id; }); return o ? o.name : id; };
+    var steps = [], letter = /^[A-J]/.test(ab) ? ab[0] : null, digits = letter ? ab.slice(1) : ab;
+    if (letter) {
+      var best = null;
+      walk.circles.forEach(function (c) {
+        var n = c.letter.charCodeAt(0) - letter.charCodeAt(0) + 1;
+        if (n >= 1 && (!best || n < best.n)) best = { c: c, n: n };
+      });
+      if (!best) return { missing: '走法表裡沒有物件能繞出 ' + letter };
+      steps.push('繞' + name(best.c.object) + (best.n === 1 ? '一圈' : ' ' + best.n + ' 圈') + '（' + letter + '）');
+    }
+    var at = null;
+    for (var i = 0; i < digits.length; i++) {
+      var d = digits[i];
+      var mv = walk.moves.find(function (m) { return m.digit === d && m.from === at; }) ||
+               walk.moves.find(function (m) { return m.digit === d; });
+      if (!mv) return { missing: '走法表裡沒有哪一段路是 ' + d };
+      if (mv.from !== at) steps.push('走到' + name(mv.from));
+      steps.push('再走到' + name(mv.to) + '（' + d + '）');
+      at = mv.to;
+    }
+    return { steps: steps, code: ab };
+  }
+
+  /* ---------- 純資料檢查：讀進來的世界只能是資料，不能是程式 ---------- */
+  // 只抄已知欄位、檢查型別，回傳乾淨的新物件；不合格就丟出錯誤訊息
+  var LIMITS = { objects: 60, parts: 24, path: 200, rules: 50, text: 2000, name: 60 };
+  function bad(msg) { throw new Error(msg); }
+  function str(v, max, what) { if (typeof v !== 'string') bad(what + ' 不是文字'); if (v.length > max) bad(what + ' 太長'); return v; }
+  function num(v, what) { if (typeof v !== 'number' || !isFinite(v)) bad(what + ' 不是數字'); return v; }
+  function vec(v, n, what) { if (!Array.isArray(v) || v.length !== n) bad(what + ' 不是 ' + n + ' 個數字'); return v.map(function (x) { return num(x, what); }); }
+  function list(v, max, what) { if (!Array.isArray(v)) bad(what + ' 不是清單'); if (v.length > max) bad(what + ' 太多'); return v; }
+  function obj(v, what) { if (!v || typeof v !== 'object' || Array.isArray(v)) bad(what + ' 不是資料'); return v; }
+  function color(v, what) { if (!/^#[0-9a-fA-F]{6}$/.test(String(v))) bad(what + ' 顏色格式錯'); return v; }
+  function ident(v, what) { if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(v))) bad(what + ' 代號只能是英數'); return v; }
+  function cleanPart(p) {
+    obj(p, '形體');
+    if (!SHAPES[p.shape]) bad('形體種類不認得：' + p.shape);
+    return { shape: p.shape, size: vec(p.size, 3, '形體大小'), color: color(p.color, '形體'), offset: vec(p.offset || [0, 0, 0], 3, '形體位置') };
+  }
+  function cleanText(t, what) {
+    obj(t, what);
+    return { text: str(t.text, LIMITS.text, what), visible: t.visible === 'self' ? 'self' : 'all', status: t.status === 'shelved' ? 'shelved' : 'open' };
+  }
+  function cleanWorld(w) {
+    obj(w, '世界');
+    if (!/^\d{11}$/.test(String(w.serial)) || !abbrev(w.serial)) bad('序號格式錯');
+    var out = {
+      serial: w.serial,
+      name: str(w.name, LIMITS.name, '名字'),
+      color: color(w.color || '#888888', '角色'),
+      departUs: w.departUs == null ? null : num(w.departUs, '出發點'),
+      departDone: !!w.departDone,
+      rules: list(w.rules || [], LIMITS.rules, '規則').map(function (t) { return cleanText(t, '規則'); }),
+      problems: list(w.problems || [], LIMITS.rules, '難題').map(function (t) { return cleanText(t, '難題'); }),
+      start: vec(w.start || [0, 0], 2, '起點'),
+      objects: list(w.objects, LIMITS.objects, '功能點').map(function (o) {
+        obj(o, '功能點');
+        if (!FUNCS[o.func]) bad('功能不認得：' + o.func);
+        return { id: ident(o.id, '功能點'), name: str(o.name, LIMITS.name, '功能點名稱'), func: o.func,
+                 pos: vec(o.pos, 2, '功能點位置'), look: o.look ? str(o.look, 20, '外觀') : undefined,
+                 parts: list(o.parts, LIMITS.parts, '形體').map(cleanPart) };
+      }),
+      path: list(w.path || [], LIMITS.path, '路').map(function (p) { return vec(p, 2, '路'); }),
+      walk: { circles: [], moves: [] }
+    };
+    var ids = {};
+    out.objects.forEach(function (o) { if (ids[o.id]) bad('功能點代號重複：' + o.id); ids[o.id] = true; });
+    var walk = obj(w.walk || {}, '走法表');
+    out.walk.circles = list(walk.circles || [], LIMITS.rules, '繞圈').map(function (c) {
+      obj(c, '繞圈'); if (!ids[c.object]) bad('繞圈指到不存在的物件'); if (!/^[A-J]$/.test(String(c.letter))) bad('繞圈字母錯');
+      return { object: c.object, letter: c.letter };
+    });
+    out.walk.moves = list(walk.moves || [], LIMITS.rules, '走到').map(function (m) {
+      obj(m, '走到'); if (!ids[m.from] || !ids[m.to]) bad('走到指到不存在的物件'); if (!/^[0-9]$/.test(String(m.digit))) bad('走到的數字錯');
+      return { from: m.from, to: m.to, digit: m.digit };
+    });
+    return out;
+  }
+  // 讀外來資料前先過 cleanWorld：只留資料，任何函式、未知欄位都不會被抄過來
+  function tryClean(w) { try { return { world: cleanWorld(w) }; } catch (e) { return { error: e.message }; } }
 
   /* ---------- 出發點：微秒 ---------- */
   function fmtUs(us) {
@@ -349,12 +450,23 @@ var DATA = (function () {
 
   /* ---------- 存檔：只存資料 ---------- */
   var KEY = 'arrive-v5';
+  function fresh() { return { v: 5, me: 0, roles: defaultRoles(), records: [] }; }
   function load() {
     try {
       var s = localStorage.getItem(KEY);
-      if (s) { var j = JSON.parse(s); if (j && j.v === 5 && Array.isArray(j.roles)) return j; }
-    } catch (e) { /* 沒有儲存空間也能玩 */ }
-    return { v: 5, roles: defaultRoles(), records: [] };
+      if (s) {
+        var j = JSON.parse(s);
+        if (j && j.v === 5 && Array.isArray(j.roles) && j.roles.length) {
+          var roles = j.roles.map(cleanWorld);          // 存檔也是外來資料，一樣洗過
+          var recs = list(j.records || [], 500, '紀錄').map(function (r) {
+            return { kind: r.kind === 'meet' ? 'meet' : 'shelve', at: num(r.at, '紀錄時間'), text: str(r.text, LIMITS.text, '紀錄') };
+          });
+          var me = (typeof j.me === 'number' && j.me >= 0 && j.me < roles.length) ? j.me : 0;
+          return { v: 5, me: me, roles: roles, records: recs };
+        }
+      }
+    } catch (e) { /* 壞掉或沒有儲存空間：用預設 */ }
+    return fresh();
   }
   function save(state) {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 忽略 */ }
@@ -367,8 +479,8 @@ var DATA = (function () {
   return {
     abbrev: abbrev, expand: expand, digitsAfter: digitsAfter,
     FUNCS: FUNCS, SHAPES: SHAPES, LOOKS: LOOKS, look: look, radiusOf: radiusOf,
-    defaultRoles: defaultRoles, Decoder: Decoder,
-    fmtUs: fmtUs, nowUs: nowUs, load: load, save: save, findRole: findRole
+    defaultRoles: defaultRoles, Decoder: Decoder, route: route, cleanWorld: cleanWorld, tryClean: tryClean,
+    fmtUs: fmtUs, nowUs: nowUs, load: load, save: save, fresh: fresh, findRole: findRole
   };
 })();
 if (typeof module !== 'undefined') module.exports = DATA;
@@ -378,16 +490,19 @@ if (typeof module !== 'undefined') module.exports = DATA;
  */
 var WORLD = (function () {
   'use strict';
-  var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock;
-  var objects = [];          // [{data, mesh, radius, pos:Vector3, near:false, inside:false, angle, turned}]
+  var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl;
+  var objects = [];          // [{data, mesh, radius, top, pos:Vector3, label, inside, arrived, angle, startAngle, turned, count}]
   var waypoints = [];
   var handlers = {};
   var SPEED = 5;
-  var camOffset = new THREE.Vector3(0, 16, 14);
+  var AVOID = 0.55;          // 走路離物件邊緣的距離
   var raycaster = new THREE.Raycaster();
   var pointer = new THREE.Vector2();
-  var down = null;
   var hostEl;
+  // 鏡頭：繞著角色轉（yaw）、固定俯角、可拉遠拉近
+  var cam = { yaw: 0, pitch: 0.85, dist: 26, min: 10, max: 60 };
+  var pointers = {};         // 目前按著的手指
+  var gesture = null;        // {tap, x, y, yaw, dist, pinch}
 
   function on(name, fn) { handlers[name] = fn; }
   function emit(name, a, b) { if (handlers[name]) handlers[name](a, b); }
@@ -397,20 +512,25 @@ var WORLD = (function () {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     host.appendChild(renderer.domElement);
+    labelLayer = document.createElement('div');
+    labelLayer.className = 'labels';
+    host.appendChild(labelLayer);
+    flashEl = document.createElement('div');
+    flashEl.className = 'flash';
+    host.appendChild(flashEl);
+
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xdfe6ec);
     scene.fog = new THREE.Fog(0xdfe6ec, 40, 90);
     camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
 
-    var hemi = new THREE.HemisphereLight(0xffffff, 0x8d9aa8, 0.9);
-    scene.add(hemi);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8d9aa8, 0.9));
     var sun = new THREE.DirectionalLight(0xfff4e0, 0.8);
     sun.position.set(10, 20, 8);
     scene.add(sun);
 
     ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshLambertMaterial({ color: 0xcfd8df }));
     ground.rotation.x = -Math.PI / 2;
-    ground.name = 'ground';
     scene.add(ground);
     var grid = new THREE.GridHelper(120, 60, 0xb9c4cd, 0xc4ced6);
     grid.position.y = 0.01;
@@ -428,12 +548,19 @@ var WORLD = (function () {
     player.add(body); player.add(head);
     scene.add(player);
 
-    // 白光傳送門：發光的環
+    // 繞圈進度弧：畫在地上
+    arc = new THREE.Mesh(new THREE.RingGeometry(1, 1.2, 8, 1, 0, 0.01), new THREE.MeshBasicMaterial({ color: 0xa2731f, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+    arc.rotation.x = -Math.PI / 2;
+    arc.position.y = 0.03;
+    arc.visible = false;
+    scene.add(arc);
+
+    // 白光傳送門：光柱 + 環
     portal = new THREE.Group();
-    var ring = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.18, 12, 40), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    var glow = new THREE.Mesh(new THREE.CircleGeometry(1.5, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
     var beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.8, 9, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
     beam.position.y = 2.6;
+    var ring = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.18, 12, 40), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    var glow = new THREE.Mesh(new THREE.CircleGeometry(1.5, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
     portal.add(beam); portal.add(ring); portal.add(glow);
     portal.position.y = 1.8;
     portal.visible = false;
@@ -444,14 +571,54 @@ var WORLD = (function () {
     window.addEventListener('resize', resize);
     var el = renderer.domElement;
     el.style.touchAction = 'none';
-    el.addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; });
-    el.addEventListener('pointerup', function (e) {
-      if (!down) return;
-      var moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
-      down = null;
-      if (moved < 12) tap(e.clientX, e.clientY);
-    });
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+    el.addEventListener('wheel', function (e) { e.preventDefault(); zoomTo(cam.dist * (e.deltaY > 0 ? 1.1 : 0.9)); }, { passive: false });
     requestAnimationFrame(loop);
+  }
+
+  /* ---------- 手勢：單指點＝走、單指拖＝轉鏡頭、兩指＝縮放 ---------- */
+  function count() { return Object.keys(pointers).length; }
+  function spread() {
+    var ids = Object.keys(pointers);
+    if (ids.length < 2) return 0;
+    var a = pointers[ids[0]], b = pointers[ids[1]];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+  function onDown(e) {
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch (err) { /* 桌機沒差 */ }
+    if (count() === 1) gesture = { tap: true, x: e.clientX, y: e.clientY, yaw: cam.yaw };
+    else if (count() === 2) gesture = { tap: false, dist: cam.dist, pinch: spread() };
+  }
+  function onMove(e) {
+    if (!pointers[e.pointerId] || !gesture) return;
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (count() === 1) {
+      var dx = e.clientX - gesture.x, dy = e.clientY - gesture.y;
+      if (gesture.tap && Math.hypot(dx, dy) > 10) gesture.tap = false;
+      if (!gesture.tap) cam.yaw = gesture.yaw - dx * 0.008;
+    } else if (count() >= 2 && gesture.pinch) {
+      zoomTo(gesture.dist * gesture.pinch / Math.max(spread(), 1));
+    }
+  }
+  function onUp(e) {
+    var was = gesture;
+    delete pointers[e.pointerId];
+    if (count() === 0) {
+      gesture = null;
+      if (was && was.tap) tap(e.clientX, e.clientY);
+    } else if (count() === 1) {
+      var id = Object.keys(pointers)[0];
+      gesture = { tap: false, x: pointers[id].x, y: pointers[id].y, yaw: cam.yaw };
+    }
+  }
+  function zoomTo(d) { cam.dist = Math.max(cam.min, Math.min(cam.max, d)); }
+  function camOffset() {
+    var r = cam.dist * Math.cos(cam.pitch);
+    return new THREE.Vector3(Math.sin(cam.yaw) * r, cam.dist * Math.sin(cam.pitch), Math.cos(cam.yaw) * r);
   }
 
   function resize() {
@@ -461,10 +628,10 @@ var WORLD = (function () {
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
     camera.aspect = w / h;
-    // 直式手機：鏡頭拉遠、視角開大，五個功能點才看得全
+    // 直式手機：視角開大、預設拉遠，五個功能點才看得全
     var portrait = w < h;
     camera.fov = portrait ? 52 : 45;
-    camOffset.set(0, portrait ? 27 : 16, portrait ? 23 : 14);
+    if (!resize.done) { cam.dist = portrait ? 36 : 22; resize.done = true; }
     camera.updateProjectionMatrix();
   }
 
@@ -480,7 +647,6 @@ var WORLD = (function () {
       default:         return new THREE.BoxGeometry(s[0], s[1], s[2]);
     }
   }
-
   function buildObject(o) {
     var g = new THREE.Group();
     (o.parts || []).forEach(function (p) {
@@ -491,20 +657,28 @@ var WORLD = (function () {
       g.add(m);
     });
     g.position.set(o.pos[0], 0, o.pos[1]);
-    g.userData.objectId = o.id;
     return g;
   }
+  function topOf(o) {
+    var t = 1;
+    (o.parts || []).forEach(function (p) { var y = (p.offset ? p.offset[1] : 0) + p.size[1] / 2; if (y > t) t = y; });
+    return t;
+  }
+  function makeEntry(o) {
+    var label = document.createElement('div');
+    label.className = 'label ' + (o.func || 'none');
+    label.textContent = o.name;
+    labelLayer.appendChild(label);
+    return { data: o, mesh: buildObject(o), radius: DATA.radiusOf(o), top: topOf(o), pos: new THREE.Vector3(o.pos[0], 0, o.pos[1]),
+             label: label, inside: false, arrived: false, angle: 0, startAngle: 0, turned: 0, count: 0 };
+  }
 
-  // world：角色的世界資料；opts.visiting：是傳送過去逛，畫出對方設定的路
+  // world：角色的世界資料（已經過純資料檢查）；opts.visiting：傳送過去逛，畫出對方設定的路
   function loadWorld(world, opts) {
     opts = opts || {};
     clear(objGroup); clear(pathGroup);
-    objects = world.objects.map(function (o) {
-      var mesh = buildObject(o);
-      objGroup.add(mesh);
-      return { data: o, mesh: mesh, radius: DATA.radiusOf(o), pos: new THREE.Vector3(o.pos[0], 0, o.pos[1]),
-               near: false, inside: false, arrived: false, angle: 0, turned: 0, count: 0 };
-    });
+    labelLayer.innerHTML = '';
+    objects = world.objects.map(function (o) { var e = makeEntry(o); objGroup.add(e.mesh); return e; });
     if (opts.visiting && world.path && world.path.length > 1) {
       for (var i = 0; i < world.path.length - 1; i++) {
         var a = world.path[i], b = world.path[i + 1];
@@ -519,22 +693,29 @@ var WORLD = (function () {
     player.position.set(st[0], 0, st[1]);
     waypoints = [];
     hidePortal();
-    var col = new THREE.Color(opts.visiting ? 0x5c6670 : 0x2d5a86);
-    player.children[0].material.color = col;
+    arc.visible = false;
+    detect.lastNear = undefined;
+    player.children[0].material.color = new THREE.Color(opts.visiting ? 0x5c6670 : 0x2d5a86);
     scene.background = new THREE.Color(opts.visiting ? 0xe4e0d6 : 0xdfe6ec);
     scene.fog.color = scene.background;
-    camera.position.copy(player.position).add(camOffset);
+    camera.position.copy(player.position).add(camOffset());
     camera.lookAt(player.position);
   }
 
   function refreshObject(id) {
-    var o = objects.find(function (x) { return x.data.id === id; });
-    if (!o) return;
-    objGroup.remove(o.mesh);
-    o.mesh = buildObject(o.data);
-    objGroup.add(o.mesh);
-    o.radius = DATA.radiusOf(o.data);
-    o.pos.set(o.data.pos[0], 0, o.data.pos[1]);
+    var i = objects.findIndex(function (x) { return x.data.id === id; });
+    if (i < 0) return;
+    objGroup.remove(objects[i].mesh);
+    labelLayer.removeChild(objects[i].label);
+    objects[i] = makeEntry(objects[i].data);
+    objGroup.add(objects[i].mesh);
+  }
+
+  // 傳送時畫面閃白
+  function flash() {
+    flashEl.classList.remove('go');
+    void flashEl.offsetWidth;
+    flashEl.classList.add('go');
   }
 
   /* ---------- 走路 ---------- */
@@ -543,14 +724,10 @@ var WORLD = (function () {
     pointer.x = ((cx - r.left) / r.width) * 2 - 1;
     pointer.y = -((cy - r.top) / r.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    if (portal.visible) {
-      var hp = raycaster.intersectObject(portal, true);
-      if (hp.length) { emit('portal'); return; }
-    }
+    if (portal.visible && raycaster.intersectObject(portal, true).length) { emit('portal'); return; }
     var hits = raycaster.intersectObjects(objGroup.children, true);
     if (hits.length) {
-      var id = hits[0].object.userData.objectId;
-      var o = objects.find(function (x) { return x.data.id === id; });
+      var o = objects.find(function (x) { return x.data.id === hits[0].object.userData.objectId; });
       if (o) { walkTo(edgePoint(o)); return; }
     }
     var hg = raycaster.intersectObject(ground);
@@ -559,11 +736,19 @@ var WORLD = (function () {
   function edgePoint(o) {
     var dir = new THREE.Vector3().subVectors(player.position, o.pos); dir.y = 0;
     if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
-    dir.normalize().multiplyScalar(o.radius + 0.6);
+    dir.normalize().multiplyScalar(o.radius + AVOID + 0.15);
     return new THREE.Vector3().addVectors(o.pos, dir);
   }
-  function walkTo(p) { waypoints = [new THREE.Vector3(p.x, 0, p.z)]; }
-  function walkPath(points) { waypoints = points.map(function (p) { return new THREE.Vector3(p.x, 0, p.z); }); }
+  // 目標點如果在物件裡，推到物件邊上
+  function outside(p) {
+    objects.forEach(function (o) {
+      var dx = p.x - o.pos.x, dz = p.z - o.pos.z, d = Math.hypot(dx, dz), need = o.radius + AVOID + 0.1;
+      if (d < need) { if (d < 0.01) { dx = 1; dz = 0; d = 1; } p.x = o.pos.x + dx / d * need; p.z = o.pos.z + dz / d * need; }
+    });
+    return p;
+  }
+  function walkTo(p) { waypoints = [outside(new THREE.Vector3(p.x, 0, p.z))]; }
+  function walkPath(points) { waypoints = points.map(function (p) { return outside(new THREE.Vector3(p.x, 0, p.z)); }); }
   // 繞某個物件一圈：排一圈路徑點
   function circleAround(id) {
     var o = objects.find(function (x) { return x.data.id === id; });
@@ -578,6 +763,32 @@ var WORLD = (function () {
     walkPath(pts);
   }
   function stop() { waypoints = []; }
+
+  // 一步：想往 d 走，前面有物件就沿著它的邊滑過去
+  function step(d, len, dt) {
+    var move = Math.min(SPEED * dt, len);
+    var dir = d.clone().normalize();
+    var ahead = Math.min(len, 2.5);
+    objects.forEach(function (o) {
+      var need = o.radius + AVOID;
+      var to = new THREE.Vector3().subVectors(o.pos, player.position); to.y = 0;
+      var along = to.dot(dir);
+      if (along <= 0 || along > ahead + need) return;                    // 在後面或太遠
+      var side = Math.sqrt(Math.max(to.lengthSq() - along * along, 0));
+      if (side >= need) return;                                          // 擦不到
+      var tangent = new THREE.Vector3(-to.z, 0, to.x).normalize();       // 沿邊走
+      if (tangent.dot(dir) < 0) tangent.negate();
+      dir.copy(tangent);
+      if (to.length() < need + 0.2) dir.add(to.clone().normalize().multiplyScalar(-0.5)).normalize();  // 太貼就往外一點
+    });
+    player.position.add(dir.multiplyScalar(move));
+    player.rotation.y = Math.atan2(dir.x, dir.z);
+    // 硬推：不管怎樣都不會站進物件裡
+    objects.forEach(function (o) {
+      var dx = player.position.x - o.pos.x, dz = player.position.z - o.pos.z, dd = Math.hypot(dx, dz), need = o.radius + AVOID;
+      if (dd < need && dd > 0.001) { player.position.x = o.pos.x + dx / dd * need; player.position.z = o.pos.z + dz / dd * need; }
+    });
+  }
 
   // 傳送門開在空地上：從最近的物件往外推，不會開在建築裡
   function showPortal() {
@@ -594,6 +805,7 @@ var WORLD = (function () {
   function hidePortal() { portal.visible = false; }
 
   /* ---------- 每一格：走、看、算 ---------- */
+  var stuck = 0;
   function loop() {
     requestAnimationFrame(loop);
     var dt = Math.min(clock.getDelta(), 0.05);
@@ -601,17 +813,20 @@ var WORLD = (function () {
       var t = waypoints[0];
       var d = new THREE.Vector3().subVectors(t, player.position); d.y = 0;
       var len = d.length();
-      if (len < 0.08) waypoints.shift();
+      if (len < 0.12) { waypoints.shift(); stuck = 0; }
       else {
-        var step = Math.min(SPEED * dt, len);
-        player.position.add(d.normalize().multiplyScalar(step));
-        player.rotation.y = Math.atan2(d.x, d.z);
+        var before = player.position.clone();
+        step(d, len, dt);
+        stuck = player.position.distanceTo(before) < SPEED * dt * 0.2 ? stuck + dt : 0;
+        if (stuck > 1.2) { waypoints.shift(); stuck = 0; }        // 卡住就放棄這個點
       }
     }
     detect();
+    drawArc();
+    drawLabels();
     if (portal.visible) { portal.children[1].lookAt(camera.position); portal.children[2].lookAt(camera.position); }
-    var want = new THREE.Vector3().copy(player.position).add(camOffset);
-    camera.position.lerp(want, 0.08);
+    var want = new THREE.Vector3().copy(player.position).add(camOffset());
+    camera.position.lerp(want, gesture ? 0.5 : 0.08);
     camera.lookAt(player.position.x, 1, player.position.z);
     renderer.render(scene, camera);
   }
@@ -631,12 +846,12 @@ var WORLD = (function () {
       var ringR = o.radius + 3.0;
       var ang = Math.atan2(dz, dx);
       if (dist < ringR) {
-        if (!o.inside) { o.inside = true; o.turned = 0; o.count = 0; }
+        if (!o.inside) { o.inside = true; o.turned = 0; o.count = 0; o.startAngle = ang; }
         else {
           var da = ang - o.angle;
           if (da > Math.PI) da -= Math.PI * 2; else if (da < -Math.PI) da += Math.PI * 2;
           o.turned += da;
-          if (Math.abs(o.turned) >= Math.PI * 2 - 0.05) { o.count++; o.turned = 0; emit('turn', o.data, o.count); }
+          if (Math.abs(o.turned) >= Math.PI * 2 - 0.05) { o.count++; o.turned = 0; o.startAngle = ang; emit('turn', o.data, o.count); }
         }
         o.angle = ang;
       } else if (o.inside) {
@@ -649,16 +864,54 @@ var WORLD = (function () {
     if (nid !== detect.lastNear) { detect.lastNear = nid; emit('near', nearest ? nearest.data : null); }
   }
 
+  // 進度弧：正在繞的那個物件，地上畫出已經轉了多少
+  var arcKey = '';
+  function drawArc() {
+    var o = null;
+    for (var i = 0; i < objects.length; i++) if (objects[i].inside && Math.abs(objects[i].turned) > 0.05 && arcOk(objects[i])) { o = objects[i]; break; }
+    if (!o) { arc.visible = false; arcKey = ''; return; }
+    var key = o.data.id + ':' + o.turned.toFixed(2);
+    if (key === arcKey) return;
+    arcKey = key;
+    var r = o.radius + 1.4;
+    // RingGeometry 的角度在旋轉後方向相反，所以取負
+    var len = Math.abs(o.turned);
+    var start = o.turned > 0 ? -o.startAngle - o.turned : -o.startAngle;
+    arc.geometry.dispose();
+    arc.geometry = new THREE.RingGeometry(r - 0.18, r + 0.18, Math.max(8, Math.ceil(len * 10)), 1, start, len);
+    arc.position.set(o.pos.x, 0.03, o.pos.z);
+    arc.visible = true;
+  }
+  var arcFilter = function () { return true; };
+  function arcOk(o) { return arcFilter(o.data); }
+  function setArcFilter(fn) { arcFilter = fn || function () { return true; }; }
+
+  // 名稱標籤：投影到物件頂上
+  var v = new THREE.Vector3();
+  function drawLabels() {
+    var w = hostEl.clientWidth, h = hostEl.clientHeight;
+    objects.forEach(function (o) {
+      v.set(o.pos.x, o.top + 0.7, o.pos.z).project(camera);
+      var ok = v.z < 1 && v.x > -1.1 && v.x < 1.1 && v.y > -1.1 && v.y < 1.1;
+      o.label.hidden = !ok;
+      if (ok) o.label.style.transform = 'translate(-50%,-100%) translate(' + ((v.x + 1) / 2 * w).toFixed(0) + 'px,' + ((1 - v.y) / 2 * h).toFixed(0) + 'px)';
+    });
+  }
+
   function playerPos() { return { x: player.position.x, z: player.position.z }; }
   function isMoving() { return waypoints.length > 0; }
   function distanceTo(id) {
     var o = objects.find(function (x) { return x.data.id === id; });
     return o ? Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) - o.radius : Infinity;
   }
+  function insideAny() {
+    return objects.some(function (o) { return Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) < o.radius + AVOID - 0.05; });
+  }
 
   return { init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround,
-           stop: stop, showPortal: showPortal, hidePortal: hidePortal, playerPos: playerPos, isMoving: isMoving,
-           distanceTo: distanceTo, resize: resize };
+           stop: stop, showPortal: showPortal, hidePortal: hidePortal, flash: flash, setArcFilter: setArcFilter,
+           playerPos: playerPos, isMoving: isMoving, distanceTo: distanceTo, insideAny: insideAny, resize: resize,
+           camera: cam, zoomTo: zoomTo };
 })();
 
 /* ===== 接線：把資料層和畫面層接起來，加上 HUD 和表世界分頁 ===== */
@@ -666,10 +919,11 @@ var WORLD = (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var state = DATA.load();
-  var me = state.roles[0];
+  var me = state.roles[state.me] || state.roles[0];
   var cur = { role: me, visiting: false };
   var dec = new DATA.Decoder(me.walk);
   var nearObj = null, portalRole = null, resolved = false, msgTimer = null;
+  var target = null;   // HUD 教學要去的代號
 
   /* ---------- HUD ---------- */
   function msg(text, keep) {
@@ -681,16 +935,44 @@ var WORLD = (function () {
     var code = dec.code();
     var need = dec.need();
     var s = code || '—';
-    if (need) s += '＿'.repeat(need);
+    if (need && code) s += '＿'.repeat(need);      // 還沒開始走就只顯示一條線
     $('hudCode').textContent = s;
-    $('hudCodeHint').textContent = dec.done ? '走完了' : !dec.letter ? '先繞一個物件，走出字母' : '再從甲走到乙，走出 ' + need + ' 個數字';
+    $('hudCodeHint').textContent = dec.done ? '走完了' : !dec.letter && !dec.digits ? '先繞一個物件走出字母，或直接走數字' : '再從甲走到乙，走出 ' + need + ' 個數字';
+    drawRoute();
+  }
+  // HUD 教學：要去某個代號，用自己的走法該怎麼走
+  function drawRoute() {
+    var others = state.roles.filter(function (r) { return r !== me; });
+    var sel = $('hudTarget');
+    var cur0 = target || (others[0] ? DATA.abbrev(others[0].serial) : null);
+    sel.innerHTML = others.map(function (r) { return opt(DATA.abbrev(r.serial), DATA.abbrev(r.serial) + ' ' + r.name, cur0); }).join('');
+    target = cur0;
+    var box = $('hudRoute');
+    if (!target) { box.hidden = true; return; }
+    var rt = DATA.route(me.walk, me.objects, target);
+    var doneN = dec.code().length;
+    if (rt.missing) { $('hudRouteText').textContent = '要去 ' + target + '：' + rt.missing + '，到表世界改走法表。'; }
+    else {
+      // 已經走出來的部分劃掉：字母算一步，每個數字一步（「走到甲」不算）
+      var got = 0;
+      var html = rt.steps.map(function (st) {
+        var counts = /（[A-J0-9]）$/.test(st);
+        var did = counts && got < doneN;
+        if (counts) got++;
+        return did ? '<s>' + esc(st) + '</s>' : esc(st);
+      }).join('，');
+      $('hudRouteText').innerHTML = '要去 ' + target + '：' + html;
+    }
+    box.hidden = false;
   }
   function drawWhere() {
     var r = cur.role;
     $('hudWhere').textContent = cur.visiting ? '在 ' + DATA.abbrev(r.serial) + ' ' + r.name + ' 的世界' : '自己的世界 ' + DATA.abbrev(r.serial);
     $('btnHome').hidden = !cur.visiting;
     $('hudCodeBox').hidden = cur.visiting;
+    $('hudRoute').hidden = cur.visiting;
     $('hudGoal').hidden = !cur.visiting;
+    WORLD.setArcFilter(function (o) { return canCircle(o); });
   }
   function canCircle(o) {
     return !cur.visiting && !!o && me.walk.circles.some(function (c) { return c.object === o.id; });
@@ -748,13 +1030,18 @@ var WORLD = (function () {
     msg('走出了 ' + code + '，白光傳送門打開了。點傳送門過去。', true);
   }
   function teleport(role) {
-    cur = { role: role, visiting: true };
+    // 世界只能是資料：讀進來之前先洗一遍，不合格就不載入
+    var chk = DATA.tryClean(role);
+    if (chk.error) { msg(role.name + ' 的世界不是純資料（' + chk.error + '），不載入。', true); WORLD.hidePortal(); portalRole = null; return; }
+    cur = { role: role, visiting: true, world: chk.world };
     resolved = false; portalRole = null;
-    WORLD.loadWorld(role, { visiting: true });
+    WORLD.flash();
+    WORLD.loadWorld(chk.world, { visiting: true });
     drawWhere(); drawNear(null);
     msg('到了 ' + role.name + ' 的世界。沿著路走到終點，沿途看他的規則。', true);
   }
   function goHome() {
+    if (cur.visiting) WORLD.flash();
     cur = { role: me, visiting: false };
     dec.reset(); drawCode();
     WORLD.loadWorld(me);
@@ -763,6 +1050,7 @@ var WORLD = (function () {
   $('btnHome').addEventListener('click', goHome);
   $('btnReset').addEventListener('click', function () { dec.reset(); drawCode(); WORLD.hidePortal(); portalRole = null; msg('重走'); });
   $('btnCircle').addEventListener('click', function () { if (nearObj) WORLD.circleAround(nearObj.id); });
+  $('hudTarget').addEventListener('change', function () { target = $('hudTarget').value; drawRoute(); });
 
   /* ---------- 終點與那一微秒 ---------- */
   function goalId(role) { var g = role.objects.find(function (o) { return o.func === 'goal'; }); return g ? g.id : null; }
@@ -776,14 +1064,31 @@ var WORLD = (function () {
     state.records.push({ kind: kind, at: DATA.nowUs(), text: text });
     DATA.save(state); renderRecords();
   }
+  function shelve(role, why) {
+    var t = DATA.abbrev(role.serial) + ' ' + role.name + ' 的出發點 ' + DATA.fmtUs(role.departUs) + why + '，難題擱置。';
+    role.departDone = true;
+    if (role.problems[0]) role.problems[0].status = 'shelved';
+    record('shelve', t);
+    return t;
+  }
   setInterval(function () {
     // 時鐘
     $('clock').textContent = DATA.fmtUs(DATA.nowUs());
+    var now0 = DATA.nowUs();
+    // 每個角色自己的出發點：那一微秒過了、沒人在他的終點（不是正在被拜訪的那個），就擱置
+    state.roles.forEach(function (x) {
+      if (x.departUs == null || x.departDone || now0 < x.departUs) return;
+      if (cur.visiting && cur.role === x) return;        // 正在他的世界，由下面判
+      var t = shelve(x, '一個人都沒來');
+      renderRoles();
+      msg(t, true);
+    });
     if (!cur.visiting) return;
     var r = cur.role, now = DATA.nowUs();
     var g = goalId(r);
     var onIt = g ? WORLD.distanceTo(g) < 1.0 : false;
     if (r.departUs == null) { $('hudGoal').textContent = '對方還沒寫出發點'; return; }
+    if (r.departDone && !resolved) { $('hudGoal').textContent = '這個出發點已經過了'; return; }
     if (resolved) return;
     if (now < r.departUs) {
       $('hudGoal').textContent = '離出發點還有 ' + ((r.departUs - now) / 1e6).toFixed(1) + ' 秒' + (onIt ? '，你在終點上' : '');
@@ -792,14 +1097,18 @@ var WORLD = (function () {
     resolved = true;
     if (onIt) {
       var t = DATA.abbrev(me.serial) + ' 與 ' + DATA.abbrev(r.serial) + ' ' + r.name + ' 在 ' + DATA.fmtUs(r.departUs) + ' 相遇，兩個難題融合了。';
+      r.departDone = true; me.departDone = true;
+      if (r.problems[0]) r.problems[0].status = 'fused';
+      if (me.problems[0]) me.problems[0].status = 'fused';
       record('meet', t);
+      renderRoles();
       $('hudGoal').textContent = '相遇了';
       $('meetText').textContent = t;
       $('meetProblems').textContent = '「' + (me.problems[0] || {}).text + '」＋「' + (r.problems[0] || {}).text + '」';
       $('meet').hidden = false;
     } else {
-      var t2 = r.name + ' 的出發點 ' + DATA.fmtUs(r.departUs) + ' 沒有人到終點，難題擱置。';
-      record('shelve', t2);
+      var t2 = shelve(r, ' 沒有人到終點');
+      renderRoles();
       $('hudGoal').textContent = '錯過了，擱置';
       msg(t2, true);
     }
@@ -812,15 +1121,26 @@ var WORLD = (function () {
 
   function renderRoles() {
     $('tblRoles').innerHTML = state.roles.map(function (r, i) {
-      return '<tr><td class="num">' + r.serial + '</td><td class="num"><b>' + DATA.abbrev(r.serial) + '</b></td>' +
+      var st = (r.problems[0] || {}).status, stTag = st === 'shelved' ? '<span class="tag shelve">擱置</span> ' : st === 'fused' ? '<span class="tag meet">融合</span> ' : '';
+      return '<tr><td><label class="me"><input type="radio" name="meIs" value="' + i + '"' + (r === me ? ' checked' : '') + '> ' + (r === me ? '我' : '') + '</label></td>' +
+        '<td class="num">' + r.serial + '</td><td class="num"><b>' + DATA.abbrev(r.serial) + '</b></td>' +
         '<td><input type="text" data-role="' + i + '" data-k="name" value="' + esc(r.name) + '" aria-label="名字"></td>' +
-        '<td><input type="text" data-role="' + i + '" data-k="problem" value="' + esc((r.problems[0] || {}).text || '') + '" aria-label="難題"></td>' +
+        '<td>' + stTag + '<input type="text" data-role="' + i + '" data-k="problem" value="' + esc((r.problems[0] || {}).text || '') + '" aria-label="難題"></td>' +
         '<td><input type="text" data-role="' + i + '" data-k="rule" value="' + esc((r.rules[0] || {}).text || '') + '" aria-label="規則"></td>' +
-        '<td class="num">' + DATA.fmtUs(r.departUs) + '<div class="row"><button class="btn sm" data-dep="' + i + '" data-s="30">30 秒後</button><button class="btn sm" data-dep="' + i + '" data-s="90">90 秒後</button><button class="btn sm" data-dep="' + i + '" data-s="0">清掉</button></div></td></tr>';
+        '<td class="num">' + DATA.fmtUs(r.departUs) + (r.departUs != null && r.departDone ? ' <span class="muted small">（已過）</span>' : '') + '<div class="row"><button class="btn sm" data-dep="' + i + '" data-s="30">30 秒後</button><button class="btn sm" data-dep="' + i + '" data-s="90">90 秒後</button><button class="btn sm" data-dep="' + i + '" data-s="0">清掉</button></div></td></tr>';
     }).join('');
   }
+  function becomeMe(i) {
+    state.me = i; me = state.roles[i];
+    dec = new DATA.Decoder(me.walk); target = null;
+    DATA.save(state);
+    $('walkWho').textContent = '我的世界 ' + DATA.abbrev(me.serial) + ' ' + me.name;
+    renderRoles(); renderWalk(); goHome();
+  }
   $('tblRoles').addEventListener('change', function (e) {
-    var t = e.target, r = state.roles[+t.dataset.role]; if (!r) return;
+    var t = e.target;
+    if (t.name === 'meIs') { becomeMe(+t.value); return; }
+    var r = state.roles[+t.dataset.role]; if (!r) return;
     if (t.dataset.k === 'name') r.name = t.value;
     else if (t.dataset.k === 'problem') r.problems[0] = { text: t.value, status: 'open' };
     else if (t.dataset.k === 'rule') r.rules[0] = { text: t.value, visible: 'all' };
@@ -830,6 +1150,8 @@ var WORLD = (function () {
     var b = e.target.closest('[data-dep]'); if (!b) return;
     var r = state.roles[+b.dataset.dep], s = +b.dataset.s;
     r.departUs = s ? DATA.nowUs() + s * 1e6 + Math.floor(Math.random() * 1000) : null;
+    r.departDone = false;
+    if (r.problems[0] && r.problems[0].status !== 'open') r.problems[0] = { text: r.problems[0].text, status: 'open', visible: 'all' };  // 重創難題
     resolved = false;
     DATA.save(state); renderRoles();
   });
@@ -844,7 +1166,7 @@ var WORLD = (function () {
     $('tblMoves').innerHTML = w.moves.map(function (m, i) {
       return '<tr><td><select data-m="' + i + '" data-k="from" aria-label="從">' + objOptions(me, m.from) + '</select></td>' +
         '<td><select data-m="' + i + '" data-k="to" aria-label="走到">' + objOptions(me, m.to) + '</select></td>' +
-        '<td><select data-m="' + i + '" data-k="digit" aria-label="數字">' + '1234567890'.split('').map(function (d) { return opt(d, d, m.digit); }).join('') + '</select></td>' +
+        '<td><select data-m="' + i + '" data-k="digit" aria-label="數字">' + '0123456789'.split('').map(function (d) { return opt(d, d, m.digit); }).join('') + '</select></td>' +
         '<td><button class="btn sm" data-del-m="' + i + '">刪</button></td></tr>';
     }).join('');
   }
@@ -908,9 +1230,9 @@ var WORLD = (function () {
     openPortal(code);
   });
   $('btnDefault').addEventListener('click', function () {
-    state = { v: 5, roles: DATA.defaultRoles(), records: [] };
-    me = state.roles[0]; DATA.save(state);
-    editRole = 0; renderAll(); goHome();
+    state = DATA.fresh();
+    me = state.roles[0]; dec = new DATA.Decoder(me.walk); target = null; DATA.save(state);
+    editRole = 0; $('walkWho').textContent = '我的世界 ' + DATA.abbrev(me.serial) + ' ' + me.name; renderAll(); goHome();
   });
   function renderRecords() {
     $('records').innerHTML = state.records.length ? state.records.slice().reverse().map(function (x) {
@@ -941,10 +1263,12 @@ var WORLD = (function () {
     WORLD.init($('stage'));
     WORLD.loadWorld(me);
   }
+  $('walkWho').textContent = '我的世界 ' + DATA.abbrev(me.serial) + ' ' + me.name;
   renderAll(); drawCode(); drawWhere(); drawNear(null);
   showTab(location.hash === '#sheet' ? 'sheet' : 'world');
   window.APP = { state: function () { return state; }, dec: function () { return dec; }, cur: function () { return cur; }, showTab: showTab,
-    enterPortal: function () { if (portalRole) teleport(portalRole); }, save: function () { DATA.save(state); } };
+    enterPortal: function () { if (portalRole) teleport(portalRole); }, save: function () { DATA.save(state); },
+    teleportTo: teleport, me: function () { return me; } };
 })();
 
 </script>

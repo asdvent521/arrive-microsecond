@@ -100,5 +100,81 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   await pg.screenshot({ path: OUT + '/8_tree.png' });
 
   assert(errs.length === 0, '整段沒有錯誤 ' + errs.join(' | '));
+
+  // ---- 第二批 ----
+  await pg.click('.tabs a[data-tab=world]');
+  await pg.evaluate("APP.dec().reset(); WORLD.hidePortal()");
+  // 標籤：每個功能點頭上有名字
+  var labels = await pg.evaluate("[...document.querySelectorAll('.label')].map(l=>l.textContent)");
+  assert(labels.indexOf('難題碑') >= 0 && labels.length === 5, '名稱標籤：' + labels.join('/'));
+  // 路線教學
+  var route = await pg.textContent('#hudRouteText');
+  assert(route.indexOf('要去 J2：繞') === 0 && route.indexOf('走到難題碑') > 0 && route.indexOf('融合殿') > 0, '路線教學：' + route);
+
+  // 單指拖曳轉鏡頭
+  var yaw0 = await pg.evaluate("WORLD.camera.yaw");
+  await pg.evaluate(`(function(){
+    var c=document.querySelector('#stage canvas');
+    function ev(t,id,x,y){ c.dispatchEvent(new PointerEvent(t,{pointerId:id,clientX:x,clientY:y,bubbles:true,pointerType:'touch'})); }
+    ev('pointerdown',1,200,500); ev('pointermove',1,240,500); ev('pointermove',1,300,500); ev('pointerup',1,300,500);
+  })()`);
+  await pg.waitForTimeout(100);
+  var yaw1 = await pg.evaluate("WORLD.camera.yaw");
+  assert(Math.abs(yaw1 - yaw0) > 0.3, '拖曳轉鏡頭 ' + yaw0.toFixed(2) + '→' + yaw1.toFixed(2));
+  assert(!(await pg.evaluate("WORLD.isMoving()")), '拖曳不算點地面');
+  // 兩指縮放（用 PointerEvent 模擬兩根手指）
+  var d0 = await pg.evaluate("WORLD.camera.dist");
+  await pg.evaluate(`(function(){
+    var c=document.querySelector('#stage canvas');
+    function ev(t,id,x,y){ c.dispatchEvent(new PointerEvent(t,{pointerId:id,clientX:x,clientY:y,bubbles:true,pointerType:'touch'})); }
+    ev('pointerdown',1,150,400); ev('pointerdown',2,250,400);
+    ev('pointermove',1,100,400); ev('pointermove',2,300,400);
+    ev('pointerup',1,100,400); ev('pointerup',2,300,400);
+  })()`);
+  var d1 = await pg.evaluate("WORLD.camera.dist");
+  assert(d1 < d0 - 3, '兩指張開拉近 ' + d0.toFixed(1) + '→' + d1.toFixed(1));
+  await pg.evaluate("WORLD.zoomTo(36); WORLD.camera.yaw = 0");
+
+  // 走路繞開物件：從難題碑的一邊走到另一邊，路上不能進到碑裡
+  await pg.evaluate("WORLD.walkTo({x:0, z:-9.5})");
+  await pg.waitForFunction("!WORLD.isMoving()", null, { timeout: 8000 });
+  var hit = await pg.evaluate(`new Promise(function(res){ var n=0,bad=0; WORLD.walkTo({x:0, z:-2.5}); var h=setInterval(function(){ n++; if (WORLD.insideAny()) bad++; if(!WORLD.isMoving()||n>400){clearInterval(h);res({bad:bad,n:n,pos:WORLD.playerPos()});} },16); })`);
+  assert(hit.bad === 0 && Math.abs(hit.pos.z + 2.5) < 0.5, '穿不過難題碑：進去 ' + hit.bad + ' 次，到 ' + JSON.stringify(hit.pos));
+  await pg.screenshot({ path: OUT + '/9_labels.png' });
+
+  // 髒資料不載入
+  var dirty = await pg.evaluate(`(function(){ var r = JSON.parse(JSON.stringify(APP.state().roles[1])); r.objects[0].parts[0].color='url(x)'; APP.teleportTo(r); return document.getElementById('hudMsg').textContent + '|' + document.getElementById('hudWhere').textContent; })()`);
+  assert(dirty.indexOf('不是純資料') >= 0 && dirty.indexOf('自己的世界') >= 0, '髒資料不載入：' + dirty);
+
+  // 自己的出發點到了沒人來 → 擱置、紀錄
+  await pg.evaluate("(function(){ var m=APP.me(); m.departUs = DATA.nowUs() + 1.5e6; m.departDone=false; APP.save(); })()");
+  await pg.waitForFunction("APP.state().records.some(function(x){ return x.kind==='shelve' && x.text.indexOf('一個人都沒來')>=0; })", null, { timeout: 6000 });
+  assert(true, '自己的出發點沒人來就擱置');
+  await pg.click('.tabs a[data-tab=sheet]');
+  await pg.waitForTimeout(200);
+  var rolesTxt = await pg.textContent('#tblRoles');
+  assert(rolesTxt.indexOf('擱置') >= 0 && rolesTxt.indexOf('已過') >= 0, '角色表標了擱置');
+
+  // 換角色：我是 J2
+  await pg.check('input[name=meIs][value="1"]');
+  await pg.waitForTimeout(300);
+  assert((await pg.textContent('#walkWho')).indexOf('J2') >= 0, '走法表變成 J2 的');
+  await pg.click('.tabs a[data-tab=world]');
+  await pg.waitForTimeout(200);
+  assert((await pg.textContent('#hudWhere')).indexOf('J2') >= 0, '裡世界變成 J2 的');
+  var route2 = await pg.textContent('#hudRouteText');
+  assert(route2.indexOf('要去 J1：繞小山一圈') === 0, 'J2 的路線教學：' + route2);
+  await pg.screenshot({ path: OUT + '/10_as_j2.png' });
+  // 重新整理還是 J2
+  await pg.reload(); await pg.waitForTimeout(800);
+  assert((await pg.textContent('#hudWhere')).indexOf('J2') >= 0, '重新整理後還記得我是 J2');
+
+  // 走法表數字 0 可以設
+  await pg.click('.tabs a[data-tab=sheet]');
+  await pg.click('#addMove'); await pg.waitForTimeout(100);
+  var zero = await pg.evaluate("[...document.querySelectorAll('#tblMoves select[data-k=digit]')].pop().querySelector('option[value=\"0\"]') !== null");
+  assert(zero, '走法表有數字 0');
+
+  assert(errs.length === 0, '第二批沒有錯誤 ' + errs.join(' | '));
   await browser.close();
 })().catch(function (e) { console.error(e); process.exit(1); });

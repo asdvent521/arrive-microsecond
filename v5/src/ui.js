@@ -3,10 +3,11 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var state = DATA.load();
-  var me = state.roles[0];
+  var me = state.roles[state.me] || state.roles[0];
   var cur = { role: me, visiting: false };
   var dec = new DATA.Decoder(me.walk);
   var nearObj = null, portalRole = null, resolved = false, msgTimer = null;
+  var target = null;   // HUD 教學要去的代號
 
   /* ---------- HUD ---------- */
   function msg(text, keep) {
@@ -18,16 +19,44 @@
     var code = dec.code();
     var need = dec.need();
     var s = code || '—';
-    if (need) s += '＿'.repeat(need);
+    if (need && code) s += '＿'.repeat(need);      // 還沒開始走就只顯示一條線
     $('hudCode').textContent = s;
-    $('hudCodeHint').textContent = dec.done ? '走完了' : !dec.letter ? '先繞一個物件，走出字母' : '再從甲走到乙，走出 ' + need + ' 個數字';
+    $('hudCodeHint').textContent = dec.done ? '走完了' : !dec.letter && !dec.digits ? '先繞一個物件走出字母，或直接走數字' : '再從甲走到乙，走出 ' + need + ' 個數字';
+    drawRoute();
+  }
+  // HUD 教學：要去某個代號，用自己的走法該怎麼走
+  function drawRoute() {
+    var others = state.roles.filter(function (r) { return r !== me; });
+    var sel = $('hudTarget');
+    var cur0 = target || (others[0] ? DATA.abbrev(others[0].serial) : null);
+    sel.innerHTML = others.map(function (r) { return opt(DATA.abbrev(r.serial), DATA.abbrev(r.serial) + ' ' + r.name, cur0); }).join('');
+    target = cur0;
+    var box = $('hudRoute');
+    if (!target) { box.hidden = true; return; }
+    var rt = DATA.route(me.walk, me.objects, target);
+    var doneN = dec.code().length;
+    if (rt.missing) { $('hudRouteText').textContent = '要去 ' + target + '：' + rt.missing + '，到表世界改走法表。'; }
+    else {
+      // 已經走出來的部分劃掉：字母算一步，每個數字一步（「走到甲」不算）
+      var got = 0;
+      var html = rt.steps.map(function (st) {
+        var counts = /（[A-J0-9]）$/.test(st);
+        var did = counts && got < doneN;
+        if (counts) got++;
+        return did ? '<s>' + esc(st) + '</s>' : esc(st);
+      }).join('，');
+      $('hudRouteText').innerHTML = '要去 ' + target + '：' + html;
+    }
+    box.hidden = false;
   }
   function drawWhere() {
     var r = cur.role;
     $('hudWhere').textContent = cur.visiting ? '在 ' + DATA.abbrev(r.serial) + ' ' + r.name + ' 的世界' : '自己的世界 ' + DATA.abbrev(r.serial);
     $('btnHome').hidden = !cur.visiting;
     $('hudCodeBox').hidden = cur.visiting;
+    $('hudRoute').hidden = cur.visiting;
     $('hudGoal').hidden = !cur.visiting;
+    WORLD.setArcFilter(function (o) { return canCircle(o); });
   }
   function canCircle(o) {
     return !cur.visiting && !!o && me.walk.circles.some(function (c) { return c.object === o.id; });
@@ -85,13 +114,18 @@
     msg('走出了 ' + code + '，白光傳送門打開了。點傳送門過去。', true);
   }
   function teleport(role) {
-    cur = { role: role, visiting: true };
+    // 世界只能是資料：讀進來之前先洗一遍，不合格就不載入
+    var chk = DATA.tryClean(role);
+    if (chk.error) { msg(role.name + ' 的世界不是純資料（' + chk.error + '），不載入。', true); WORLD.hidePortal(); portalRole = null; return; }
+    cur = { role: role, visiting: true, world: chk.world };
     resolved = false; portalRole = null;
-    WORLD.loadWorld(role, { visiting: true });
+    WORLD.flash();
+    WORLD.loadWorld(chk.world, { visiting: true });
     drawWhere(); drawNear(null);
     msg('到了 ' + role.name + ' 的世界。沿著路走到終點，沿途看他的規則。', true);
   }
   function goHome() {
+    if (cur.visiting) WORLD.flash();
     cur = { role: me, visiting: false };
     dec.reset(); drawCode();
     WORLD.loadWorld(me);
@@ -100,6 +134,7 @@
   $('btnHome').addEventListener('click', goHome);
   $('btnReset').addEventListener('click', function () { dec.reset(); drawCode(); WORLD.hidePortal(); portalRole = null; msg('重走'); });
   $('btnCircle').addEventListener('click', function () { if (nearObj) WORLD.circleAround(nearObj.id); });
+  $('hudTarget').addEventListener('change', function () { target = $('hudTarget').value; drawRoute(); });
 
   /* ---------- 終點與那一微秒 ---------- */
   function goalId(role) { var g = role.objects.find(function (o) { return o.func === 'goal'; }); return g ? g.id : null; }
@@ -113,14 +148,31 @@
     state.records.push({ kind: kind, at: DATA.nowUs(), text: text });
     DATA.save(state); renderRecords();
   }
+  function shelve(role, why) {
+    var t = DATA.abbrev(role.serial) + ' ' + role.name + ' 的出發點 ' + DATA.fmtUs(role.departUs) + why + '，難題擱置。';
+    role.departDone = true;
+    if (role.problems[0]) role.problems[0].status = 'shelved';
+    record('shelve', t);
+    return t;
+  }
   setInterval(function () {
     // 時鐘
     $('clock').textContent = DATA.fmtUs(DATA.nowUs());
+    var now0 = DATA.nowUs();
+    // 每個角色自己的出發點：那一微秒過了、沒人在他的終點（不是正在被拜訪的那個），就擱置
+    state.roles.forEach(function (x) {
+      if (x.departUs == null || x.departDone || now0 < x.departUs) return;
+      if (cur.visiting && cur.role === x) return;        // 正在他的世界，由下面判
+      var t = shelve(x, '一個人都沒來');
+      renderRoles();
+      msg(t, true);
+    });
     if (!cur.visiting) return;
     var r = cur.role, now = DATA.nowUs();
     var g = goalId(r);
     var onIt = g ? WORLD.distanceTo(g) < 1.0 : false;
     if (r.departUs == null) { $('hudGoal').textContent = '對方還沒寫出發點'; return; }
+    if (r.departDone && !resolved) { $('hudGoal').textContent = '這個出發點已經過了'; return; }
     if (resolved) return;
     if (now < r.departUs) {
       $('hudGoal').textContent = '離出發點還有 ' + ((r.departUs - now) / 1e6).toFixed(1) + ' 秒' + (onIt ? '，你在終點上' : '');
@@ -129,14 +181,18 @@
     resolved = true;
     if (onIt) {
       var t = DATA.abbrev(me.serial) + ' 與 ' + DATA.abbrev(r.serial) + ' ' + r.name + ' 在 ' + DATA.fmtUs(r.departUs) + ' 相遇，兩個難題融合了。';
+      r.departDone = true; me.departDone = true;
+      if (r.problems[0]) r.problems[0].status = 'fused';
+      if (me.problems[0]) me.problems[0].status = 'fused';
       record('meet', t);
+      renderRoles();
       $('hudGoal').textContent = '相遇了';
       $('meetText').textContent = t;
       $('meetProblems').textContent = '「' + (me.problems[0] || {}).text + '」＋「' + (r.problems[0] || {}).text + '」';
       $('meet').hidden = false;
     } else {
-      var t2 = r.name + ' 的出發點 ' + DATA.fmtUs(r.departUs) + ' 沒有人到終點，難題擱置。';
-      record('shelve', t2);
+      var t2 = shelve(r, ' 沒有人到終點');
+      renderRoles();
       $('hudGoal').textContent = '錯過了，擱置';
       msg(t2, true);
     }
@@ -149,15 +205,26 @@
 
   function renderRoles() {
     $('tblRoles').innerHTML = state.roles.map(function (r, i) {
-      return '<tr><td class="num">' + r.serial + '</td><td class="num"><b>' + DATA.abbrev(r.serial) + '</b></td>' +
+      var st = (r.problems[0] || {}).status, stTag = st === 'shelved' ? '<span class="tag shelve">擱置</span> ' : st === 'fused' ? '<span class="tag meet">融合</span> ' : '';
+      return '<tr><td><label class="me"><input type="radio" name="meIs" value="' + i + '"' + (r === me ? ' checked' : '') + '> ' + (r === me ? '我' : '') + '</label></td>' +
+        '<td class="num">' + r.serial + '</td><td class="num"><b>' + DATA.abbrev(r.serial) + '</b></td>' +
         '<td><input type="text" data-role="' + i + '" data-k="name" value="' + esc(r.name) + '" aria-label="名字"></td>' +
-        '<td><input type="text" data-role="' + i + '" data-k="problem" value="' + esc((r.problems[0] || {}).text || '') + '" aria-label="難題"></td>' +
+        '<td>' + stTag + '<input type="text" data-role="' + i + '" data-k="problem" value="' + esc((r.problems[0] || {}).text || '') + '" aria-label="難題"></td>' +
         '<td><input type="text" data-role="' + i + '" data-k="rule" value="' + esc((r.rules[0] || {}).text || '') + '" aria-label="規則"></td>' +
-        '<td class="num">' + DATA.fmtUs(r.departUs) + '<div class="row"><button class="btn sm" data-dep="' + i + '" data-s="30">30 秒後</button><button class="btn sm" data-dep="' + i + '" data-s="90">90 秒後</button><button class="btn sm" data-dep="' + i + '" data-s="0">清掉</button></div></td></tr>';
+        '<td class="num">' + DATA.fmtUs(r.departUs) + (r.departUs != null && r.departDone ? ' <span class="muted small">（已過）</span>' : '') + '<div class="row"><button class="btn sm" data-dep="' + i + '" data-s="30">30 秒後</button><button class="btn sm" data-dep="' + i + '" data-s="90">90 秒後</button><button class="btn sm" data-dep="' + i + '" data-s="0">清掉</button></div></td></tr>';
     }).join('');
   }
+  function becomeMe(i) {
+    state.me = i; me = state.roles[i];
+    dec = new DATA.Decoder(me.walk); target = null;
+    DATA.save(state);
+    $('walkWho').textContent = '我的世界 ' + DATA.abbrev(me.serial) + ' ' + me.name;
+    renderRoles(); renderWalk(); goHome();
+  }
   $('tblRoles').addEventListener('change', function (e) {
-    var t = e.target, r = state.roles[+t.dataset.role]; if (!r) return;
+    var t = e.target;
+    if (t.name === 'meIs') { becomeMe(+t.value); return; }
+    var r = state.roles[+t.dataset.role]; if (!r) return;
     if (t.dataset.k === 'name') r.name = t.value;
     else if (t.dataset.k === 'problem') r.problems[0] = { text: t.value, status: 'open' };
     else if (t.dataset.k === 'rule') r.rules[0] = { text: t.value, visible: 'all' };
@@ -167,6 +234,8 @@
     var b = e.target.closest('[data-dep]'); if (!b) return;
     var r = state.roles[+b.dataset.dep], s = +b.dataset.s;
     r.departUs = s ? DATA.nowUs() + s * 1e6 + Math.floor(Math.random() * 1000) : null;
+    r.departDone = false;
+    if (r.problems[0] && r.problems[0].status !== 'open') r.problems[0] = { text: r.problems[0].text, status: 'open', visible: 'all' };  // 重創難題
     resolved = false;
     DATA.save(state); renderRoles();
   });
@@ -181,7 +250,7 @@
     $('tblMoves').innerHTML = w.moves.map(function (m, i) {
       return '<tr><td><select data-m="' + i + '" data-k="from" aria-label="從">' + objOptions(me, m.from) + '</select></td>' +
         '<td><select data-m="' + i + '" data-k="to" aria-label="走到">' + objOptions(me, m.to) + '</select></td>' +
-        '<td><select data-m="' + i + '" data-k="digit" aria-label="數字">' + '1234567890'.split('').map(function (d) { return opt(d, d, m.digit); }).join('') + '</select></td>' +
+        '<td><select data-m="' + i + '" data-k="digit" aria-label="數字">' + '0123456789'.split('').map(function (d) { return opt(d, d, m.digit); }).join('') + '</select></td>' +
         '<td><button class="btn sm" data-del-m="' + i + '">刪</button></td></tr>';
     }).join('');
   }
@@ -245,9 +314,9 @@
     openPortal(code);
   });
   $('btnDefault').addEventListener('click', function () {
-    state = { v: 5, roles: DATA.defaultRoles(), records: [] };
-    me = state.roles[0]; DATA.save(state);
-    editRole = 0; renderAll(); goHome();
+    state = DATA.fresh();
+    me = state.roles[0]; dec = new DATA.Decoder(me.walk); target = null; DATA.save(state);
+    editRole = 0; $('walkWho').textContent = '我的世界 ' + DATA.abbrev(me.serial) + ' ' + me.name; renderAll(); goHome();
   });
   function renderRecords() {
     $('records').innerHTML = state.records.length ? state.records.slice().reverse().map(function (x) {
@@ -278,8 +347,10 @@
     WORLD.init($('stage'));
     WORLD.loadWorld(me);
   }
+  $('walkWho').textContent = '我的世界 ' + DATA.abbrev(me.serial) + ' ' + me.name;
   renderAll(); drawCode(); drawWhere(); drawNear(null);
   showTab(location.hash === '#sheet' ? 'sheet' : 'world');
   window.APP = { state: function () { return state; }, dec: function () { return dec; }, cur: function () { return cur; }, showTab: showTab,
-    enterPortal: function () { if (portalRole) teleport(portalRole); }, save: function () { DATA.save(state); } };
+    enterPortal: function () { if (portalRole) teleport(portalRole); }, save: function () { DATA.save(state); },
+    teleportTo: teleport, me: function () { return me; } };
 })();
