@@ -127,6 +127,25 @@ var DATA = (function () {
           circles: [{ object: 'hill', letter: 'J' }],
           moves: [{ from: 'rule', to: 'goal', digit: '1' }, { from: 'rule', to: 'problem', digit: '2' }]
         }
+      },
+      {
+        serial: '00000000003', name: '小樂', color: '#9C4450',
+        departUs: null,
+        rules: [{ text: '週末不排任何事。', visible: 'all' }],
+        problems: [{ text: '答應的事太多，每件都做一半。', status: 'open' }],
+        start: [0, 9],
+        objects: [
+          { id: 'rule',    name: '規則塔', func: 'rule',    pos: [-6, 0],  look: '塔', parts: look('塔', '#B07A82') },
+          { id: 'problem', name: '難題霧', func: 'problem', pos: [0, -5],  look: '球', parts: [{ shape: 'sphere', size: [3, 3, 3], color: '#C9CED4', offset: [0, 1.5, 0] }] },
+          { id: 'goal',    name: '終點台', func: 'goal',    pos: [6, 0],   look: '台', parts: look('台', '#D9A0A8') },
+          { id: 'fusion',  name: '融合井', func: 'fusion',  pos: [5, 7],   look: '井', parts: look('井', '#8A8F96') },
+          { id: 'stage',   name: '工坊',   func: 'stage',   pos: [-5, 7],  look: '工坊', parts: look('工坊', '#7A6A72') }
+        ],
+        path: [[0, 9], [6, 0]],
+        walk: {
+          circles: [{ object: 'goal', letter: 'J' }],
+          moves: [{ from: 'rule', to: 'problem', digit: '1' }, { from: 'problem', to: 'fusion', digit: '2' }, { from: 'fusion', to: 'stage', digit: '3' }]
+        }
       }
     ];
   }
@@ -218,7 +237,7 @@ var DATA = (function () {
   }
   function cleanText(t, what) {
     obj(t, what);
-    return { text: str(t.text, LIMITS.text, what), visible: t.visible === 'self' ? 'self' : 'all', status: t.status === 'shelved' ? 'shelved' : 'open' };
+    return { text: str(t.text, LIMITS.text, what), visible: t.visible === 'self' ? 'self' : 'all', status: ['shelved', 'fused', 'exited'].indexOf(t.status) >= 0 ? t.status : 'open' };
   }
   function cleanWorld(w) {
     obj(w, '世界');
@@ -272,7 +291,7 @@ var DATA = (function () {
 
   /* ---------- 存檔：只存資料 ---------- */
   var KEY = 'arrive-v5';
-  function fresh() { return { v: 5, me: 0, roles: defaultRoles(), records: [] }; }
+  function fresh() { return { v: 5, me: 0, roles: defaultRoles(), records: [], fusions: [], points: [] }; }
   function load() {
     try {
       var s = localStorage.getItem(KEY);
@@ -281,10 +300,17 @@ var DATA = (function () {
         if (j && j.v === 5 && Array.isArray(j.roles) && j.roles.length) {
           var roles = j.roles.map(cleanWorld);          // 存檔也是外來資料，一樣洗過
           var recs = list(j.records || [], 500, '紀錄').map(function (r) {
-            return { kind: r.kind === 'meet' ? 'meet' : 'shelve', at: num(r.at, '紀錄時間'), text: str(r.text, LIMITS.text, '紀錄') };
+            return { kind: ['meet', 'shelve', 'exit'].indexOf(r.kind) >= 0 ? r.kind : 'shelve', at: num(r.at, '紀錄時間'), text: str(r.text, LIMITS.text, '紀錄') };
+          });
+          // 融合與點數：存檔是自己寫的，這裡只確認形狀；正式版點數還要驗簽章
+          var fusions = list(j.fusions || [], 200, '融合').map(function (f) { obj(f, '融合'); if (!Array.isArray(f.members) || !Array.isArray(f.stages)) bad('融合格式錯'); return JSON.parse(JSON.stringify(f)); });
+          var points = list(j.points || [], 5000, '點數').map(function (p) {
+            obj(p, '點數'); if (p.kind !== 'idea' && p.kind !== 'battle') bad('點數種類錯');
+            return { id: str(p.id, 60, '點數'), kind: p.kind, from: str(p.from, 11, '點數'), to: str(p.to, 11, '點數'), amount: num(p.amount, '點數'),
+                     atUs: num(p.atUs, '點數'), fusion: str(p.fusion || '', 60, '點數'), stage: str(p.stage || '', 60, '點數'), ruleVersion: str(p.ruleVersion || '', 10, '點數'), sig: p.sig == null ? null : str(p.sig, 200, '簽章') };
           });
           var me = (typeof j.me === 'number' && j.me >= 0 && j.me < roles.length) ? j.me : 0;
-          return { v: 5, me: me, roles: roles, records: recs };
+          return { v: 5, me: me, roles: roles, records: recs, fusions: fusions, points: points };
         }
       }
     } catch (e) { /* 壞掉或沒有儲存空間：用預設 */ }

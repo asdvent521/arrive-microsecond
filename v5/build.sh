@@ -10,7 +10,7 @@ body() {
   cat head.html
   echo "<script src=\"$THREE_SRC\"></script>"
   echo '<script>'
-  for f in data.js world.js ui.js; do cat "$f"; echo; done
+  for f in data.js fusion.js world.js ui.js; do cat "$f"; echo; done
   echo '</script>'
 }
 if [ "$1" = "fragment" ]; then
