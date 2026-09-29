@@ -19,11 +19,14 @@ var FUSION = (function () {
   /* ---------- 點數：綁定發出者，事後不能取消 ---------- */
   // 格式：{id, kind:'idea'|'battle', from, to, amount, atUs, fusion, stage, ruleVersion, sig}
   // sig 先留空：正式版由發出者簽章，沒人能冒用別人發點數。
+  // ruleVersion：發出者當下的規則版本號（他的規則表決定這點能換多少能量）
   function issue(state, f, kind, to, sid, atUs) {
     active(f).forEach(function (from) {
       if (from === to) return;
+      var r = state.roles.find(function (x) { return x.serial === from; });
+      var ver = r ? String(DATA.currentRules(r).no) : '0';
       state.points.push({ id: id('pt'), kind: kind, from: from, to: to, amount: RULES.ratios[kind], atUs: atUs,
-                          fusion: f.id, stage: sid, ruleVersion: RULES.version, sig: null });
+                          fusion: f.id, stage: sid, ruleVersion: ver, sig: null });
     });
   }
 
@@ -33,12 +36,12 @@ var FUSION = (function () {
     var f = {
       id: id('fu'), createdUs: atUs, status: 'open',            // open | done | shelved
       members: roles.map(function (r) { return r.serial; }), exits: [],
-      problems: roles.map(function (r) { return { serial: r.serial, text: (r.problems[0] || {}).text || '' }; }),
-      text: roles.map(function (r) { return (r.problems[0] || {}).text || ''; }).join('＋'),
+      problems: roles.map(function (r) { var p = DATA.activeProblem(r); return { serial: r.serial, id: p ? p.id : null, text: p ? p.text : '' }; }),
+      text: roles.map(function (r) { var p = DATA.activeProblem(r); return p ? p.text : ''; }).join('＋'),
       nextUs: null, nextProposal: null,                          // 下一個出發點 = 期限
       stages: [], calories: {}, log: []
     };
-    roles.forEach(function (r) { if (r.problems[0]) r.problems[0].status = 'fused'; f.calories[r.serial] = null; });
+    roles.forEach(function (r) { var p = DATA.activeProblem(r); if (p) p.status = 'fused'; f.calories[r.serial] = null; });
     log(f, atUs, roles.map(function (r) { return r.name; }).join('、') + ' 相遇，難題融合');
     state.fusions.push(f);
     return f;
@@ -134,6 +137,7 @@ var FUSION = (function () {
     f.calories[s] = kcal;
     if (active(f).every(function (m) { return typeof f.calories[m] === 'number'; })) {
       f.status = 'done';
+      state.roles.forEach(function (r) { if (isMember(f, r.serial)) { var pd = DATA.activeProblem(r); if (pd) pd.status = 'done'; } });
       log(f, nowUs(), '每個人都填了熱量，難題可處理');
     }
   }
@@ -148,7 +152,7 @@ var FUSION = (function () {
     });
     if (f.nextProposal) settleNext(state, f, s);
     var r = state.roles.find(function (x) { return x.serial === s; });
-    if (r && r.problems[0]) r.problems[0].status = 'exited';
+    var pe = r && DATA.activeProblem(r); if (pe) pe.status = 'exited';
     log(f, nowUs(), (r ? r.name : s) + ' 退出');
     state.records.push({ kind: 'exit', at: nowUs(), text: (r ? r.name : s) + ' 退出融合「' + f.text + '」，已發的點數照舊。' });
   }
@@ -167,8 +171,9 @@ var FUSION = (function () {
         var r = state.roles.find(function (x) { return x.serial === s; });
         if (!r) return;
         f.members.push(s); f.calories[s] = null;
-        f.problems.push({ serial: s, text: (r.problems[0] || {}).text || '' });
-        if (r.problems[0]) { r.problems[0].status = 'fused'; f.text += '＋' + r.problems[0].text; }
+        var pj = DATA.activeProblem(r);
+        f.problems.push({ serial: s, id: pj ? pj.id : null, text: pj ? pj.text : '' });
+        if (pj) { pj.status = 'fused'; f.text += '＋' + pj.text; }
         joined.push(r.name);
       });
       f.nextUs = null;                                          // 要再約下一個出發點
@@ -176,7 +181,7 @@ var FUSION = (function () {
       result = 'joined';
     } else {
       f.status = 'shelved';
-      state.roles.forEach(function (r) { if (f.members.indexOf(r.serial) >= 0 && r.problems[0] && r.problems[0].status === 'fused') r.problems[0].status = 'shelved'; });
+      state.roles.forEach(function (r) { if (f.members.indexOf(r.serial) < 0) return; var ps = DATA.activeProblem(r); if (ps && ps.status === 'fused') ps.status = 'shelved'; });
       log(f, atUs, '出發點一個人都沒來，融合難題和原難題一起擱置');
       state.records.push({ kind: 'shelve', at: atUs, text: '融合「' + f.text + '」的出發點沒有人到終點，連同原難題一起擱置。' });
       result = 'shelved';

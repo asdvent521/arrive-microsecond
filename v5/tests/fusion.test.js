@@ -1,6 +1,7 @@
 // 融合流程測試：node v5/tests/fusion.test.js
 var assert = require('assert');
 var D = require('../src/data.js');
+global.DATA = D;
 var F = require('../src/fusion.js');
 
 function fresh() {
@@ -18,6 +19,7 @@ assert.ok(C, '預設要有第三個角色');
 var f = F.create(st, [A, B], now);
 assert.strictEqual(f.members.length, 2);
 assert.strictEqual(A.problems[0].status, 'fused');
+assert.strictEqual(st.points.length, 0);
 assert.strictEqual(F.openFor(st, A.serial), f);
 assert.strictEqual(F.openFor(st, C.serial), null);
 // 還沒約出發點：不能提階段
@@ -41,6 +43,9 @@ assert.strictEqual(s1.status, 'agreed');
 assert.strictEqual(st.points.length, 1);
 var p = st.points[0];
 assert.deepStrictEqual([p.kind, p.from, p.to, p.amount, p.ruleVersion, p.stage, p.fusion, p.sig], ['idea', B.serial, A.serial, 1, '1', s1.id, f.id, null]);
+// 發出者改了規則版本，之後的點數記新版本
+D.saveRules(B, { items: [{ text: '新規則' }], ratios: { idea: 50, battle: 50 }, resources: [] });
+assert.strictEqual(D.currentRules(B).no, 2);
 assert.ok(typeof p.atUs === 'number' && p.id);
 
 // 沒有階段判完不能填熱量
@@ -69,6 +74,7 @@ assert.strictEqual(s1.status, 'done');
 var battle = st.points.filter(function (x) { return x.kind === 'battle'; });
 assert.strictEqual(battle.length, 1);
 assert.strictEqual(battle[0].to, B.serial); assert.strictEqual(battle[0].from, A.serial);
+assert.strictEqual(battle[0].ruleVersion, '1', 'A 的規則版本還是 1');
 assert.deepStrictEqual(F.pointsOf(st, A.serial), { got: { idea: 1, battle: 0 }, gave: { idea: 0, battle: 1 } });
 
 // 熱量：所有階段完成後才能填，全部填完才可處理
@@ -82,6 +88,7 @@ F.setCalories(st, f, A.serial, 300);
 assert.strictEqual(f.status, 'open');
 F.setCalories(st, f, B.serial, 250);
 assert.strictEqual(f.status, 'done', '每個人都填了才可處理');
+assert.strictEqual(A.problems[0].status, 'done', '難題標為可處理');
 
 // 期限：已可處理 → 完成
 assert.strictEqual(F.deadline(st, f, f.nextUs, []), 'done');
@@ -126,6 +133,21 @@ assert.strictEqual(F.deadline(st2, g, now + 90e6, []), 'shelved');
 assert.strictEqual(g.status, 'shelved');
 assert.strictEqual(b.problems[0].status, 'shelved'); assert.strictEqual(c.problems[0].status, 'shelved');
 assert.strictEqual(a.problems[0].status, 'exited', '退出的另外標');
+
+// 難題：進行中不能再立；擱置後可重創並註明前身
+var st4 = fresh(); var r4 = st4.roles[0];
+throws(function () { D.addProblem(r4, '第二個'); }, '還在進行');
+r4.problems[0].status = 'shelved';
+var np = D.addProblem(r4, '重創', r4.problems[0].id);
+assert.strictEqual(D.activeProblem(r4), np); assert.strictEqual(np.prev, 'p1');
+throws(function () { D.addProblem(r4, ''); }, '內容');
+// 規則版本
+var v2 = D.saveRules(r4, { items: [{ text: 'a', visible: 'self' }, { text: '  ' }], ratios: { idea: 10, battle: 20 }, resources: [{ name: 'x', kcal: 5 }, { name: '', kcal: 1 }] });
+assert.strictEqual(v2.no, 2); assert.strictEqual(v2.items.length, 1); assert.strictEqual(v2.resources.length, 1); assert.deepStrictEqual(r4.rules, v2.items);
+throws(function () { D.saveRules(r4, { items: [], ratios: { idea: 0, battle: 1 }, resources: [] }); }, '比例');
+var cw = D.cleanWorld(r4); assert.strictEqual(cw.ruleVersions.length, 2); assert.strictEqual(cw.problems[1].prev, 'p1');
+var old = D.cleanWorld({ serial: '00000000009', name: '舊', objects: [], rules: [{ text: '舊規則' }] });
+assert.strictEqual(old.ruleVersions[0].no, 1, '舊格式當第 1 版'); assert.strictEqual(old.rules[0].text, '舊規則');
 assert.ok(b.departDone);
 
 console.log('fusion.test.js ok');
