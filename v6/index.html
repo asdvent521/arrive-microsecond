@@ -1,0 +1,1986 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"></head><body>
+<title>到達那微秒 v6</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
+<style>
+/* 版面：上面一條標題列，中間整頁 3D 或表世界，下面固定分頁列（延續 v4 的活頁簿） */
+:root{
+  --bg:#E6ECF1; --panel:#F7F9FB; --panel2:#EEF2F6; --ink:#16212D; --muted:#586676; --line:#C7D1DB;
+  --brass:#A2731F; --brass-soft:#F1E4C8; --teal:#1C7A73; --teal-soft:#D5ECE9; --rose:#9C4450; --rose-soft:#F3DDE0; --blue:#2D5A86;
+  --hud:rgba(247,249,251,.88); --grid:#D5DDE5; --blue-soft:#DCE7F2;
+  --sans:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --serif:"Noto Serif TC","Songti TC","PMingLiU",serif;
+  --r-s:6px; --r-m:10px; --tabs-h:46px;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --bg:#0D141B; --panel:#151F29; --panel2:#1B2733; --ink:#E2E9F0; --muted:#93A1B0; --line:#2B3947;
+  --brass:#D8A954; --brass-soft:#3A2E17; --teal:#43B5AA; --teal-soft:#15332F; --rose:#D57F8B; --rose-soft:#3A1E23; --blue:#7FA9D6;
+  --hud:rgba(21,31,41,.88); --grid:#26333F; --blue-soft:#1C2C3D; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0D141B; --panel:#151F29; --panel2:#1B2733; --ink:#E2E9F0; --muted:#93A1B0; --line:#2B3947;
+  --brass:#D8A954; --brass-soft:#3A2E17; --teal:#43B5AA; --teal-soft:#15332F; --rose:#D57F8B; --rose-soft:#3A1E23; --blue:#7FA9D6;
+  --hud:rgba(21,31,41,.88); --grid:#26333F; --blue-soft:#1C2C3D; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%;display:flex;flex-direction:column;overflow:hidden}
+h1,h2,h3{font-family:var(--serif);font-weight:700;line-height:1.3;margin:0}
+h2{font-size:1.2rem;text-wrap:balance}
+p{margin:.4em 0}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--brass);outline-offset:1px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:.84rem}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+.top{flex:none;background:var(--panel);border-bottom:1px solid var(--line)}
+.top-in{display:flex;align-items:center;gap:10px;padding:6px 16px;flex-wrap:wrap}
+.brand{font-family:var(--serif);font-weight:700;font-size:1.1rem;letter-spacing:.04em;white-space:nowrap}
+.ver{font-size:.78rem;color:var(--brass);border:1px solid var(--brass);border-radius:999px;padding:0 8px}
+.clock{margin-left:auto;font-variant-numeric:tabular-nums;font-size:.86rem;color:var(--muted)}
+
+.view{flex:1;min-height:0;position:relative}
+#view-sheet{overflow:auto;padding:12px 16px calc(var(--tabs-h) + 20px + env(safe-area-inset-bottom,0px))}
+#stage{position:absolute;inset:0}
+#stage canvas{display:block}
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.label{position:absolute;left:0;top:0;font-size:.78rem;padding:1px 8px;border-radius:999px;background:var(--hud);border:1px solid var(--line);color:var(--ink);white-space:nowrap;will-change:transform}
+.label.rule{color:var(--teal)} .label.problem{color:var(--muted)} .label.goal{color:var(--brass)} .label.fusion,.label.stage{color:var(--blue)}
+.whiteflash{position:absolute;inset:0;pointer-events:none;background:#fff;opacity:0}
+.whiteflash.go{animation:whiteflash .9s ease-out forwards}
+@keyframes whiteflash{0%{opacity:1}100%{opacity:0}}
+
+/* HUD：貼在 3D 上面的幾個小板子 */
+.hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px 16px calc(var(--tabs-h) + 12px + env(safe-area-inset-bottom,0px))}
+.hud>*{pointer-events:auto}
+.hud-top{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.pane{background:var(--hud);border:1px solid var(--line);border-radius:var(--r-m);padding:8px 12px;backdrop-filter:blur(6px);max-width:100%}
+.where{font-size:.84rem;color:var(--muted)}
+.code{font-family:var(--serif);font-size:1.6rem;letter-spacing:.12em;line-height:1.1;color:var(--brass);font-variant-numeric:tabular-nums}
+.hint{font-size:.8rem;color:var(--muted)}
+.goal{font-size:.95rem;color:var(--teal);font-weight:500}
+.goal input{width:5.5em;min-height:30px;padding:2px 6px}
+.ws textarea{min-height:60px;width:18em;max-width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
+.near span{max-height:40vh;overflow:auto;display:block}
+.route{font-size:.86rem;line-height:1.5;max-width:36em;flex-basis:100%}
+.route s{color:var(--muted)}
+.route select{min-height:28px;padding:0 4px;font-size:.8rem;margin-left:4px}
+.me{display:flex;align-items:center;gap:4px;white-space:nowrap} .me input{width:20px;height:20px;margin:0}
+.hud-mid{display:flex;flex-direction:column;gap:8px;align-items:flex-start;max-width:36em}
+.near b{display:block;font-family:var(--serif);color:var(--teal)}
+.near span{white-space:pre-line;font-size:.9rem}
+.msg{background:var(--ink);color:var(--panel);border-radius:var(--r-m);padding:8px 12px;font-size:.92rem;max-width:36em}
+.hud-bottom{display:flex;gap:8px;flex-wrap:wrap}
+.btn{min-height:40px;padding:6px 16px;border-radius:var(--r-s);border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--brass);color:#fff;border-color:var(--brass)}
+.btn.sm{min-height:32px;padding:2px 10px;font-size:.84rem}
+.hud .btn{box-shadow:0 2px 8px rgba(0,0,0,.12)}
+
+/* 表世界：活頁簿（沿用 v4 的做法） */
+.fxbar{flex:none;display:flex;align-items:stretch;border-bottom:1px solid var(--line);background:var(--panel)}
+.fxbar .back{border:0;border-right:1px solid var(--line);background:transparent;padding:0 12px;cursor:pointer;min-height:34px;white-space:nowrap}
+.fxbar .back:disabled{opacity:.35;cursor:default}
+.namebox{width:8em;flex:none;border-right:1px solid var(--line);padding:6px 10px;font-variant-numeric:tabular-nums;font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fx{flex:none;padding:6px 8px;color:var(--muted);font-style:italic;border-right:1px solid var(--line);font-family:var(--serif)}
+.fxval{flex:1;min-width:0;padding:6px 10px;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#view-sheet{overflow:auto;padding:12px 16px calc(var(--tabs-h) + 20px + env(safe-area-inset-bottom,0px))}
+.sheet-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 4px}
+.sheet-head .no{font-family:var(--serif);color:var(--brass);font-weight:700}
+.sheet-desc{color:var(--muted);font-size:.86rem;margin:0 0 8px;max-width:44em}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}
+h3.tt{font-family:var(--serif);font-size:1rem;margin:14px 0 4px}
+.wb{overflow:auto;border:1px solid var(--line);background:var(--panel);-webkit-overflow-scrolling:touch;max-width:100%}
+.ws{border-collapse:separate;border-spacing:0;font-size:.88rem;width:max-content;min-width:100%}
+.ws th,.ws td{border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);padding:5px 8px;text-align:left;vertical-align:top;background:var(--panel);white-space:nowrap}
+.ws td{max-width:22em}
+.ws td.wrap{white-space:normal;min-width:12em}
+.ws thead th{position:sticky;z-index:3;background:var(--panel2);font-weight:500}
+.ws thead tr.letters th{top:0;height:22px;padding:1px 8px;font-size:.72rem;color:var(--muted);text-align:center}
+.ws thead tr.names th{top:22px;font-size:.82rem}
+.ws .rn{position:sticky;left:0;z-index:2;background:var(--panel2);color:var(--muted);text-align:right;font-size:.74rem;min-width:2.6rem;width:2.6rem;padding:5px 4px;font-variant-numeric:tabular-nums}
+.ws thead .rn{z-index:4}
+.ws .fz{position:sticky;left:2.6rem;z-index:1;box-shadow:1px 0 0 var(--line)}
+.ws thead .fz{z-index:4}
+.ws td.n,.ws th.n{text-align:right;font-variant-numeric:tabular-nums}
+.ws tbody tr:hover > td:not(.rn){background:var(--panel2)}
+.ws td.sel{outline:2px solid var(--brass);outline-offset:-2px}
+.ws tr.flash > td{animation:rowflash 1.6s ease-out}
+@keyframes rowflash{0%,40%{background:var(--brass-soft)}100%{background:var(--panel)}}
+.ws tr.addrow > td{background:var(--blue-soft);vertical-align:middle}
+.ws tr.mine > td.fz{box-shadow:inset 3px 0 0 var(--teal),1px 0 0 var(--line)}
+.ws tr.next > td{background:var(--brass-soft)}
+.ws input[type=text],.ws input[type=number],.ws select{min-height:32px;padding:3px 6px}
+.ws input[type=text]{width:11em} .ws input.xy{width:4.2em} .ws input.kc{width:5.5em}
+.ws td .btn{margin:1px 0}
+.auto{color:var(--muted);font-size:.78rem;font-style:italic}
+.lk{all:unset;cursor:pointer;color:var(--blue);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
+.lk:focus-visible{outline:2px solid var(--brass)}
+.empty{padding:12px;color:var(--muted);font-size:.88rem}
+.nextbar{display:flex;justify-content:flex-end;margin:16px 0 0}
+.tag{font-size:.74rem;padding:1px 7px;border-radius:999px;background:var(--teal-soft);color:var(--teal);white-space:nowrap}
+.tag.shelve,.tag.exit,.tag.dispute,.tag.shelved,.tag.exited{background:var(--rose-soft);color:var(--rose)}
+.tag.open,.tag.doing,.tag.judging,.tag.proposed,.tag.wait{background:var(--brass-soft);color:var(--brass)}
+.tag.done,.tag.meet,.tag.fused,.tag.agreed,.tag.ok{background:var(--teal-soft);color:var(--teal)}
+.tag.todo{background:var(--panel2);color:var(--muted)}
+.me{display:flex;align-items:center;gap:4px;white-space:nowrap} .me input{width:20px;height:20px;margin:0}
+#sheetMsg{margin-top:8px}
+.msg{background:var(--ink);color:var(--panel);border-radius:var(--r-m);padding:8px 12px;font-size:.92rem;max-width:36em}
+
+/* 分頁列：可左右滑 */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;align-items:flex-end;overflow-x:auto;background:var(--panel2);border-top:1px solid var(--line);
+  padding:0 8px env(safe-area-inset-bottom,0px);height:calc(var(--tabs-h) + env(safe-area-inset-bottom,0px));scrollbar-width:thin}
+.tabs a{flex:none;display:flex;align-items:center;height:36px;padding:0 12px;text-decoration:none;color:var(--ink);font-size:.88rem;white-space:nowrap;border:1px solid transparent;border-bottom:0;border-radius:var(--r-s) var(--r-s) 0 0;cursor:pointer}
+.tabs a b{font-family:var(--serif);color:var(--brass);margin-right:4px}
+.tabs a[aria-current="page"]{background:var(--panel);border-color:var(--line);font-weight:700;box-shadow:inset 0 -3px 0 var(--brass)}
+.tabs .sep{flex:none;width:1px;height:22px;background:var(--line);margin:7px 6px;align-self:flex-start}
+
+/* 相遇 */
+.overlay{position:fixed;inset:0;z-index:40;background:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;padding:16px}
+.overlay .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);padding:20px;max-width:30em;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+.overlay h2{color:var(--brass);margin-bottom:8px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<header class="top"><div class="top-in">
+  <span class="brand">到達那微秒</span><span class="ver">v6 平台核心</span>
+  <span class="clock" id="clock"></span>
+</div></header>
+
+<div class="fxbar" id="fxbar" hidden>
+  <button type="button" class="back" id="backBtn" disabled aria-label="返回上一張表">← 返回</button>
+  <div class="namebox" id="nameBox" aria-label="名稱方塊">—</div>
+  <div class="fx" aria-hidden="true">fx</div>
+  <div class="fxval" id="fxVal" aria-label="儲存格內容"></div>
+</div>
+<main id="view-world" class="view">
+  <div id="stage"></div>
+  <div class="hud">
+    <div class="hud-top">
+      <div class="pane" id="hudCodeBox"><div class="where" id="hudWhere"></div><div class="code" id="hudCode">—</div><div class="hint" id="hudCodeHint"></div></div>
+      <div class="pane goal" id="hudGoal" hidden><span id="hudGoalText"></span> <label id="giveBox" class="small" hidden>我要給 <input type="number" id="giveIn" min="0" step="10" value="100" aria-label="我要給幾點"> 點</label></div>
+      <div class="pane route" id="hudRoute" hidden><span id="hudRouteText"></span> <select id="hudTarget" aria-label="要去哪個代號"></select></div>
+    </div>
+    <div class="hud-mid">
+      <div class="pane near" id="hudNear" hidden><b id="hudNearTitle"></b><span id="hudNearBody"></span></div>
+      <div class="msg" id="hudMsg" hidden></div>
+    </div>
+    <div class="hud-bottom">
+      <button class="btn pri" id="btnCircle" hidden>繞一圈</button>
+      <button class="btn" id="btnReset">重走</button>
+      <button class="btn pri" id="btnBook" hidden>預約</button>
+      <button class="btn" id="btnAccept" hidden>接受他的村規</button>
+      <button class="btn pri" id="btnEnter" hidden>進門</button>
+      <button class="btn" id="btnLeave" hidden>出門</button>
+      <button class="btn" id="btnOpen" hidden>打開</button>
+      <button class="btn" id="btnHome" hidden>回自己的世界</button>
+    </div>
+  </div>
+</main>
+
+<main id="view-sheet" class="view" hidden><div id="main"></div></main>
+
+<nav class="tabs" id="tabs" aria-label="工作表"></nav>
+
+<div class="overlay" id="meet" hidden><div class="card">
+  <h2>到達那微秒</h2>
+  <p id="meetText"></p>
+  <p class="muted small" id="meetProblems"></p>
+  <div class="tools"><button class="btn pri" id="meetOpen">看對接紀錄</button><button class="btn" id="meetClose">回自己的世界</button></div>
+</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ===== v6 平台核心：規則與資料，不碰畫面 =====
+ * 純函式、node 可測。世界只能是資料。
+ * 角色、每天的點、生命週期、空窗、規則表（條件固定格式）、資源表、查詢、預約、對接、點數帳、兌現。
+ * 序號、走法解碼、外觀形體、世界檢查沿用 v5。
+ */
+var CORE = (function () {
+  'use strict';
+  /* ---------- 功能點：平台的清單 ---------- */
+  var FUNCS = {
+    rule:     { label: '規則', defaultLook: '屋' },
+    resource: { label: '資源', defaultLook: '市集' },
+    goal:     { label: '終點', defaultLook: '台' },
+    role:     { label: '角色', defaultLook: '碑' },
+    points:   { label: '點數', defaultLook: '帳房', selfOnly: true },
+    none:     { label: '地標', defaultLook: '—' }
+  };
+  /* ---------- 角色序號：11 位數，開頭幾個 0 就用第幾個字母 ---------- */
+  function abbrev(serial) {
+    var m = /^(0*)(\d*)$/.exec(serial);
+    if (!m || serial.length !== 11) return null;
+    var z = m[1].length;
+    if (z === 0) return serial;
+    if (z === 11) return null;                 // 全 0 不是角色
+    return String.fromCharCode(64 + z) + m[2];
+  }
+  function expand(code) {
+    if (/^\d{11}$/.test(code) && code[0] !== '0') return code;
+    var m = /^([A-J])(\d+)$/.exec(String(code).toUpperCase());
+    if (!m) return null;
+    var z = m[1].charCodeAt(0) - 64;
+    if (z + m[2].length !== 11 || m[2][0] === '0') return null;
+    return '0'.repeat(z) + m[2];
+  }
+  // 字母告訴你後面有幾位數
+  function digitsAfter(letter) { return 11 - (letter.charCodeAt(0) - 64); }
+  var SHAPES = { box: '方塊', cylinder: '圓柱', sphere: '球', cone: '錐' };
+
+  /* ---------- 預設外觀（都是基本形體的組合；主人隨時可改） ---------- */
+  var LOOKS = {
+    '屋': function (c) { return [
+      { shape: 'box', size: [3, 2.2, 3], color: c, offset: [0, 1.1, 0] },
+      { shape: 'cone', size: [4, 1.5, 4], color: '#7A4B32', offset: [0, 2.95, 0] } ]; },
+    '碑': function (c) { return [
+      { shape: 'box', size: [1.4, 3.4, 0.5], color: c, offset: [0, 1.7, 0] },
+      { shape: 'box', size: [2.2, 0.4, 1.2], color: '#8A8F96', offset: [0, 0.2, 0] } ]; },
+    '台': function (c) { return [
+      { shape: 'cylinder', size: [3.2, 0.5, 3.2], color: c, offset: [0, 0.25, 0] },
+      { shape: 'cylinder', size: [2.2, 0.5, 2.2], color: c, offset: [0, 0.75, 0] } ]; },
+    '殿': function (c) { return [
+      { shape: 'box', size: [4, 0.6, 4], color: '#8A8F96', offset: [0, 0.3, 0] },
+      { shape: 'cylinder', size: [0.5, 3, 0.5], color: c, offset: [-1.4, 2.1, -1.4] },
+      { shape: 'cylinder', size: [0.5, 3, 0.5], color: c, offset: [1.4, 2.1, -1.4] },
+      { shape: 'cylinder', size: [0.5, 3, 0.5], color: c, offset: [-1.4, 2.1, 1.4] },
+      { shape: 'cylinder', size: [0.5, 3, 0.5], color: c, offset: [1.4, 2.1, 1.4] },
+      { shape: 'box', size: [4.2, 0.5, 4.2], color: c, offset: [0, 3.85, 0] } ]; },
+    '工坊': function (c) { return [
+      { shape: 'box', size: [3.6, 1.8, 2.6], color: c, offset: [0, 0.9, 0] },
+      { shape: 'cylinder', size: [0.5, 1.6, 0.5], color: '#5C6670', offset: [1.2, 2.6, -0.6] } ]; },
+    '樹': function (c) { return [
+      { shape: 'cylinder', size: [0.6, 2, 0.6], color: '#7A4B32', offset: [0, 1, 0] },
+      { shape: 'sphere', size: [3, 3, 3], color: c, offset: [0, 3.2, 0] } ]; },
+    '井': function (c) { return [
+      { shape: 'cylinder', size: [2.2, 1, 2.2], color: c, offset: [0, 0.5, 0] },
+      { shape: 'cylinder', size: [1.4, 1.1, 1.4], color: '#1E2A36', offset: [0, 0.56, 0] } ]; },
+    '噴泉': function (c) { return [
+      { shape: 'cylinder', size: [3.4, 0.6, 3.4], color: c, offset: [0, 0.3, 0] },
+      { shape: 'cylinder', size: [0.6, 1.6, 0.6], color: c, offset: [0, 1.4, 0] },
+      { shape: 'sphere', size: [1.2, 1.2, 1.2], color: '#9CC9E8', offset: [0, 2.6, 0] } ]; },
+    '山': function (c) { return [
+      { shape: 'cone', size: [6, 5, 6], color: c, offset: [0, 2.5, 0] } ]; },
+    '市集': function (c) { return [
+      { shape: 'box', size: [4, 1.6, 2.6], color: c, offset: [0, 0.8, 0] },
+      { shape: 'box', size: [4.6, 0.3, 3.2], color: '#B23A48', offset: [0, 1.85, 0] },
+      { shape: 'cylinder', size: [0.3, 1.8, 0.3], color: '#7A4B32', offset: [-2, 0.9, 1.4] },
+      { shape: 'cylinder', size: [0.3, 1.8, 0.3], color: '#7A4B32', offset: [2, 0.9, 1.4] } ]; },
+    '塔': function (c) { return [
+      { shape: 'cylinder', size: [2, 4, 2], color: c, offset: [0, 2, 0] },
+      { shape: 'cone', size: [2.4, 1.6, 2.4], color: '#5C6670', offset: [0, 4.8, 0] } ]; }
+  };
+  function look(name, color) { return LOOKS[name] ? LOOKS[name](color) : LOOKS['屋'](color); }
+
+  // 物件的地面半徑：用來判斷「靠近」「到達」「繞圈」
+  function radiusOf(obj) {
+    var r = 0.8;
+    (obj.parts || []).forEach(function (p) {
+      var o = p.offset || [0, 0, 0];
+      var rr = Math.hypot(o[0], o[2]) + Math.max(p.size[0], p.size[2]) / 2;
+      if (rr > r) r = rr;
+    });
+    return r;
+  }
+  /* ---------- 走法解碼：畫面層丟事件進來，這裡算出走出來的代號 ---------- */
+  // 事件：{type:'circle', object, count}（離開物件時送一次）、{type:'arrive', object}
+  function Decoder(walk) {
+    this.walk = walk;
+    this.reset();
+  }
+  Decoder.prototype.reset = function () {
+    this.letter = null; this.digits = ''; this.lastAt = null; this.done = null;
+  };
+  Decoder.prototype.code = function () {
+    return (this.letter || '') + this.digits;
+  };
+  // 還要走幾個數字：有字母看字母，沒字母就是 11 位
+  Decoder.prototype.need = function () {
+    return (this.letter ? digitsAfter(this.letter) : 11) - this.digits.length;
+  };
+  Decoder.prototype.feed = function (ev) {
+    if (this.done) return { type: 'ignored' };
+    if (ev.type === 'circle') {
+      var rule = this.walk.circles.find(function (r) { return r.object === ev.object; });
+      if (!rule || ev.count < 1) return { type: 'ignored' };
+      var c = rule.letter.charCodeAt(0) - (ev.count - 1);   // 一圈 J、兩圈 I……
+      if (c < 65) return { type: 'ignored' };
+      this.letter = String.fromCharCode(c); this.digits = '';
+      return { type: 'letter', letter: this.letter, need: this.need() };
+    }
+    if (ev.type === 'arrive') {
+      var from = this.lastAt; this.lastAt = ev.object;
+      if (!from || from === ev.object) return { type: 'ignored' };
+      var mv = this.walk.moves.find(function (r) { return r.from === from && r.to === ev.object; });
+      if (!mv) return { type: 'ignored' };
+      if (!this.letter && !this.digits && mv.digit === '0') return { type: 'ignored' };   // 11 位數不能 0 開頭
+      this.digits += mv.digit;
+      if (this.need() === 0) { this.done = this.code(); return { type: 'done', code: this.done }; }
+      return { type: 'digit', digit: mv.digit, need: this.need() };
+    }
+    return { type: 'ignored' };
+  };
+
+  /* ---------- 路線說明：用自己的走法，怎麼走出某個代號 ---------- */
+  // 回傳 {steps:[文字…]}，走法表湊不出來就回傳 {missing:'缺什麼'}
+  function route(walk, objects, code) {
+    var serial = expand(code);
+    if (!serial) return { missing: code + ' 不是代號' };
+    var ab = abbrev(serial);
+    var name = function (id) { var o = objects.find(function (x) { return x.id === id; }); return o ? o.name : id; };
+    var steps = [], letter = /^[A-J]/.test(ab) ? ab[0] : null, digits = letter ? ab.slice(1) : ab;
+    if (letter) {
+      var best = null;
+      walk.circles.forEach(function (c) {
+        var n = c.letter.charCodeAt(0) - letter.charCodeAt(0) + 1;
+        if (n >= 1 && (!best || n < best.n)) best = { c: c, n: n };
+      });
+      if (!best) return { missing: '走法表裡沒有物件能繞出 ' + letter };
+      steps.push('繞' + name(best.c.object) + (best.n === 1 ? '一圈' : ' ' + best.n + ' 圈') + '（' + letter + '）');
+    }
+    var at = null;
+    for (var i = 0; i < digits.length; i++) {
+      var d = digits[i];
+      var mv = walk.moves.find(function (m) { return m.digit === d && m.from === at; }) ||
+               walk.moves.find(function (m) { return m.digit === d; });
+      if (!mv) return { missing: '走法表裡沒有哪一段路是 ' + d };
+      if (mv.from !== at) steps.push('走到' + name(mv.from));
+      steps.push('再走到' + name(mv.to) + '（' + d + '）');
+      at = mv.to;
+    }
+    return { steps: steps, code: ab };
+  }
+  function bad(msg) { throw new Error(msg); }
+  function str(v, max, what) { if (typeof v !== 'string') bad(what + ' 不是文字'); if (v.length > max) bad(what + ' 太長'); return v; }
+  function num(v, what) { if (typeof v !== 'number' || !isFinite(v)) bad(what + ' 不是數字'); return v; }
+  function vec(v, n, what) { if (!Array.isArray(v) || v.length !== n) bad(what + ' 不是 ' + n + ' 個數字'); return v.map(function (x) { return num(x, what); }); }
+  function list(v, max, what) { if (!Array.isArray(v)) bad(what + ' 不是清單'); if (v.length > max) bad(what + ' 太多'); return v; }
+  function obj(v, what) { if (!v || typeof v !== 'object' || Array.isArray(v)) bad(what + ' 不是資料'); return v; }
+  function color(v, what) { if (!/^#[0-9a-fA-F]{6}$/.test(String(v))) bad(what + ' 顏色格式錯'); return v; }
+  function ident(v, what) { if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(v))) bad(what + ' 代號只能是英數'); return v; }
+  var LIMITS = { objects: 60, parts: 24, path: 200, rules: 50, text: 2000, name: 60 };
+  var VIS = { all: '所有人', self: '只有自己' };
+  function cleanVis(v) { return VIS[v] ? v : 'all'; }
+  function cleanPart(p) {
+    obj(p, '形體');
+    if (!SHAPES[p.shape]) bad('形體種類不認得：' + p.shape);
+    return { shape: p.shape, size: vec(p.size, 3, '形體大小'), color: color(p.color, '形體'), offset: vec(p.offset || [0, 0, 0], 3, '形體位置') };
+  }
+  function cleanObjects(list0, depth, what) {
+    if (depth > 3) bad('內部空間最多 3 層');
+    var out = list(list0, LIMITS.objects, what).map(function (o) {
+      obj(o, '功能點');
+      if (!FUNCS[o.func]) bad('功能不認得：' + o.func);
+      var c = { id: ident(o.id, '功能點'), name: str(o.name, LIMITS.name, '功能點名稱'), func: o.func,
+                pos: vec(o.pos, 2, '功能點位置'), look: o.look ? str(o.look, 20, '外觀') : undefined,
+                parts: list(o.parts, LIMITS.parts, '形體').map(cleanPart) };
+      if (o.door != null) {
+        obj(o.door, '門');
+        c.door = { visible: cleanVis(o.door.visible), start: vec(o.door.start || [0, 4], 2, '門內起點'), objects: cleanObjects(o.door.objects || [], depth + 1, '內部物件') };
+      }
+      return c;
+    });
+    return out;
+  }
+  // 世界裡所有物件（含內部），附層數
+  function allObjects(w) {
+    var out = [];
+    (function walkIn(objs, depth, path) { objs.forEach(function (o) { out.push({ o: o, depth: depth, path: path }); if (o.door) walkIn(o.door.objects, depth + 1, path.concat(o.id)); }); })(w.objects, 0, []);
+    return out;
+  }
+  function findObject(w, id) { var hit = allObjects(w).find(function (x) { return x.o.id === id; }); return hit ? hit.o : null; }
+  /* ---------- 出發點：微秒 ---------- */
+  function fmtUs(us) {
+    if (us == null) return '（還沒寫）';
+    var ms = Math.floor(us / 1000), micro = us % 1000;
+    var d = new Date(ms);
+    function p(n, w) { return String(n).padStart(w || 2, '0'); }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' +
+      p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + '.' +
+      p(d.getMilliseconds(), 3) + p(micro, 3);
+  }
+  function nowUs() { return Date.now() * 1000; }
+  /* ---------- 時間：本機日期、天數 ---------- */
+  var DAY_US = 24 * 3600e6;
+  function dayOf(us) { var d = new Date(Math.floor(us / 1000)); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function daysLeft(role, atUs) { return Math.max(0, (role.life.endUs - atUs) / DAY_US); }
+  var seq = 0;
+  function newId(p) { return p + Date.now().toString(36) + (seq++).toString(36); }
+  function roleOf(state, serial) { return state.roles.find(function (r) { return r.serial === serial; }) || null; }
+  function need(state, serial) { var r = roleOf(state, serial); if (!r) bad('沒有這個角色：' + serial); return r; }
+
+  /* ---------- 規則 1：每天的點。當天沒給出去的隔天歸零，不能預支 ---------- */
+  function status(role, atUs) {
+    if (role.state === 'ended' || atUs < role.life.startUs || atUs >= role.life.endUs) return 'ended';
+    return role.state === 'vacancy' ? 'vacancy' : 'active';
+  }
+  function givenToday(state, serial, atUs) {
+    var day = dayOf(atUs);
+    return state.points.filter(function (p) { return p.issuer === serial && dayOf(p.atUs) === day; }).reduce(function (s, p) { return s + p.amount; }, 0);
+  }
+  function remainingToday(state, role, atUs) {
+    if (status(role, atUs) !== 'active') return 0;        // 空窗停發、結束沒有
+    return Math.max(0, role.dailyPoints - givenToday(state, role.serial, atUs));
+  }
+
+  /* ---------- 規則 2：生命週期。週期內規則不能改；到期點數作廢；提早結束要先清點數 ---------- */
+  function hashOf(o) { var s = JSON.stringify(o), h = 5381; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(16); }
+  function rulesHash(role) { return hashOf({ rules: role.rules, resources: role.resources.map(function (x) { return { id: x.id, name: x.name, price: x.price }; }), dailyPoints: role.dailyPoints, life: role.life }); }
+  // 點數還有效嗎：發出者沒結束
+  function pointValid(state, p, atUs) { var r = roleOf(state, p.issuer); return !!r && status(r, atUs) !== 'ended' && p.amount - p.spent > 0; }
+  function holdersOf(state, serial, atUs) {
+    var out = {};
+    state.points.forEach(function (p) { if (p.issuer === serial && p.amount - p.spent > 0 && (!atUs || pointValid(state, p, atUs))) out[p.holder] = (out[p.holder] || 0) + (p.amount - p.spent); });
+    return out;
+  }
+  function endEarly(state, serial, atUs, consents) {
+    var r = need(state, serial);
+    if (status(r, atUs) === 'ended') bad('角色已經結束了');
+    var hs = holdersOf(state, serial, atUs), who = Object.keys(hs);
+    var missing = who.filter(function (h) { return (consents || []).indexOf(h) < 0; });
+    if (missing.length) bad('還有人拿著你的點沒兌現：' + missing.map(function (h) { return abbrev(h) + ' ' + hs[h] + ' 點'; }).join('、') + '。先讓他們兌現，或取得同意');
+    r.life.endUs = atUs; r.state = 'ended';
+    return r;
+  }
+  // 改規則只能結束再重創：新角色帶 prev
+  function recreate(state, serial, fields, atUs) {
+    var old = need(state, serial);
+    if (status(old, atUs) !== 'ended') bad('先結束這個角色，才能以它為前身重創');
+    var r = createRole(state, Object.assign({}, fields, { prev: serial }), atUs);
+    return r;
+  }
+  var COND_FIELDS = {
+    dailyPoints: { label: '對方每天的點數', get: function (state, other, atUs) { return other.dailyPoints; } },
+    daysLeft:    { label: '對方週期還剩多久（天）', get: function (state, other, atUs) { return Math.floor(daysLeft(other, atUs)); } },
+    status:      { label: '對方狀態', get: function (state, other, atUs) { return status(other, atUs); }, enum: { active: '正常', vacancy: '空窗' } },
+    myPoints:    { label: '對方手上有多少我的點', get: function (state, other, atUs, me) { return state.points.filter(function (p) { return p.issuer === me.serial && p.holder === other.serial; }).reduce(function (s, p) { return s + p.amount - p.spent; }, 0); } },
+    dockCount:   { label: '對方對接過幾次', get: function (state, other, atUs) { return state.dockings.filter(function (d) { return d.a === other.serial || d.b === other.serial; }).length; } }
+  };
+  var OPS = { '>=': '至少', '<=': '最多', '=': '等於', '!=': '不是' };
+  function cmp(a, op, b) { switch (op) { case '>=': return a >= b; case '<=': return a <= b; case '=': return a == b; case '!=': return a != b; } return false; }
+  function condText(c) {
+    var f = COND_FIELDS[c.field]; if (!f) return '？';
+    var v = f.enum ? (f.enum[c.value] || c.value) : c.value;
+    return f.label + (f.enum ? (c.op === '!=' ? ' 不是 ' : ' 是 ') : ' ' + OPS[c.op] + ' ') + v;
+  }
+  function createRole(state, f, atUs) {
+    atUs = atUs || nowUs();
+    var serial = f.serial || String(state.roles.length + 1).padStart(11, '0');
+    if (!abbrev(serial) || roleOf(state, serial)) bad('序號不對或已存在');
+    if (!f.name || !String(f.name).trim()) bad('角色要有名字');
+    var daily = Math.floor(+f.dailyPoints); if (!(daily >= 1)) bad('每天的點要是正整數');
+    var life = f.life || { startUs: atUs, endUs: atUs + 30 * DAY_US };
+    if (!(life.endUs > life.startUs)) bad('結束要在開始之後');
+    var rules = f.rules || {};
+    var conds = (rules.conditions || []).map(function (c) {
+      if (!COND_FIELDS[c.field]) bad('條件欄位不認得：' + c.field);
+      if (!OPS[c.op]) bad('比較不認得：' + c.op);
+      if (COND_FIELDS[c.field].enum) { if (!COND_FIELDS[c.field].enum[c.value]) bad('條件數值不對'); return { field: c.field, op: c.op === '!=' ? '!=' : '=', value: c.value }; }
+      if (typeof c.value !== 'number' || !isFinite(c.value)) bad('條件數值要是數字');
+      return { field: c.field, op: c.op, value: c.value };
+    });
+    var r = {
+      serial: serial, name: String(f.name).trim(), dailyPoints: daily, life: { startUs: life.startUs, endUs: life.endUs },
+      state: 'active', prev: f.prev || null, vacancyDebt: null,
+      rules: { uses: (rules.uses || []).map(String).filter(Boolean), conditions: conds, bothMustPass: !!rules.bothMustPass, mustAcceptVillage: !!rules.mustAcceptVillage, village: String(rules.village || ''), villageKey: null },
+      resources: (f.resources || []).map(function (x) { var price = Math.floor(+x.price), qty = Math.floor(+x.qty); if (!x.name || !(price >= 1) || !(qty >= 0)) bad('資源要有名稱、價格（正整數）、數量'); return { id: x.id || newId('res'), name: String(x.name).trim(), price: price, qty: qty }; }),
+      slots: [], contact: String(f.contact || ''),
+      world: f.world || defaultWorld(serial)
+    };
+    r.rulesHash = rulesHash(r);
+    state.roles.push(r);
+    return r;
+  }
+  // 週期內規則一個字都不能改：用 hash 驗
+  function assertUnchanged(role) { if (rulesHash(role) !== role.rulesHash) bad('規則表在週期內被改了，和創建時的不一樣'); }
+
+  /* ---------- 規則 3、4：條件判定 ---------- */
+  // visitor 通不通 owner 的條件；空窗的 owner 條件和開關都視為關閉
+  function passes(state, owner, visitor, atUs) {
+    if (status(owner, atUs) === 'vacancy') return { ok: true, failed: [] };
+    var failed = owner.rules.conditions.filter(function (c) {
+      var got = COND_FIELDS[c.field].get(state, visitor, atUs, owner);
+      return !cmp(got, c.op, c.value);
+    }).map(condText);
+    return { ok: !failed.length, failed: failed };
+  }
+  function accepted(state, who, of) { return state.acceptances.some(function (a) { return a.who === who && a.of === of; }); }
+  function accept(state, who, of) { if (!accepted(state, who, of)) state.acceptances.push({ who: who, of: of, atUs: nowUs() }); }
+  // a 和 b 能不能對接：一方通就可以；任一方要求兩方都通就要兩方；要求接受村規而對方沒接受就不行
+  function eligible(state, a, b, atUs) {
+    if (a.serial === b.serial) return { ok: false, reason: '自己不能和自己對接' };
+    if (status(a, atUs) === 'ended' || status(b, atUs) === 'ended') return { ok: false, reason: '有一方的角色已經結束' };
+    var av = status(a, atUs) === 'vacancy', bv = status(b, atUs) === 'vacancy';
+    if (!av && a.rules.mustAcceptVillage && !accepted(state, b.serial, a.serial)) return { ok: false, reason: abbrev(b.serial) + ' 還沒接受 ' + abbrev(a.serial) + ' 的村規' };
+    if (!bv && b.rules.mustAcceptVillage && !accepted(state, a.serial, b.serial)) return { ok: false, reason: abbrev(a.serial) + ' 還沒接受 ' + abbrev(b.serial) + ' 的村規' };
+    var pa = passes(state, a, b, atUs), pb = passes(state, b, a, atUs);   // pa：b 通 a 的條件
+    var both = (!av && a.rules.bothMustPass) || (!bv && b.rules.bothMustPass);
+    if (both) return pa.ok && pb.ok ? { ok: true, how: '兩方都通' } : { ok: false, reason: '要求兩方都通，' + (!pa.ok ? abbrev(b.serial) + ' 不通 ' + abbrev(a.serial) + ' 的條件（' + pa.failed.join('；') + '）' : abbrev(a.serial) + ' 不通 ' + abbrev(b.serial) + ' 的條件（' + pb.failed.join('；') + '）') };
+    if (pa.ok || pb.ok) return { ok: true, how: pa.ok && pb.ok ? '兩方都通' : pa.ok ? abbrev(b.serial) + ' 通 ' + abbrev(a.serial) + ' 的條件' : abbrev(a.serial) + ' 通 ' + abbrev(b.serial) + ' 的條件' };
+    return { ok: false, reason: '兩邊都不通：' + pa.failed.concat(pb.failed).join('；') };
+  }
+
+  /* ---------- 規則 5：查詢，排序只照事實 ---------- */
+  function nextSlot(role, atUs) { var s = role.slots.filter(function (x) { return x.atUs >= atUs; }).sort(function (x, y) { return x.atUs - y.atUs; })[0]; return s || null; }
+  function dockCount(state, serial) { return COND_FIELDS.dockCount.get(state, { serial: serial }); }
+  function byFacts(state, atUs) { return function (x, y) { var sx = nextSlot(x, atUs), sy = nextSlot(y, atUs); return (sx ? sx.atUs : Infinity) - (sy ? sy.atUs : Infinity) || y.dailyPoints - x.dailyPoints || dockCount(state, y.serial) - dockCount(state, x.serial); }; }
+  function others(state, me, atUs) { return state.roles.filter(function (r) { return r !== me && status(r, atUs) !== 'ended'; }); }
+  // 我可以去找的人：我通他的條件
+  function canVisit(state, me, atUs) { return others(state, me, atUs).filter(function (r) { return passes(state, r, me, atUs).ok; }).sort(byFacts(state, atUs)); }
+  // 可能來找我的人：他通我的條件
+  function canCome(state, me, atUs) { return others(state, me, atUs).filter(function (r) { return passes(state, me, r, atUs).ok; }).sort(byFacts(state, atUs)); }
+  function searchResources(state, keyword, atUs) {
+    var kw = String(keyword || '').trim().toLowerCase(), out = [];
+    state.roles.forEach(function (r) { if (status(r, atUs) === 'ended') return; r.resources.forEach(function (x) { if (!kw || x.name.toLowerCase().indexOf(kw) >= 0) out.push({ role: r, resource: x }); }); });
+    return out.sort(function (p, q) { return byFacts(state, atUs)(p.role, q.role); });
+  }
+
+  /* ---------- 規則 6：預約。條件通才能預約；名額滿不行；空窗照樣有名額 ---------- */
+  function addSlot(state, serial, atUs, capacity, give, now) {
+    var r = need(state, serial);
+    if (status(r, now || nowUs()) === 'ended') bad('角色已經結束');
+    if (!(atUs > (now || nowUs()))) bad('對接時段要在未來');
+    var cap = Math.floor(+capacity); if (!(cap >= 1)) bad('名額要至少 1');
+    var g = Math.floor(+give); if (!(g >= 0)) bad('要給多少點要是 0 以上');
+    var s = { id: newId('slot'), atUs: atUs, capacity: cap, give: g, bookings: [], docked: [] };
+    r.slots.push(s);
+    return s;
+  }
+  function slotOf(state, slotId) { var out = null; state.roles.forEach(function (r) { r.slots.forEach(function (s) { if (s.id === slotId) out = { owner: r, slot: s }; }); }); return out; }
+  function book(state, visitorSerial, slotId, atUs) {
+    var x = slotOf(state, slotId); if (!x) bad('沒有這個時段');
+    var visitor = need(state, visitorSerial);
+    if (x.slot.atUs <= atUs) bad('這個時段已經過了');
+    if (x.slot.bookings.indexOf(visitorSerial) >= 0) bad('你已經預約了');
+    if (x.slot.bookings.length >= x.slot.capacity) bad('名額滿了');
+    var e = eligible(state, x.owner, visitor, atUs); if (!e.ok) bad('條件不通，不能預約：' + e.reason);
+    x.slot.bookings.push(visitorSerial);
+    return x.slot;
+  }
+  function cancelBooking(state, visitorSerial, slotId) { var x = slotOf(state, slotId); if (!x) bad('沒有這個時段'); x.slot.bookings = x.slot.bookings.filter(function (s) { return s !== visitorSerial; }); }
+  // 聯絡方式只給預約成功、還沒對接完的人看；主人結束就看不到
+  function contactVisible(state, owner, viewer, atUs) {
+    if (owner.serial === viewer) return true;
+    if (status(owner, atUs) === 'ended') return false;
+    return owner.slots.some(function (s) { return s.bookings.indexOf(viewer) >= 0 && s.docked.indexOf(viewer) < 0; });
+  }
+
+  /* ---------- 規則 7：對接。那一微秒預約者站在主人的終點上；各給不超過當天剩下的 ---------- */
+  function dock(state, slotId, visitorSerial, giveOwner, giveVisitor, atUs) {
+    var x = slotOf(state, slotId); if (!x) bad('沒有這個時段');
+    var owner = x.owner, visitor = need(state, visitorSerial);
+    if (x.slot.bookings.indexOf(visitorSerial) < 0) bad('沒有預約不能對接');
+    if (x.slot.docked.indexOf(visitorSerial) >= 0) bad('這個時段已經對接過了');
+    if (atUs < x.slot.atUs) bad('還沒到那一微秒');
+    var e = eligible(state, owner, visitor, atUs); if (!e.ok) bad('對接不成立：' + e.reason);
+    var go = Math.floor(+giveOwner), gv = Math.floor(+giveVisitor);
+    if (!(go >= 0) || !(gv >= 0)) bad('給多少要是 0 以上');
+    var ro = remainingToday(state, owner, atUs), rv = remainingToday(state, visitor, atUs);
+    if (go > ro) bad(owner.name + ' 今天只剩 ' + ro + ' 點，不能預支');
+    if (gv > rv) bad(visitor.name + ' 今天只剩 ' + rv + ' 點，不能預支');
+    var d = { id: newId('dk'), a: owner.serial, b: visitorSerial, atUs: atUs, slot: slotId, gaveA: go, gaveB: gv, how: e.how };
+    state.dockings.push(d);
+    if (go > 0) state.points.push({ id: newId('pt'), issuer: owner.serial, holder: visitorSerial, amount: go, docking: d.id, atUs: atUs, spent: 0, sig: null });
+    if (gv > 0) state.points.push({ id: newId('pt'), issuer: visitorSerial, holder: owner.serial, amount: gv, docking: d.id, atUs: atUs, spent: 0, sig: null });
+    x.slot.docked.push(visitorSerial);
+    return d;
+  }
+
+  /* ---------- 規則 8、9：兌現與空窗 ---------- */
+  function balance(state, holder, issuer, atUs) {
+    return state.points.filter(function (p) { return p.holder === holder && p.issuer === issuer && pointValid(state, p, atUs); }).reduce(function (s, p) { return s + p.amount - p.spent; }, 0);
+  }
+  function holdings(state, holder, atUs) {
+    var by = {};
+    state.points.forEach(function (p) {
+      if (p.holder !== holder || p.amount - p.spent <= 0) return;
+      var r = roleOf(state, p.issuer); if (!r) return;
+      var g = by[p.issuer] || (by[p.issuer] = { issuer: r, amount: 0, status: status(r, atUs), endUs: r.life.endUs });
+      g.amount += p.amount - p.spent;
+    });
+    return Object.keys(by).map(function (k) { return by[k]; });
+  }
+  function spend(state, holder, issuer, n, atUs) {
+    var left = n;
+    state.points.filter(function (p) { return p.holder === holder && p.issuer === issuer && pointValid(state, p, atUs); }).sort(function (a, b) { return a.atUs - b.atUs; })
+      .forEach(function (p) { if (left <= 0) return; var take = Math.min(left, p.amount - p.spent); p.spent += take; left -= take; });
+  }
+  function redeem(state, holderSerial, issuerSerial, resourceId, atUs) {
+    var issuer = need(state, issuerSerial), holder = need(state, holderSerial);
+    if (holderSerial === issuerSerial) bad('自己的點對自己沒用');
+    var st = status(issuer, atUs);
+    if (st === 'ended') bad(issuer.name + ' 的角色已經結束，他的點作廢了');
+    if (st === 'vacancy') bad(issuer.name + ' 在空窗期，暫停兌現');
+    var res = issuer.resources.find(function (x) { return x.id === resourceId; }); if (!res) bad('沒有這項資源');
+    var bal = balance(state, holderSerial, issuerSerial, atUs);
+    if (bal < res.price) bad('你手上的 ' + issuer.name + ' 點只有 ' + bal + '，「' + res.name + '」要 ' + res.price);
+    var rec = { id: newId('rd'), holder: holderSerial, issuer: issuerSerial, resource: res.id, name: res.name, cost: res.price, atUs: atUs, ok: false };
+    if (res.qty < 1) {
+      // 兌現失敗：資源不夠維持這個角色，自動進入空窗，欠的那一筆記下來
+      issuer.state = 'vacancy'; issuer.vacancyDebt = { holder: holderSerial, resource: res.id };
+      state.redeems.push(rec);
+      bad(issuer.name + ' 付不出「' + res.name + '」，兌現失敗，' + issuer.name + ' 自動進入空窗期');
+    }
+    res.qty -= 1; spend(state, holderSerial, issuerSerial, res.price, atUs);
+    rec.ok = true; state.redeems.push(rec);
+    return rec;
+  }
+  function enterVacancy(state, serial, atUs) { var r = need(state, serial); if (status(r, atUs) !== 'active') bad('現在不能進入空窗'); r.state = 'vacancy'; }
+  function restock(state, serial, resourceId, qty) { var r = need(state, serial); var res = r.resources.find(function (x) { return x.id === resourceId; }); if (!res) bad('沒有這項資源'); var q = Math.floor(+qty); if (!(q >= 1)) bad('數量要至少 1'); res.qty += q; return res; }
+  // 離開空窗：有欠的那一筆就先兌現它，補足了才解除
+  function leaveVacancy(state, serial, atUs) {
+    var r = need(state, serial);
+    if (r.state !== 'vacancy') bad('不在空窗期');
+    if (status(r, atUs) === 'ended') bad('角色已經結束');
+    if (r.vacancyDebt) {
+      var res = r.resources.find(function (x) { return x.id === r.vacancyDebt.resource; });
+      if (!res || res.qty < 1) bad('先補足「' + (res ? res.name : '資源') + '」，兌現欠的那一筆，空窗才結束');
+      var debt = r.vacancyDebt; r.vacancyDebt = null; r.state = 'active';
+      try { redeem(state, debt.holder, serial, debt.resource, atUs); }
+      catch (e) { r.state = 'vacancy'; r.vacancyDebt = debt; throw e; }
+      return;
+    }
+    r.state = 'active';
+  }
+
+  /* ---------- 預設示範資料 ---------- */
+  function defaultWorld(serial) {
+    var n = parseInt(serial, 10) % 3, cols = [['#B8894A', '#C9B47A', '#C9A96A', '#6E7C8C', '#8C7B62'], ['#3F8A5A', '#9BB7C9', '#6FB3AC', '#8A8F96', '#7C8A99'], ['#B07A82', '#D9A0A8', '#D9A0A8', '#C9CED4', '#7A6A72']][n];
+    return {
+      start: [0, 7],
+      objects: [
+        { id: 'rule_' + serial, name: '規則屋', func: 'rule', pos: [-6, -2], look: '屋', parts: look('屋', cols[0]) },
+        { id: 'res_' + serial, name: '市集', func: 'resource', pos: [6, 6], look: '市集', parts: look('市集', cols[1]) },
+        { id: 'goal_' + serial, name: '終點台', func: 'goal', pos: [6, -2], look: '台', parts: look('台', cols[2]) },
+        { id: 'role_' + serial, name: '角色碑', func: 'role', pos: [0, -6], look: '碑', parts: look('碑', cols[3]) },
+        { id: 'pts_' + serial, name: '帳房', func: 'points', pos: [-6, 6], look: '工坊', parts: look('工坊', cols[4]) }
+      ],
+      path: [[0, 7], [6, -2]],
+      walk: { circles: [{ object: 'rule_' + serial, letter: 'J' }], moves: [{ from: 'role_' + serial, to: 'goal_' + serial, digit: '1' }, { from: 'role_' + serial, to: 'res_' + serial, digit: '2' }, { from: 'role_' + serial, to: 'rule_' + serial, digit: '3' }] }
+    };
+  }
+  function fresh() {
+    var now = nowUs();
+    var st = { v: 6, me: 0, roles: [], points: [], dockings: [], redeems: [], acceptances: [], records: [] };
+    // J1 和 J2 一方通；J2 和 J3 要兩方通但不通；J3 要求接受村規
+    createRole(st, { serial: '00000000001', name: '我', dailyPoints: 1800, life: { startUs: now - DAY_US, endUs: now + 60 * DAY_US },
+      rules: { uses: ['1 我點 = 陪跑 1 分鐘', '60 我點 = 一起吃一頓早餐'], conditions: [{ field: 'dailyPoints', op: '>=', value: 1000 }], village: '' },
+      resources: [{ id: 'r1a', name: '陪跑一小時', price: 60, qty: 1 }, { id: 'r1b', name: '早餐一頓', price: 100, qty: 5 }], contact: 'LINE: me_demo' }, now);
+    createRole(st, { serial: '00000000002', name: '阿澄', dailyPoints: 2000, life: { startUs: now - DAY_US, endUs: now + 90 * DAY_US },
+      rules: { uses: ['1 阿澄點 = 聽你講 1 分鐘', '100 阿澄點 = 幫你改一份履歷'], conditions: [{ field: 'dockCount', op: '>=', value: 1 }], village: '東恆村規：對接後要一起立一個難題。' },
+      resources: [{ id: 'r2a', name: '改履歷', price: 100, qty: 3 }, { id: 'r2b', name: '一小時諮詢', price: 90, qty: 10 }], contact: '' }, now);
+    createRole(st, { serial: '00000000003', name: '小樂', dailyPoints: 800, life: { startUs: now - DAY_US, endUs: now + 45 * DAY_US },
+      rules: { uses: ['1 小樂點 = 借書 1 天'], conditions: [{ field: 'daysLeft', op: '>=', value: 30 }], bothMustPass: true, mustAcceptVillage: true, village: '小樂村規：借的書要在一個月內還。' },
+      resources: [{ id: 'r3a', name: '借一本書', price: 10, qty: 20 }], contact: 'mail@example.com' }, now);
+    // 阿澄開兩個對接時段：3 分鐘後、10 分鐘後，各 2 個名額，每次給 100 點
+    addSlot(st, '00000000002', now + 180e6, 2, 100, now);
+    addSlot(st, '00000000002', now + 600e6, 2, 100, now);
+    addSlot(st, '00000000001', now + 300e6, 1, 50, now);
+    return st;
+  }
+
+  /* ---------- 純資料檢查：角色 ---------- */
+  function cleanRole(r) {
+    obj(r, '角色');
+    if (!/^\d{11}$/.test(String(r.serial)) || !abbrev(r.serial)) bad('序號格式錯');
+    var life = obj(r.life, '週期');
+    var out = {
+      serial: r.serial, name: str(r.name, LIMITS.name, '名字'), dailyPoints: num(r.dailyPoints, '每天的點'),
+      life: { startUs: num(life.startUs, '開始'), endUs: num(life.endUs, '結束') },
+      state: ['active', 'vacancy', 'ended'].indexOf(r.state) >= 0 ? r.state : 'active', prev: r.prev == null ? null : str(r.prev, 11, '前身'),
+      vacancyDebt: r.vacancyDebt == null ? null : { holder: str(r.vacancyDebt.holder, 11, '欠'), resource: str(r.vacancyDebt.resource, 60, '欠') },
+      rules: (function (ru) { obj(ru, '規則表'); return {
+        uses: list(ru.uses || [], LIMITS.rules, '用途').map(function (t) { return str(t, LIMITS.text, '用途'); }),
+        conditions: list(ru.conditions || [], LIMITS.rules, '條件').map(function (c) { obj(c, '條件'); if (!COND_FIELDS[c.field] || !OPS[c.op]) bad('條件格式錯'); return { field: c.field, op: c.op, value: typeof c.value === 'number' ? num(c.value, '條件') : str(String(c.value), 20, '條件') }; }),
+        bothMustPass: !!ru.bothMustPass, mustAcceptVillage: !!ru.mustAcceptVillage, village: str(ru.village || '', LIMITS.text, '村規'), villageKey: ru.villageKey == null ? null : str(ru.villageKey, 200, '金鑰') }; })(r.rules),
+      rulesHash: str(r.rulesHash || '', 20, 'hash'),
+      resources: list(r.resources || [], LIMITS.rules, '資源').map(function (x) { obj(x, '資源'); return { id: ident(x.id, '資源'), name: str(x.name, LIMITS.name, '資源'), price: num(x.price, '價格'), qty: num(x.qty, '數量') }; }),
+      slots: list(r.slots || [], 200, '時段').map(function (s) { obj(s, '時段'); return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), give: num(s.give || 0, '給多少'), bookings: list(s.bookings || [], 200, '預約').map(function (b) { return str(b, 11, '預約'); }), docked: list(s.docked || [], 200, '對接').map(function (b) { return str(b, 11, '對接'); }) }; }),
+      contact: str(r.contact || '', LIMITS.text, '聯絡方式'),
+      world: cleanWorld(r.world)
+    };
+    return out;
+  }
+  // 世界：沿用 v5 的格式（物件、門、走法、路、起點）
+  function cleanWorld(w) {
+    obj(w, '世界');
+    var out = { start: vec(w.start || [0, 0], 2, '起點'), objects: cleanObjects(w.objects || [], 1, '功能點'), path: list(w.path || [], LIMITS.path, '路').map(function (p) { return vec(p, 2, '路'); }), walk: { circles: [], moves: [] } };
+    var ids = {};
+    allObjects(out).forEach(function (x) { if (ids[x.o.id]) bad('功能點代號重複：' + x.o.id); ids[x.o.id] = true; });
+    var walk = obj(w.walk || {}, '走法表');
+    out.walk.circles = list(walk.circles || [], LIMITS.rules, '繞圈').map(function (c) { obj(c, '繞圈'); if (!ids[c.object]) bad('繞圈指到不存在的物件'); if (!/^[A-J]$/.test(String(c.letter))) bad('繞圈字母錯'); return { object: c.object, letter: c.letter }; });
+    out.walk.moves = list(walk.moves || [], LIMITS.rules, '走到').map(function (m) { obj(m, '走到'); if (!ids[m.from] || !ids[m.to]) bad('走到指到不存在的物件'); if (!/^[0-9]$/.test(String(m.digit))) bad('走到的數字錯'); return { from: m.from, to: m.to, digit: m.digit }; });
+    return out;
+  }
+  function tryClean(r) { try { return { role: cleanRole(r) }; } catch (e) { return { error: e.message }; } }
+
+  /* ---------- 存檔 ---------- */
+  var KEY = 'arrive-v6';
+  function load() {
+    try {
+      var s = localStorage.getItem(KEY);
+      if (s) {
+        var j = JSON.parse(s);
+        if (j && j.v === 6 && Array.isArray(j.roles) && j.roles.length) {
+          var roles = j.roles.map(cleanRole);
+          var pts = list(j.points || [], 20000, '點數').map(function (p) { obj(p, '點數'); return { id: str(p.id, 60, '點數'), issuer: str(p.issuer, 11, '點數'), holder: str(p.holder, 11, '點數'), amount: num(p.amount, '點數'), docking: str(p.docking || '', 60, '點數'), atUs: num(p.atUs, '點數'), spent: num(p.spent || 0, '點數'), sig: p.sig == null ? null : str(p.sig, 200, '簽章') }; });
+          var copy = function (what) { return list(j[what] || [], 20000, what).map(function (x) { obj(x, what); return JSON.parse(JSON.stringify(x)); }); };
+          var me = (typeof j.me === 'number' && j.me >= 0 && j.me < roles.length) ? j.me : 0;
+          return { v: 6, me: me, roles: roles, points: pts, dockings: copy('dockings'), redeems: copy('redeems'), acceptances: copy('acceptances'), records: copy('records') };
+        }
+      }
+    } catch (e) { /* 壞掉或沒有儲存空間：用預設 */ }
+    return fresh();
+  }
+  function save(state) { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 忽略 */ } }
+  function findRole(state, code) { var serial = expand(code); return serial ? roleOf(state, serial) : null; }
+
+  return {
+    abbrev: abbrev, expand: expand, digitsAfter: digitsAfter, Decoder: Decoder, route: route,
+    FUNCS: FUNCS, SHAPES: SHAPES, LOOKS: LOOKS, look: look, radiusOf: radiusOf, VIS: VIS, allObjects: allObjects, findObject: findObject, cleanWorld: cleanWorld, cleanRole: cleanRole, tryClean: tryClean,
+    fmtUs: fmtUs, nowUs: nowUs, dayOf: dayOf, DAY_US: DAY_US, daysLeft: daysLeft, newId: newId,
+    status: status, givenToday: givenToday, remainingToday: remainingToday, rulesHash: rulesHash, assertUnchanged: assertUnchanged, holdersOf: holdersOf, endEarly: endEarly, recreate: recreate, createRole: createRole,
+    COND_FIELDS: COND_FIELDS, OPS: OPS, condText: condText, passes: passes, eligible: eligible, accepted: accepted, accept: accept,
+    canVisit: canVisit, canCome: canCome, searchResources: searchResources, nextSlot: nextSlot, dockCount: dockCount,
+    addSlot: addSlot, slotOf: slotOf, book: book, cancelBooking: cancelBooking, contactVisible: contactVisible, dock: dock,
+    balance: balance, holdings: holdings, redeem: redeem, enterVacancy: enterVacancy, leaveVacancy: leaveVacancy, restock: restock, pointValid: pointValid,
+    defaultWorld: defaultWorld, fresh: fresh, load: load, save: save, findRole: findRole, roleOf: roleOf
+  };
+})();
+var DATA = CORE;   // world.js 用這個名字
+if (typeof module !== 'undefined') module.exports = CORE;
+
+/* ===== 畫面層：Three.js 照資料蓋世界 =====
+ * 只讀資料、畫畫面、回報事件（靠近、到達、繞圈、點到傳送門）。規則都在 data.js。
+ */
+var WORLD = (function () {
+  'use strict';
+  var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl, wallGroup;
+  var stack = [];            // 進門的層：[{objects, pos}]，最多 3 層
+  var sceneInfo = { depth: 0, visiting: false };
+  var objects = [];          // [{data, mesh, radius, top, pos:Vector3, label, inside, arrived, angle, startAngle, turned, count}]
+  var waypoints = [];
+  var handlers = {};
+  var SPEED = 5;
+  var AVOID = 0.55;          // 走路離物件邊緣的距離
+  var raycaster = new THREE.Raycaster();
+  var pointer = new THREE.Vector2();
+  var hostEl;
+  // 鏡頭：繞著角色轉（yaw）、固定俯角、可拉遠拉近
+  var cam = { yaw: 0, pitch: 0.85, dist: 26, min: 10, max: 60 };
+  var pointers = {};         // 目前按著的手指
+  var gesture = null;        // {tap, x, y, yaw, dist, pinch}
+
+  function on(name, fn) { handlers[name] = fn; }
+  function emit(name, a, b) { if (handlers[name]) handlers[name](a, b); }
+
+  function init(host) {
+    hostEl = host;
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    host.appendChild(renderer.domElement);
+    labelLayer = document.createElement('div');
+    labelLayer.className = 'labels';
+    host.appendChild(labelLayer);
+    flashEl = document.createElement('div');
+    flashEl.className = 'whiteflash';
+    host.appendChild(flashEl);
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xdfe6ec);
+    scene.fog = new THREE.Fog(0xdfe6ec, 40, 90);
+    camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8d9aa8, 0.9));
+    var sun = new THREE.DirectionalLight(0xfff4e0, 0.8);
+    sun.position.set(10, 20, 8);
+    scene.add(sun);
+
+    ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshLambertMaterial({ color: 0xcfd8df }));
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+    var grid = new THREE.GridHelper(120, 60, 0xb9c4cd, 0xc4ced6);
+    grid.position.y = 0.01;
+    scene.add(grid);
+
+    objGroup = new THREE.Group(); scene.add(objGroup);
+    pathGroup = new THREE.Group(); scene.add(pathGroup);
+    wallGroup = new THREE.Group(); scene.add(wallGroup);   // 內部空間的地板與牆（只是畫面）
+
+    // 角色：圓柱身體 + 球頭
+    player = new THREE.Group();
+    var body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.2, 16), new THREE.MeshLambertMaterial({ color: 0x2d5a86 }));
+    body.position.y = 0.6;
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 12), new THREE.MeshLambertMaterial({ color: 0xf1e4c8 }));
+    head.position.y = 1.55;
+    player.add(body); player.add(head);
+    scene.add(player);
+
+    // 繞圈進度弧：畫在地上
+    arc = new THREE.Mesh(new THREE.RingGeometry(1, 1.2, 8, 1, 0, 0.01), new THREE.MeshBasicMaterial({ color: 0xa2731f, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+    arc.rotation.x = -Math.PI / 2;
+    arc.position.y = 0.03;
+    arc.visible = false;
+    scene.add(arc);
+
+    // 白光傳送門：光柱 + 環
+    portal = new THREE.Group();
+    var beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.8, 9, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
+    beam.position.y = 2.6;
+    var ring = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.18, 12, 40), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    var glow = new THREE.Mesh(new THREE.CircleGeometry(1.5, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
+    portal.add(beam); portal.add(ring); portal.add(glow);
+    portal.position.y = 1.8;
+    portal.visible = false;
+    scene.add(portal);
+
+    clock = new THREE.Clock();
+    resize();
+    window.addEventListener('resize', resize);
+    var el = renderer.domElement;
+    el.style.touchAction = 'none';
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+    el.addEventListener('wheel', function (e) { e.preventDefault(); zoomTo(cam.dist * (e.deltaY > 0 ? 1.1 : 0.9)); }, { passive: false });
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- 手勢：單指點＝走、單指拖＝轉鏡頭、兩指＝縮放 ---------- */
+  function count() { return Object.keys(pointers).length; }
+  function spread() {
+    var ids = Object.keys(pointers);
+    if (ids.length < 2) return 0;
+    var a = pointers[ids[0]], b = pointers[ids[1]];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+  function onDown(e) {
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch (err) { /* 桌機沒差 */ }
+    if (count() === 1) gesture = { tap: true, x: e.clientX, y: e.clientY, yaw: cam.yaw };
+    else if (count() === 2) gesture = { tap: false, dist: cam.dist, pinch: spread() };
+  }
+  function onMove(e) {
+    if (!pointers[e.pointerId] || !gesture) return;
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (count() === 1) {
+      var dx = e.clientX - gesture.x, dy = e.clientY - gesture.y;
+      if (gesture.tap && Math.hypot(dx, dy) > 10) gesture.tap = false;
+      if (!gesture.tap) cam.yaw = gesture.yaw - dx * 0.008;
+    } else if (count() >= 2 && gesture.pinch) {
+      zoomTo(gesture.dist * gesture.pinch / Math.max(spread(), 1));
+    }
+  }
+  function onUp(e) {
+    var was = gesture;
+    delete pointers[e.pointerId];
+    if (count() === 0) {
+      gesture = null;
+      if (was && was.tap) tap(e.clientX, e.clientY);
+    } else if (count() === 1) {
+      var id = Object.keys(pointers)[0];
+      gesture = { tap: false, x: pointers[id].x, y: pointers[id].y, yaw: cam.yaw };
+    }
+  }
+  function zoomTo(d) { cam.dist = Math.max(cam.min, Math.min(cam.max, d)); }
+  function camOffset() {
+    var r = cam.dist * Math.cos(cam.pitch);
+    return new THREE.Vector3(Math.sin(cam.yaw) * r, cam.dist * Math.sin(cam.pitch), Math.cos(cam.yaw) * r);
+  }
+
+  function resize() {
+    if (!hostEl) return;
+    var w = hostEl.clientWidth || 1, h = hostEl.clientHeight || 1;
+    renderer.setSize(w, h, false);
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
+    camera.aspect = w / h;
+    // 直式手機：視角開大、預設拉遠，五個功能點才看得全
+    var portrait = w < h;
+    camera.fov = portrait ? 52 : 45;
+    if (!resize.done) { cam.dist = portrait ? 36 : 22; resize.done = true; }
+    camera.updateProjectionMatrix();
+  }
+
+  /* ---------- 照資料蓋 ---------- */
+  function clear(group) { while (group.children.length) group.remove(group.children[0]); }
+
+  function geometryFor(p) {
+    var s = p.size;
+    switch (p.shape) {
+      case 'cylinder': return new THREE.CylinderGeometry(s[0] / 2, s[0] / 2, s[1], 24);
+      case 'sphere':   return new THREE.SphereGeometry(s[0] / 2, 20, 14);
+      case 'cone':     return new THREE.ConeGeometry(s[0] / 2, s[1], 24);
+      default:         return new THREE.BoxGeometry(s[0], s[1], s[2]);
+    }
+  }
+  function buildObject(o) {
+    var g = new THREE.Group();
+    (o.parts || []).forEach(function (p) {
+      var m = new THREE.Mesh(geometryFor(p), new THREE.MeshLambertMaterial({ color: new THREE.Color(p.color || '#999') }));
+      var off = p.offset || [0, 0, 0];
+      m.position.set(off[0], off[1], off[2]);
+      m.userData.objectId = o.id;
+      g.add(m);
+    });
+    g.position.set(o.pos[0], 0, o.pos[1]);
+    return g;
+  }
+  function topOf(o) {
+    var t = 1;
+    (o.parts || []).forEach(function (p) { var y = (p.offset ? p.offset[1] : 0) + p.size[1] / 2; if (y > t) t = y; });
+    return t;
+  }
+  function makeEntry(o) {
+    var label = document.createElement('div');
+    label.className = 'label ' + (o.func || 'none');
+    label.textContent = o.name;
+    labelLayer.appendChild(label);
+    return { data: o, mesh: buildObject(o), radius: DATA.radiusOf(o), top: topOf(o), pos: new THREE.Vector3(o.pos[0], 0, o.pos[1]),
+             label: label, inside: false, arrived: false, angle: 0, startAngle: 0, turned: 0, count: 0 };
+  }
+
+  // world：角色的世界資料（已經過純資料檢查）；opts.visiting：傳送過去逛，畫出對方設定的路
+  function loadWorld(world, opts) {
+    opts = opts || {};
+    stack = [];
+    sceneInfo = { depth: 0, visiting: !!opts.visiting };
+    loadScene(world.objects, world.start || [0, 0], world.path, opts.visiting);
+  }
+  // 一層場景：外部或某扇門裡面
+  function loadScene(objs, start, path, visiting) {
+    clear(objGroup); clear(pathGroup); clear(wallGroup);
+    labelLayer.innerHTML = '';
+    var inner = sceneInfo.depth > 0;
+    objects = objs.map(function (o) { var e = makeEntry(o); objGroup.add(e.mesh); return e; });
+    if (inner) {
+      // 內部：一塊地板和四面矮牆，讓人知道在屋裡
+      var floor = new THREE.Mesh(new THREE.BoxGeometry(26, 0.1, 26), new THREE.MeshLambertMaterial({ color: 0xb8ad9c }));
+      floor.position.y = 0.02; wallGroup.add(floor);
+      [[0, -13], [0, 13], [-13, 0], [13, 0]].forEach(function (p, i) {
+        var w = new THREE.Mesh(new THREE.BoxGeometry(i < 2 ? 26 : 0.6, 2.4, i < 2 ? 0.6 : 26), new THREE.MeshLambertMaterial({ color: 0xa79c8b }));
+        w.position.set(p[0], 1.2, p[1]); wallGroup.add(w);
+      });
+    }
+    if (!inner && visiting && path && path.length > 1) {
+      for (var i = 0; i < path.length - 1; i++) {
+        var a = path[i], b = path[i + 1];
+        var dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
+        var seg = new THREE.Mesh(new THREE.BoxGeometry(len, 0.06, 1.2), new THREE.MeshLambertMaterial({ color: 0xf3e9d2 }));
+        seg.position.set((a[0] + b[0]) / 2, 0.03, (a[1] + b[1]) / 2);
+        seg.rotation.y = -Math.atan2(dz, dx);
+        pathGroup.add(seg);
+      }
+    }
+    player.position.set(start[0], 0, start[1]);
+    waypoints = [];
+    hidePortal();
+    arc.visible = false;
+    detect.lastNear = undefined;
+    objects.forEach(function (o) { o.arrived = false; o.inside = false; });
+    player.children[0].material.color = new THREE.Color(sceneInfo.visiting ? 0x5c6670 : 0x2d5a86);
+    scene.background = new THREE.Color(inner ? 0xcfc6b6 : sceneInfo.visiting ? 0xe4e0d6 : 0xdfe6ec);
+    scene.fog.color = scene.background;
+    scene.fog.near = inner ? 30 : 40; scene.fog.far = inner ? 60 : 90;
+    ground.visible = !inner;
+    camera.position.copy(player.position).add(camOffset());
+    camera.lookAt(player.position);
+  }
+  // 進門：換到那個物件的內部場景；門開不開由接線層先判
+  function enter(id) {
+    var o = objects.find(function (x) { return x.data.id === id; });
+    if (!o || !o.data.door) return false;
+    if (stack.length >= 3) return false;
+    stack.push({ objects: objects.map(function (x) { return x.data; }), pos: [player.position.x, player.position.z] });
+    sceneInfo.depth = stack.length;
+    loadScene(o.data.door.objects, o.data.door.start || [0, 4], null, sceneInfo.visiting);
+    emit('scene', sceneInfo.depth);
+    return true;
+  }
+  // 出門：回到上一層，站在門口
+  function leave() {
+    var prev = stack.pop();
+    if (!prev) return false;
+    sceneInfo.depth = stack.length;
+    loadScene(prev.objects, prev.pos, null, sceneInfo.visiting);
+    emit('scene', sceneInfo.depth);
+    return true;
+  }
+  function depth() { return sceneInfo.depth; }
+
+  function refreshObject(id) {
+    var i = objects.findIndex(function (x) { return x.data.id === id; });
+    if (i < 0) return;
+    objGroup.remove(objects[i].mesh);
+    labelLayer.removeChild(objects[i].label);
+    objects[i] = makeEntry(objects[i].data);
+    objGroup.add(objects[i].mesh);
+  }
+
+  // 傳送時畫面閃白
+  function flash() {
+    flashEl.classList.remove('go');
+    void flashEl.offsetWidth;
+    flashEl.classList.add('go');
+  }
+
+  /* ---------- 走路 ---------- */
+  function tap(cx, cy) {
+    var r = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((cx - r.left) / r.width) * 2 - 1;
+    pointer.y = -((cy - r.top) / r.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    if (portal.visible && raycaster.intersectObject(portal, true).length) { emit('portal'); return; }
+    var hits = raycaster.intersectObjects(objGroup.children, true);
+    if (hits.length) {
+      var o = objects.find(function (x) { return x.data.id === hits[0].object.userData.objectId; });
+      if (o) { walkTo(edgePoint(o)); return; }
+    }
+    var hg = raycaster.intersectObject(ground);
+    if (hg.length) walkTo(hg[0].point);
+  }
+  function edgePoint(o) {
+    var dir = new THREE.Vector3().subVectors(player.position, o.pos); dir.y = 0;
+    if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
+    dir.normalize().multiplyScalar(o.radius + AVOID + 0.15);
+    return new THREE.Vector3().addVectors(o.pos, dir);
+  }
+  // 目標點如果在物件裡，推到物件邊上
+  function outside(p) {
+    objects.forEach(function (o) {
+      var dx = p.x - o.pos.x, dz = p.z - o.pos.z, d = Math.hypot(dx, dz), need = o.radius + AVOID + 0.1;
+      if (d < need) { if (d < 0.01) { dx = 1; dz = 0; d = 1; } p.x = o.pos.x + dx / d * need; p.z = o.pos.z + dz / d * need; }
+    });
+    return p;
+  }
+  function walkTo(p) { waypoints = [outside(new THREE.Vector3(p.x, 0, p.z))]; }
+  function walkPath(points) { waypoints = points.map(function (p) { return outside(new THREE.Vector3(p.x, 0, p.z)); }); }
+  // 繞某個物件一圈：排一圈路徑點
+  function circleAround(id) {
+    var o = objects.find(function (x) { return x.data.id === id; });
+    if (!o) return;
+    var r = o.radius + 1.4;
+    var a0 = Math.atan2(player.position.z - o.pos.z, player.position.x - o.pos.x);
+    var pts = [];
+    for (var i = 0; i <= 16; i++) {
+      var a = a0 + (i / 16) * Math.PI * 2;
+      pts.push({ x: o.pos.x + Math.cos(a) * r, z: o.pos.z + Math.sin(a) * r });
+    }
+    walkPath(pts);
+  }
+  function stop() { waypoints = []; }
+
+  // 一步：想往 d 走，前面有物件就沿著它的邊滑過去
+  function step(d, len, dt) {
+    var move = Math.min(SPEED * dt, len);
+    var dir = d.clone().normalize();
+    var ahead = Math.min(len, 2.5);
+    objects.forEach(function (o) {
+      var need = o.radius + AVOID;
+      var to = new THREE.Vector3().subVectors(o.pos, player.position); to.y = 0;
+      var along = to.dot(dir);
+      if (along <= 0 || along > ahead + need) return;                    // 在後面或太遠
+      var side = Math.sqrt(Math.max(to.lengthSq() - along * along, 0));
+      if (side >= need) return;                                          // 擦不到
+      var tangent = new THREE.Vector3(-to.z, 0, to.x).normalize();       // 沿邊走
+      if (tangent.dot(dir) < 0) tangent.negate();
+      dir.copy(tangent);
+      if (to.length() < need + 0.2) dir.add(to.clone().normalize().multiplyScalar(-0.5)).normalize();  // 太貼就往外一點
+    });
+    player.position.add(dir.multiplyScalar(move));
+    player.rotation.y = Math.atan2(dir.x, dir.z);
+    // 硬推：不管怎樣都不會站進物件裡
+    objects.forEach(function (o) {
+      var dx = player.position.x - o.pos.x, dz = player.position.z - o.pos.z, dd = Math.hypot(dx, dz), need = o.radius + AVOID;
+      if (dd < need && dd > 0.001) { player.position.x = o.pos.x + dx / dd * need; player.position.z = o.pos.z + dz / dd * need; }
+    });
+  }
+
+  // 傳送門開在空地上：從最近的物件往外推，不會開在建築裡
+  function showPortal() {
+    var dir = new THREE.Vector3(0, 0, 1), nd = Infinity;
+    objects.forEach(function (o) {
+      var d = player.position.distanceTo(o.pos);
+      if (d < nd) { nd = d; dir.subVectors(player.position, o.pos); dir.y = 0; }
+    });
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
+    portal.position.copy(player.position).add(dir.normalize().multiplyScalar(3.2));
+    portal.position.y = 1.8;
+    portal.visible = true;
+  }
+  function hidePortal() { portal.visible = false; }
+
+  /* ---------- 每一格：走、看、算 ---------- */
+  var stuck = 0;
+  function loop() {
+    requestAnimationFrame(loop);
+    var dt = Math.min(clock.getDelta(), 0.05);
+    if (waypoints.length) {
+      var t = waypoints[0];
+      var d = new THREE.Vector3().subVectors(t, player.position); d.y = 0;
+      var len = d.length();
+      if (len < 0.12) { waypoints.shift(); stuck = 0; }
+      else {
+        var before = player.position.clone();
+        step(d, len, dt);
+        stuck = player.position.distanceTo(before) < SPEED * dt * 0.2 ? stuck + dt : 0;
+        if (stuck > 1.2) { waypoints.shift(); stuck = 0; }        // 卡住就放棄這個點
+      }
+    }
+    detect();
+    drawArc();
+    drawLabels();
+    if (portal.visible) { portal.children[1].lookAt(camera.position); portal.children[2].lookAt(camera.position); }
+    var want = new THREE.Vector3().copy(player.position).add(camOffset());
+    camera.position.lerp(want, gesture ? 0.5 : 0.08);
+    camera.lookAt(player.position.x, 1, player.position.z);
+    renderer.render(scene, camera);
+  }
+
+  function detect() {
+    var nearest = null, nd = Infinity;
+    objects.forEach(function (o) {
+      var dx = player.position.x - o.pos.x, dz = player.position.z - o.pos.z;
+      var dist = Math.hypot(dx, dz);
+      // 靠近：顯示這是什麼功能
+      if (dist < o.radius + 3.5 && dist < nd) { nearest = o; nd = dist; }
+      // 到達：走到邊上
+      var arriveR = o.radius + 1.0;
+      if (!o.arrived && dist < arriveR) { o.arrived = true; emit('arrive', o.data); }
+      else if (o.arrived && dist > arriveR + 1.2) o.arrived = false;
+      // 繞圈：在圈內累積轉過的角度，離開時結算
+      var ringR = o.radius + 3.0;
+      var ang = Math.atan2(dz, dx);
+      if (dist < ringR) {
+        if (!o.inside) { o.inside = true; o.turned = 0; o.count = 0; o.startAngle = ang; }
+        else {
+          var da = ang - o.angle;
+          if (da > Math.PI) da -= Math.PI * 2; else if (da < -Math.PI) da += Math.PI * 2;
+          o.turned += da;
+          if (Math.abs(o.turned) >= Math.PI * 2 - 0.05) { o.count++; o.turned = 0; o.startAngle = ang; emit('turn', o.data, o.count); }
+        }
+        o.angle = ang;
+      } else if (o.inside) {
+        o.inside = false;
+        if (o.count > 0) emit('circle', o.data, o.count);
+        o.count = 0; o.turned = 0;
+      }
+    });
+    var nid = nearest ? nearest.data.id : null;
+    if (nid !== detect.lastNear) { detect.lastNear = nid; emit('near', nearest ? nearest.data : null); }
+  }
+
+  // 進度弧：正在繞的那個物件，地上畫出已經轉了多少
+  var arcKey = '';
+  function drawArc() {
+    var o = null;
+    for (var i = 0; i < objects.length; i++) if (objects[i].inside && Math.abs(objects[i].turned) > 0.05 && arcOk(objects[i])) { o = objects[i]; break; }
+    if (!o) { arc.visible = false; arcKey = ''; return; }
+    var key = o.data.id + ':' + o.turned.toFixed(2);
+    if (key === arcKey) return;
+    arcKey = key;
+    var r = o.radius + 1.4;
+    // RingGeometry 的角度在旋轉後方向相反，所以取負
+    var len = Math.abs(o.turned);
+    var start = o.turned > 0 ? -o.startAngle - o.turned : -o.startAngle;
+    arc.geometry.dispose();
+    arc.geometry = new THREE.RingGeometry(r - 0.18, r + 0.18, Math.max(8, Math.ceil(len * 10)), 1, start, len);
+    arc.position.set(o.pos.x, 0.03, o.pos.z);
+    arc.visible = true;
+  }
+  var arcFilter = function () { return true; };
+  function arcOk(o) { return arcFilter(o.data); }
+  function setArcFilter(fn) { arcFilter = fn || function () { return true; }; }
+
+  // 名稱標籤：投影到物件頂上
+  var v = new THREE.Vector3();
+  function drawLabels() {
+    var w = hostEl.clientWidth, h = hostEl.clientHeight;
+    objects.forEach(function (o) {
+      v.set(o.pos.x, o.top + 0.7, o.pos.z).project(camera);
+      var ok = v.z < 1 && v.x > -1.1 && v.x < 1.1 && v.y > -1.1 && v.y < 1.1;
+      o.label.hidden = !ok;
+      if (ok) o.label.style.transform = 'translate(-50%,-100%) translate(' + ((v.x + 1) / 2 * w).toFixed(0) + 'px,' + ((1 - v.y) / 2 * h).toFixed(0) + 'px)';
+    });
+  }
+
+  function playerPos() { return { x: player.position.x, z: player.position.z }; }
+  function isMoving() { return waypoints.length > 0; }
+  function distanceTo(id) {
+    var o = objects.find(function (x) { return x.data.id === id; });
+    return o ? Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) - o.radius : Infinity;
+  }
+  function insideAny() {
+    return objects.some(function (o) { return Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) < o.radius + AVOID - 0.05; });
+  }
+
+  return { init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
+           stop: stop, showPortal: showPortal, hidePortal: hidePortal, flash: flash, setArcFilter: setArcFilter,
+           playerPos: playerPos, isMoving: isMoving, distanceTo: distanceTo, insideAny: insideAny, resize: resize,
+           camera: cam, zoomTo: zoomTo };
+})();
+
+/* ===== v6 接線：裡世界的 HUD、傳送、預約、那一微秒對接；表世界在 sheets.js ===== */
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var state = CORE.load();
+  var me = state.roles[state.me] || state.roles[0];
+  var cur = { role: me, visiting: false };
+  var dec = new CORE.Decoder(me.world.walk);
+  var nearObj = null, portalRole = null, msgTimer = null, target = null, openTarget = null, bookSlot = null, docked = {};
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function opt(v, label, sel) { return '<option value="' + esc(v) + '"' + (v === sel ? ' selected' : '') + '>' + esc(label) + '</option>'; }
+  function refresh() { if (window.SHEET) SHEET.render(); }
+  var now = CORE.nowUs;
+  var allObjs = function (r) { return CORE.allObjects(r.world).map(function (x) { return x.o; }); };
+
+  /* ---------- HUD ---------- */
+  function msg(text, keep) {
+    var el = $('hudMsg'); el.textContent = text; el.hidden = !text;
+    clearTimeout(msgTimer);
+    if (!keep && text) msgTimer = setTimeout(function () { el.hidden = true; }, 3200);
+  }
+  function drawCode() {
+    var code = dec.code(), need = dec.need(), s = code || '—';
+    if (need && code) s += '＿'.repeat(need);
+    $('hudCode').textContent = s;
+    $('hudCodeHint').textContent = dec.done ? '走完了' : !dec.letter && !dec.digits ? '先繞一個物件走出字母，或直接走數字' : '再從甲走到乙，走出 ' + need + ' 個數字';
+    drawRoute();
+  }
+  function drawRoute() {
+    var others = state.roles.filter(function (r) { return r !== me && CORE.status(r, now()) !== 'ended'; });
+    var sel = $('hudTarget');
+    var cur0 = target || (others[0] ? CORE.abbrev(others[0].serial) : null);
+    sel.innerHTML = others.map(function (r) { return opt(CORE.abbrev(r.serial), CORE.abbrev(r.serial) + ' ' + r.name, cur0); }).join('');
+    target = cur0;
+    var box = $('hudRoute');
+    if (!target) { box.hidden = true; return; }
+    var rt = CORE.route(me.world.walk, allObjs(me), target);
+    var doneN = dec.code().length;
+    if (rt.missing) $('hudRouteText').textContent = '要去 ' + target + '：' + rt.missing + '，到表世界改走法表。';
+    else {
+      var got = 0;
+      $('hudRouteText').innerHTML = '要去 ' + target + '：' + rt.steps.map(function (st) { var counts = /（[A-J0-9]）$/.test(st); var did = counts && got < doneN; if (counts) got++; return did ? '<s>' + esc(st) + '</s>' : esc(st); }).join('，');
+    }
+    box.hidden = false;
+  }
+  function drawWhere() {
+    var r = cur.role, d = WORLD.depth ? WORLD.depth() : 0;
+    $('hudWhere').textContent = (cur.visiting ? '在 ' + CORE.abbrev(r.serial) + ' ' + r.name + ' 的世界' : '自己的世界 ' + CORE.abbrev(r.serial)) + (d ? '，內部第 ' + d + ' 層' : '');
+    $('btnLeave').hidden = !d;
+    $('btnHome').hidden = !cur.visiting;
+    $('hudCodeBox').hidden = cur.visiting;
+    $('hudRoute').hidden = cur.visiting;
+    $('hudGoal').hidden = !cur.visiting;
+    $('giveBox').hidden = true;
+    WORLD.setArcFilter(function (o) { return canCircle(o); });
+  }
+  function canCircle(o) { return !cur.visiting && !!o && me.world.walk.circles.some(function (c) { return c.object === o.id; }); }
+  function fmtLife(r) { return CORE.fmtUs(r.life.startUs).slice(0, 16) + ' 到 ' + CORE.fmtUs(r.life.endUs).slice(0, 16) + '（剩 ' + Math.floor(CORE.daysLeft(r, now())) + ' 天）'; }
+  var STATUS = { active: '正常', vacancy: '空窗', ended: '已結束' };
+
+  // 規則建築：裡世界存在的理由，要做得最清楚
+  function rulesText(r) {
+    var ru = r.rules, lines = [];
+    lines.push('【我的點能做什麼】' + (ru.uses.length ? '\n' + ru.uses.map(function (u) { return '・' + u; }).join('\n') : '（沒寫）'));
+    lines.push('【對接條件】' + (ru.conditions.length ? '\n' + ru.conditions.map(function (c) { return '・' + CORE.condText(c); }).join('\n') : '（沒有條件，誰都通）'));
+    lines.push('【開關】要求兩方都通：' + (ru.bothMustPass ? '開' : '關') + '；對方要先接受我的村規：' + (ru.mustAcceptVillage ? '開' : '關'));
+    if (ru.village) lines.push('【村規】' + ru.village + '\n（誰寫的誰解釋）' + (cur.visiting ? (CORE.accepted(state, me.serial, r.serial) ? '\n你已接受' : '\n你還沒接受') : ''));
+    if (cur.visiting) {
+      var p = CORE.passes(state, r, me, now()), e = CORE.eligible(state, r, me, now());
+      lines.push('【我通不通】' + (p.ok ? '我通他的條件' : '我不通：' + p.failed.join('；')) + '\n' + (e.ok ? '可以對接（' + e.how + '）' : '不能對接：' + e.reason));
+    }
+    return lines.join('\n');
+  }
+  function slotsText(r) {
+    var up = r.slots.filter(function (s) { return s.atUs >= now(); }).sort(function (a, b) { return a.atUs - b.atUs; });
+    if (!up.length) return '沒有開放的對接時段。';
+    return up.slice(0, 4).map(function (s) { return '・' + CORE.fmtUs(s.atUs) + '　名額 ' + s.bookings.length + '／' + s.capacity + '，主人每次給 ' + s.give + ' 點' + (s.bookings.indexOf(me.serial) >= 0 ? '（你預約了）' : ''); }).join('\n');
+  }
+  function drawNear(o) {
+    var box = $('hudNear');
+    $('btnOpen').hidden = true; $('btnEnter').hidden = true; $('btnBook').hidden = true; $('btnAccept').hidden = true; bookSlot = null; openTarget = null;
+    if (!o) { box.hidden = true; $('btnCircle').hidden = true; return; }
+    var f = CORE.FUNCS[o.func] || CORE.FUNCS.none, r = cur.role, body = '';
+    if (o.func === 'rule') {
+      body = rulesText(r);
+      if (cur.visiting && r.rules.village && !CORE.accepted(state, me.serial, r.serial)) $('btnAccept').hidden = false;
+      openTarget = { sheet: 'rules', id: r.serial + ':' }; $('btnOpen').hidden = false; $('btnOpen').textContent = '看規則表';
+    } else if (o.func === 'resource') {
+      body = (r.resources.length ? r.resources.map(function (x) { return '・' + x.name + '：' + x.price + ' ' + r.name + '點，還有 ' + x.qty + ' 份'; }).join('\n') : '（沒有列資源）') +
+        (cur.visiting ? '\n你手上有 ' + CORE.balance(state, me.serial, r.serial, now()) + ' ' + r.name + '點' + (CORE.status(r, now()) === 'vacancy' ? '；他在空窗期，暫停兌現' : '') : '\n你今天還能給 ' + CORE.remainingToday(state, me, now()) + ' 點');
+      openTarget = { sheet: cur.visiting ? 'redeem' : 'resources', id: r.serial + ':' }; $('btnOpen').hidden = false; $('btnOpen').textContent = cur.visiting ? '去兌現' : '看資源表';
+    } else if (o.func === 'goal') {
+      body = slotsText(r);
+      if (cur.visiting) {
+        var e = CORE.eligible(state, r, me, now());
+        var free = r.slots.filter(function (s) { return s.atUs > now() && s.bookings.length < s.capacity && s.bookings.indexOf(me.serial) < 0; }).sort(function (a, b) { return a.atUs - b.atUs; })[0];
+        body += '\n' + (e.ok ? '條件通（' + e.how + '）' : '條件不通：' + e.reason);
+        if (e.ok && free) { bookSlot = free; $('btnBook').hidden = false; $('btnBook').textContent = '預約 ' + CORE.fmtUs(free.atUs).slice(11, 19); }
+      } else { openTarget = { sheet: 'slots', id: null }; $('btnOpen').hidden = false; $('btnOpen').textContent = '開對接時段'; }
+    } else if (o.func === 'role') {
+      body = '每天 ' + r.dailyPoints + ' ' + r.name + '點\n週期：' + fmtLife(r) + '\n狀態：' + STATUS[CORE.status(r, now())] + '\n對接過 ' + CORE.dockCount(state, r.serial) + ' 次' + (r.prev ? '\n前身：' + CORE.abbrev(r.prev) : '') +
+        (cur.visiting && CORE.contactVisible(state, r, me.serial, now()) && r.contact ? '\n聯絡方式：' + r.contact : '');
+      openTarget = { sheet: 'roles', id: r.serial }; $('btnOpen').hidden = false; $('btnOpen').textContent = '看角色表';
+    } else if (o.func === 'points') {
+      if (cur.visiting) body = '只有主人看得到。';
+      else { var hs = CORE.holdings(state, me.serial, now()); body = (hs.length ? hs.map(function (g) { return '・' + g.issuer.name + '點 ' + g.amount + '（' + STATUS[g.status] + '）'; }).join('\n') : '手上沒有別人的點。') + '\n今天還能給 ' + CORE.remainingToday(state, me, now()) + ' 點'; openTarget = { sheet: 'points', id: null }; $('btnOpen').hidden = false; $('btnOpen').textContent = '看點數帳'; }
+    } else body = '純地標，沒有功能。';
+    if (o.door) {
+      var open = o.door.visible !== 'self' || !cur.visiting;
+      body += (body ? '\n' : '') + (open ? '有一扇門。' : '有一扇門，關著。');
+      $('btnEnter').hidden = !open || WORLD.depth() >= 3;
+    }
+    $('hudNearTitle').textContent = '這裡是' + f.label + '：' + o.name;
+    $('hudNearBody').textContent = body;
+    box.hidden = false;
+    $('btnCircle').hidden = !canCircle(o);
+  }
+
+  /* ---------- 世界事件 ---------- */
+  WORLD.on('near', function (o) { nearObj = o; drawNear(o); });
+  WORLD.on('turn', function (o, n) { if (!cur.visiting) msg('繞 ' + o.name + ' ' + n + ' 圈'); });
+  WORLD.on('circle', function (o, n) { if (cur.visiting) return; var r = dec.feed({ type: 'circle', object: o.id, count: n }); if (r.type === 'letter') { msg('字母 ' + r.letter + '，再走 ' + r.need + ' 個數字'); drawCode(); } });
+  WORLD.on('arrive', function (o) {
+    if (cur.visiting) return;
+    var r = dec.feed({ type: 'arrive', object: o.id });
+    if (r.type === 'digit') { msg('數字 ' + r.digit); drawCode(); }
+    else if (r.type === 'done') { drawCode(); openPortal(r.code); }
+  });
+  WORLD.on('portal', function () { if (portalRole) teleport(portalRole); });
+
+  function openPortal(code) {
+    var role = CORE.findRole(state, code);
+    if (!role || role === me) { msg(role === me ? code + ' 是自己，走別人的代號' : '沒有 ' + code + ' 這個角色', true); setTimeout(function () { dec.reset(); drawCode(); msg(''); }, 2200); return; }
+    portalRole = role; WORLD.showPortal();
+    msg('走出了 ' + code + '，白光傳送門打開了。點傳送門過去。', true);
+  }
+  function teleport(role) {
+    var chk = CORE.tryClean(role);   // 世界只能是資料
+    if (chk.error) { msg(role.name + ' 的資料不是純資料（' + chk.error + '），不載入。', true); WORLD.hidePortal(); portalRole = null; return; }
+    cur = { role: role, visiting: true };
+    portalRole = null; WORLD.flash();
+    WORLD.loadWorld(chk.role.world, { visiting: true });
+    drawWhere(); drawNear(null);
+    msg('到了 ' + role.name + ' 的世界。沿路看他的規則建築，走到終點。', true);
+  }
+  function goHome() {
+    if (cur.visiting) WORLD.flash();
+    cur = { role: me, visiting: false };
+    dec.reset(); drawCode(); WORLD.loadWorld(me.world); drawWhere(); drawNear(null); msg('');
+  }
+  $('btnHome').addEventListener('click', goHome);
+  $('btnOpen').addEventListener('click', function () { if (!openTarget) return; showTab('sheet'); SHEET.navigate(openTarget.sheet, openTarget.id); });
+  $('btnReset').addEventListener('click', function () { dec.reset(); drawCode(); WORLD.hidePortal(); portalRole = null; msg('重走'); });
+  $('btnCircle').addEventListener('click', function () { if (nearObj) WORLD.circleAround(nearObj.id); });
+  $('hudTarget').addEventListener('change', function () { target = $('hudTarget').value; drawRoute(); });
+  $('btnEnter').addEventListener('click', function () { if (nearObj && WORLD.enter(nearObj.id)) { WORLD.flash(); drawWhere(); drawNear(null); } });
+  $('btnLeave').addEventListener('click', function () { if (WORLD.leave()) { WORLD.flash(); drawWhere(); drawNear(null); } });
+  $('btnBook').addEventListener('click', function () {
+    if (!bookSlot) return;
+    try { CORE.book(state, me.serial, bookSlot.id, now()); CORE.save(state); msg('預約好了：' + CORE.fmtUs(bookSlot.atUs) + '。那一微秒站在終點上就對接。' + (cur.role.contact ? '聯絡方式：' + cur.role.contact : ''), true); drawNear(nearObj); refresh(); }
+    catch (e) { msg(e.message, true); }
+  });
+  $('btnAccept').addEventListener('click', function () { CORE.accept(state, me.serial, cur.role.serial); CORE.save(state); msg('你接受了 ' + cur.role.name + ' 的村規。'); drawNear(nearObj); refresh(); });
+
+  /* ---------- 那一微秒：預約者站在主人的終點上就對接 ---------- */
+  function goalId(role) { var g = allObjs(role).find(function (o) { return o.func === 'goal'; }); return g ? g.id : null; }
+  setInterval(function () {
+    $('clock').textContent = CORE.fmtUs(now());
+    if (!cur.visiting) return;
+    var r = cur.role, t = now();
+    var mine = r.slots.filter(function (s) { return s.bookings.indexOf(me.serial) >= 0 && s.docked.indexOf(me.serial) < 0 && !docked[s.id]; }).sort(function (a, b) { return a.atUs - b.atUs; });
+    var g = goalId(r), onIt = g ? WORLD.distanceTo(g) < 1.0 : false;
+    if (!mine.length) { $('hudGoalText').textContent = '你沒有預約 ' + r.name + ' 的時段'; $('giveBox').hidden = true; return; }
+    var s = mine[0];
+    if (t < s.atUs) {
+      $('hudGoalText').textContent = '離對接還有 ' + ((s.atUs - t) / 1e6).toFixed(1) + ' 秒' + (onIt ? '，你在終點上' : '，先走到終點台');
+      $('giveBox').hidden = false;
+      var max = CORE.remainingToday(state, me, t); $('giveIn').max = max; if (+$('giveIn').value > max) $('giveIn').value = max;
+      return;
+    }
+    docked[s.id] = true;
+    if (!onIt) { $('hudGoalText').textContent = '錯過了那一微秒'; $('giveBox').hidden = true; msg('那一微秒你不在終點上，這次沒對接。', true); return; }
+    try {
+      var give = Math.min(+$('giveIn').value || 0, CORE.remainingToday(state, me, t));
+      var ownerGive = Math.min(s.give, CORE.remainingToday(state, r, t));
+      var d = CORE.dock(state, s.id, me.serial, ownerGive, give, t);
+      state.records.push({ kind: 'dock', at: t, text: CORE.abbrev(me.serial) + ' 與 ' + CORE.abbrev(r.serial) + ' 在 ' + CORE.fmtUs(t) + ' 對接：' + r.name + ' 給 ' + d.gaveA + ' 點，' + me.name + ' 給 ' + d.gaveB + ' 點（' + d.how + '）' });
+      CORE.save(state); refresh();
+      $('hudGoalText').textContent = '對接成立'; $('giveBox').hidden = true;
+      $('meetText').textContent = CORE.abbrev(me.serial) + ' ' + me.name + ' 與 ' + CORE.abbrev(r.serial) + ' ' + r.name + ' 在 ' + CORE.fmtUs(t) + ' 對接成立（' + d.how + '）。';
+      $('meetProblems').textContent = '你拿到 ' + d.gaveA + ' ' + r.name + '點，給了 ' + d.gaveB + ' ' + me.name + '點。' + (r.contact ? '聯絡方式：' + r.contact : '');
+      $('meet').hidden = false;
+    } catch (e) { $('hudGoalText').textContent = '對接不成立'; $('giveBox').hidden = true; msg(e.message, true); }
+  }, 50);
+  $('meetClose').addEventListener('click', function () { $('meet').hidden = true; goHome(); });
+  $('meetOpen').addEventListener('click', function () { $('meet').hidden = true; goHome(); showTab('sheet'); SHEET.navigate('dockings', null); });
+
+  /* ---------- 共用 ---------- */
+  function becomeMe(i) { state.me = i; me = state.roles[i]; dec = new CORE.Decoder(me.world.walk); target = null; docked = {}; CORE.save(state); goHome(); refresh(); }
+  function walkChanged() { CORE.save(state); dec = new CORE.Decoder(me.world.walk); drawCode(); drawNear(nearObj); }
+  function resetAll() { state = CORE.fresh(); me = state.roles[0]; dec = new CORE.Decoder(me.world.walk); target = null; docked = {}; CORE.save(state); goHome(); refresh(); }
+  function showTab(name) {
+    $('view-world').hidden = name !== 'world'; $('view-sheet').hidden = name !== 'sheet'; $('fxbar').hidden = name !== 'sheet';
+    if (name === 'world') { WORLD.resize(); if (window.SHEET) SHEET.renderTabs(); } else refresh();
+  }
+  function worldRefresh(role, objId) { if (role === cur.role) { if (objId) WORLD.refreshObject(objId); else WORLD.loadWorld(role.world, { visiting: cur.visiting }); } }
+
+  if (typeof THREE === 'undefined') { $('hudMsg').hidden = false; $('hudMsg').textContent = '3D 引擎沒載入，請檢查網路後重新整理。表世界分頁還是能用。'; }
+  else { WORLD.init($('stage')); WORLD.loadWorld(me.world); }
+  drawCode(); drawWhere(); drawNear(null);
+  window.APP = {
+    state: function () { return state; }, me: function () { return me; }, cur: function () { return cur; }, dec: function () { return dec; },
+    save: function () { CORE.save(state); }, msg: msg, becomeMe: becomeMe, goHome: goHome, showTab: showTab, isWorld: function () { return $('view-world') && !$('view-world').hidden; },
+    openPortal: function (code) { showTab('world'); if (cur.visiting) goHome(); dec.reset(); drawCode(); openPortal(code); },
+    enterPortal: function () { if (portalRole) teleport(portalRole); }, teleportTo: teleport, nearObj: function () { return nearObj; },
+    walkChanged: walkChanged, worldRefresh: worldRefresh, resetAll: resetAll, refresh: refresh, esc: esc, opt: opt
+  };
+})();
+
+/* ===== v6 表世界：活頁簿（機制沿用 v5：SHEETS 設定、欄字母、列號、凍結首欄、名稱方塊、跳轉與返回、下一步） =====
+ * 頁面：下一步｜查詢｜角色｜規則｜資源｜世界｜走法｜對接時段｜對接紀錄｜點數｜兌現
+ * 資料改動都經過 CORE 的規則函式，這裡只畫和接按鈕。
+ */
+var SHEET = (function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return APP.esc(s); };
+  var opt = function (v, l, sel) { return APP.opt(v, l, sel); };
+  var S = function () { return APP.state(); };
+  var me = function () { return APP.me(); };
+  var now = CORE.nowUs;
+  var UI = { sheet: 'next', hist: [], focus: null, sel: null, worldRole: null, worldPath: [], rulesRole: null, resRole: null, redeemIssuer: null, kw: '' };
+  var ORDER = ['next', 'query', 'roles', 'rules', 'resources', 'world', 'walk', 'slots', 'dockings', 'points', 'redeem'];
+  var STATUS = { active: '正常', vacancy: '空窗', ended: '已結束' };
+
+  /* ---------- 小工具 ---------- */
+  var colLetter = function (i) { var s = ''; i++; while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  var stripTags = function (s) { return String(s).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim(); };
+  var num = function (us) { return '<span class="num">' + esc(CORE.fmtUs(us)) + '</span>'; };
+  var tag = function (cls, text) { return '<span class="tag ' + cls + '">' + esc(text) + '</span>'; };
+  var dash = '<span class="muted">—</span>';
+  var roleOf = function (serial) { return CORE.roleOf(S(), serial); };
+  var roleName = function (serial) { var r = roleOf(serial); return r ? CORE.abbrev(serial) + ' ' + r.name : serial; };
+  var roleIdx = function (r) { return S().roles.indexOf(r); };
+  var stTag = function (r) { var st = CORE.status(r, now()); return tag({ active: 'ok', vacancy: 'open', ended: 'shelve' }[st], STATUS[st]); };
+  var allObjs = function (r) { return CORE.allObjects(r.world).map(function (x) { return x.o; }); };
+  function L(sheet, id, text) { return '<button type="button" class="lk" data-act="jump" data-s="' + sheet + '" data-id="' + esc(id) + '" title="前往' + esc(SHEETS[sheet].name) + '">' + text + '</button>'; }
+  function btn(act, label, attrs, cls) { return '<button type="button" class="btn sm' + (cls ? ' ' + cls : '') + '" data-act="' + act + '"' + (attrs || '') + '>' + esc(label) + '</button>'; }
+  function inp(ed, id, value, extra) { return '<input type="text" data-ed="' + ed + '" data-id="' + esc(id) + '" value="' + esc(value) + '"' + (extra || '') + '>'; }
+  function roleLink(r) { return L('roles', r.serial, esc(roleName(r.serial))); }
+
+  /* ---------- 草稿：新角色在創建前的規則、資源（創建後就鎖住） ---------- */
+  function draft() { return S().draft || null; }
+  function newDraft(fields) {
+    S().draft = Object.assign({ name: '', dailyPoints: 1800, days: 30, prev: null, contact: '', rules: { uses: [], conditions: [], bothMustPass: false, mustAcceptVillage: false, village: '' }, resources: [] }, fields || {});
+    return S().draft;
+  }
+  function rulesRole() { return UI.rulesRole === 'draft' && draft() ? null : (roleOf(UI.rulesRole) || me()); }
+  function editingDraft() { return UI.rulesRole === 'draft' && !!draft(); }
+  function resRole() { return UI.resRole === 'draft' && draft() ? null : (roleOf(UI.resRole) || me()); }
+  function editingResDraft() { return UI.resRole === 'draft' && !!draft(); }
+  function worldRole() { return roleOf(UI.worldRole) || me(); }
+  function levelObjects() {
+    var r = worldRole(), lv = r.world.objects;
+    for (var i = 0; i < UI.worldPath.length; i++) { var o = lv.find(function (x) { return x.id === UI.worldPath[i]; }); if (!o || !o.door) { UI.worldPath = UI.worldPath.slice(0, i); break; } lv = o.door.objects; }
+    return lv;
+  }
+  function objOpts(sel) { return CORE.allObjects(me().world).map(function (x) { return opt(x.o.id, (x.depth ? '　'.repeat(x.depth) + '└ ' : '') + x.o.name, sel); }).join(''); }
+  function roleSel(ed, cur, withDraft) { return '<select data-ed="' + ed + '" aria-label="哪個角色">' + (withDraft && draft() ? opt('draft', '（草稿）' + (draft().name || '新角色'), cur) : '') + S().roles.map(function (r) { return opt(r.serial, roleName(r.serial), cur); }).join('') + '</select>'; }
+
+  /* ---------- 下一步 ---------- */
+  function steps() {
+    var m = me(), st = S(), t = now(), out = [], d = draft();
+    var status = CORE.status(m, t);
+    out.push({ id: 'role', no: '①', name: '建角色', ok: status !== 'ended', status: CORE.abbrev(m.serial) + ' ' + m.name + '，每天 ' + m.dailyPoints + ' 點，剩 ' + Math.floor(CORE.daysLeft(m, t)) + ' 天（' + STATUS[status] + '）' + (d ? '；有一個草稿還沒創' : ''), sheet: 'roles', row: m.serial, hint: '每天的點、週期。週期內規則不能改，要改就結束再重創。' });
+    var ru = m.rules, hasRules = ru.uses.length > 0 || ru.conditions.length > 0 || ru.village;
+    out.push({ id: 'rules', no: '②', name: '寫規則與條件', ok: hasRules, status: hasRules ? ru.uses.length + ' 條用途、' + ru.conditions.length + ' 條條件' + (ru.bothMustPass ? '、要兩方都通' : '') + (ru.mustAcceptVillage ? '、要接受村規' : '') : '規則表是空的（要改得結束再重創）', sheet: 'rules', row: m.serial + ':', hint: '我的點能做什麼、對接條件（固定格式）、村規。' });
+    out.push({ id: 'resources', no: '③', name: '資源', ok: m.resources.length > 0, status: m.resources.length ? m.resources.map(function (x) { return x.name + ' ' + x.price + ' 點×' + x.qty; }).join('、') : '沒有資源', sheet: 'resources', row: m.serial + ':', hint: '我的點能兌現的東西和價格。數量可以隨時補。' });
+    var funcs = ['rule', 'resource', 'goal', 'role'], has = funcs.filter(function (f) { return allObjs(m).some(function (o) { return o.func === f; }); });
+    var others = st.roles.filter(function (r) { return r !== m && CORE.status(r, t) !== 'ended'; });
+    var rt = others.length ? CORE.route(m.world.walk, allObjs(m), CORE.abbrev(others[0].serial)) : { missing: '沒有別的角色' };
+    out.push({ id: 'world', no: '④', name: '世界與走法', ok: has.length === funcs.length && !rt.missing, status: (has.length === funcs.length ? '四個公開功能點都有' : '缺：' + funcs.filter(function (f) { return has.indexOf(f) < 0; }).map(function (f) { return CORE.FUNCS[f].label; }).join('、')) + '；' + (rt.missing ? rt.missing : '要去 ' + CORE.abbrev(others[0].serial) + '：' + rt.steps.join('，')), sheet: 'world', row: null, hint: '功能固定、外觀自由；走法決定代號怎麼走。' });
+    var up = m.slots.filter(function (s) { return s.atUs > t; });
+    out.push({ id: 'slots', no: '⑤', name: '開對接時段', ok: up.length > 0, status: up.length ? up.length + ' 個未來時段，最近 ' + CORE.fmtUs(up.sort(function (a, b) { return a.atUs - b.atUs; })[0].atUs) : '沒有開放的時段', sheet: 'slots', row: null, hint: '別人要預約才能來對接；名額是容量不是條件。' });
+    var booked = []; st.roles.forEach(function (r) { r.slots.forEach(function (s) { if (s.bookings.indexOf(m.serial) >= 0 && s.docked.indexOf(m.serial) < 0 && s.atUs > t) booked.push({ r: r, s: s }); }); });
+    var cv = CORE.canVisit(st, m, t);
+    out.push({ id: 'query', no: '⑥', name: '去查詢、預約別人', ok: booked.length > 0, status: booked.length ? '預約了 ' + booked.map(function (b) { return b.r.name + ' ' + CORE.fmtUs(b.s.atUs).slice(11, 19); }).join('、') : cv.length ? '我可以去找：' + cv.map(function (r) { return r.name; }).join('、') : '目前沒有我符合條件的人', sheet: 'query', row: null, hint: '條件通才能預約；那一微秒站在他的終點上就對接。' });
+    return { rows: out, next: out.find(function (x) { return !x.ok; }) || null };
+  }
+
+  /* ---------- 各張表 ---------- */
+  var SHEETS = {
+    next: { no: '', name: '下一步', desc: '照目前的狀態，一步一步把角色、規則、資源、世界、對接時段準備好，再去查詢、預約別人。',
+      tables: [{ id: 'steps', rowId: function (x) { return x.id; }, rows: function () { return steps().rows; }, cls: function (x) { var n = steps().next; return n && n.id === x.id ? 'next' : ''; },
+        cols: [
+          { k: 'no', h: '步驟', v: function (x) { return x.no + ' ' + esc(x.name); } },
+          { k: 'ok', h: '狀態', v: function (x) { var n = steps().next; return x.ok ? tag('ok', '完成') : n && n.id === x.id ? tag('open', '下一步') : tag('todo', '還沒'); } },
+          { k: 'go', h: '動作', v: function (x) { return btn('jump', '去' + x.name, ' data-s="' + x.sheet + '"' + (x.row ? ' data-id="' + esc(x.row) + '"' : ''), (steps().next || {}).id === x.id ? 'pri' : ''); } },
+          { k: 'st', h: '目前', v: function (x) { return '<span class="small">' + esc(x.status) + '</span>'; }, wrap: true },
+          { k: 'hint', h: '說明', v: function (x) { return '<span class="muted small">' + esc(x.hint) + '</span>'; }, wrap: true }
+        ],
+        foot: function () { return steps().next ? '' : '<div class="empty">都準備好了。到裡世界走出代號，傳送過去，那一微秒站在他的終點上。 ' + btn('world', '去裡世界', '', 'pri') + '</div>'; } }] },
+
+    query: { no: 'Ⅰ', name: '查詢', desc: '規則表全部公開、條件是固定格式，所以直接算出誰和我一方通。排序只照事實：最近的對接時段、每天的點數、對接過幾次。',
+      tables: [
+        { id: 'visit', title: '我可以去找的人（我通他的條件）', rowId: function (r) { return 'v' + r.serial; }, rows: function () { return CORE.canVisit(S(), me(), now()); }, cols: queryCols(), empty: '目前沒有我符合條件的人。' },
+        { id: 'come', title: '可能來找我的人（他通我的條件）', rowId: function (r) { return 'c' + r.serial; }, rows: function () { return CORE.canCome(S(), me(), now()); }, cols: queryCols(), empty: '目前沒有人符合我的條件。' },
+        { id: 'res', title: '查資源', rowId: function (x) { return x.role.serial + ':' + x.resource.id; }, rows: function () { return CORE.searchResources(S(), UI.kw, now()).filter(function (x) { return x.role !== me(); }); },
+          cols: [
+            { k: 'name', h: '資源', v: function (x) { return esc(x.resource.name); } },
+            { k: 'price', h: '價格', num: true, v: function (x) { return x.resource.price + ' ' + esc(x.role.name) + '點'; } },
+            { k: 'qty', h: '還有', num: true, v: function (x) { return String(x.resource.qty); } },
+            { k: 'who', h: '誰的', v: function (x) { return roleLink(x.role) + ' ' + stTag(x.role); } },
+            { k: 'elig', h: '我和他', v: function (x) { var e = CORE.eligible(S(), x.role, me(), now()); return e.ok ? tag('ok', e.how) : tag('shelve', '不能對接'); } },
+            { k: 'act', h: '動作', v: function (x) { return btn('jump', '看規則', ' data-s="rules" data-id="' + x.role.serial + ':"') + ' ' + btn('portal', '傳送過去', ' data-id="' + CORE.abbrev(x.role.serial) + '"'); } }
+          ],
+          add: { cells: function () { return { name: '<input type="text" id="kwIn" placeholder="關鍵字，例如 履歷" value="' + esc(UI.kw) + '" aria-label="關鍵字">', act: btn('search', '查', '', 'pri') }; } }, empty: '沒有符合的資源。' }
+      ] },
+
+    roles: { no: 'Ⅱ', name: '角色', desc: '每天的能量點是角色最重要的屬性，可以自訂。創角色時寫下開始、結束；週期內規則表一個字都不能改，要改就「結束並重創」。',
+      tables: [{ id: 'roles', rowId: function (r) { return r.serial; }, rows: function () { return S().roles; }, mine: function (r) { return r === me(); },
+        cols: [
+          { k: 'me', h: '我是', v: function (r) { return '<label class="me"><input type="radio" name="meIs" data-ed="me" data-id="' + r.serial + '"' + (r === me() ? ' checked' : '') + '> ' + (r === me() ? '我' : '') + '</label>'; } },
+          { k: 'code', h: '代號', v: function (r) { return '<b>' + CORE.abbrev(r.serial) + '</b> <span class="num small muted">' + r.serial + '</span>'; } },
+          { k: 'name', h: '名字', v: function (r) { return esc(r.name); } },
+          { k: 'daily', h: '每天的點', num: true, v: function (r) { return String(r.dailyPoints); } },
+          { k: 'left', h: '今天還能給', num: true, v: function (r) { return String(CORE.remainingToday(S(), r, now())); } },
+          { k: 'life', h: '週期', v: function (r) { return '<span class="small">' + esc(CORE.fmtUs(r.life.startUs).slice(0, 10)) + ' → ' + esc(CORE.fmtUs(r.life.endUs).slice(0, 10)) + '（剩 ' + Math.floor(CORE.daysLeft(r, now())) + ' 天）</span>'; } },
+          { k: 'st', h: '狀態', v: function (r) { return stTag(r) + (r.vacancyDebt ? ' <span class="small muted">欠 ' + esc(roleName(r.vacancyDebt.holder)) + ' 一筆兌現</span>' : ''); } },
+          { k: 'dock', h: '對接過', num: true, v: function (r) { return String(CORE.dockCount(S(), r.serial)); } },
+          { k: 'rules', h: '規則', v: function (r) { return L('rules', r.serial + ':', r.rules.conditions.length + ' 條條件'); } },
+          { k: 'res', h: '資源', v: function (r) { return L('resources', r.serial + ':', r.resources.length + ' 項'); } },
+          { k: 'contact', h: '聯絡方式', v: function (r) { return CORE.contactVisible(S(), r, me().serial, now()) ? (r.contact ? esc(r.contact) : '<span class="muted">（沒填）</span>') : '<span class="muted">預約成功才看得到</span>'; } },
+          { k: 'prev', h: '前身', v: function (r) { return r.prev ? L('roles', r.prev, esc(CORE.abbrev(r.prev))) : dash; } },
+          { k: 'act', h: '動作', v: function (r) {
+            if (r !== me()) return '';
+            var st = CORE.status(r, now());
+            if (st === 'ended') return btn('recreate', '以此為前身重創', ' data-id="' + r.serial + '"', 'pri');
+            return (st === 'active' ? btn('vacIn', '進入空窗', ' data-id="' + r.serial + '"') : btn('vacOut', '離開空窗', ' data-id="' + r.serial + '"', 'pri')) + ' ' + btn('endEarly', '結束並重創', ' data-id="' + r.serial + '"');
+          } }
+        ],
+        add: { cells: function () { var d = draft(); return { name: d ? '<span class="small">草稿：' + esc(d.name || '（還沒取名）') + '</span>' : '<input type="text" id="addRoleName" placeholder="新角色的名字" aria-label="名字">', daily: d ? '' : '<input type="number" class="kc" id="addRoleDaily" value="1800" min="1" aria-label="每天的點">', life: d ? '' : '<input type="number" class="kc" id="addRoleDays" value="30" min="1" aria-label="週期天數"> 天', act: d ? btn('jump', '去填規則', ' data-s="rules" data-id="draft:"', 'pri') + ' ' + btn('dropDraft', '丟掉草稿') : btn('newDraft', '開始建角色', '', 'pri') }; } } }] },
+
+    rules: { no: 'Ⅲ', name: '規則', desc: '規則表三部分：我的點能做什麼、對接條件（欄位、比較、數值，系統自動判斷）、村規（自由文字，誰寫的誰解釋）。兩個開關：要求兩方都通、對方一定要接受我的村規。週期內鎖住；草稿創角色前可以改。',
+      toolbar: function () { return '<label class="small">看誰的規則 ' + roleSel('rulesRole', editingDraft() ? 'draft' : rulesRole().serial, true) + '</label>' + (editingDraft() ? tag('open', '草稿，還沒創角色') : '<span class="small muted">' + (rulesRole() === me() ? '你的規則表，週期內鎖住' : '') + '</span>'); },
+      tables: [
+        { id: 'uses', title: '我的點能做什麼', rowId: function (x, i) { return 'u' + i; }, rows: function () { return editingDraft() ? draft().rules.uses : rulesRole().rules.uses; },
+          cols: [{ k: 'no', h: '條', v: function (x, i) { return String(i + 1); } }, { k: 'text', h: '內容', v: function (x, i) { return editingDraft() ? inp('useText', i, x, ' aria-label="用途"') : esc(x); }, wrap: true }, { k: 'act', h: '動作', v: function (x, i) { return editingDraft() ? btn('delUse', '刪', ' data-id="' + i + '"') : ''; } }],
+          add: { when: editingDraft, cells: function () { return { text: '<input type="text" id="addUse" placeholder="例如：1 我點 = 陪跑 1 分鐘" aria-label="新用途">', act: btn('addUse', '新增', '', 'pri') }; } }, empty: '（沒寫）' },
+        { id: 'conds', title: '對接條件', rowId: function (x, i) { return 'c' + i; }, rows: function () { return editingDraft() ? draft().rules.conditions : rulesRole().rules.conditions; },
+          cols: [
+            { k: 'field', h: '欄位', v: function (c, i) { return editingDraft() ? '<select data-ed="condField" data-id="' + i + '" aria-label="欄位">' + Object.keys(CORE.COND_FIELDS).map(function (k) { return opt(k, CORE.COND_FIELDS[k].label, c.field); }).join('') + '</select>' : esc(CORE.COND_FIELDS[c.field].label); } },
+            { k: 'op', h: '比較', v: function (c, i) { var f = CORE.COND_FIELDS[c.field]; var ops = f.enum ? ['=', '!='] : Object.keys(CORE.OPS); return editingDraft() ? '<select data-ed="condOp" data-id="' + i + '" aria-label="比較">' + ops.map(function (o) { return opt(o, f.enum ? (o === '=' ? '是' : '不是') : CORE.OPS[o], c.op); }).join('') + '</select>' : esc(f.enum ? (c.op === '=' ? '是' : '不是') : CORE.OPS[c.op]); } },
+            { k: 'value', h: '數值', v: function (c, i) { var f = CORE.COND_FIELDS[c.field]; if (!editingDraft()) return esc(f.enum ? f.enum[c.value] : String(c.value)); return f.enum ? '<select data-ed="condValue" data-id="' + i + '" aria-label="數值">' + Object.keys(f.enum).map(function (k) { return opt(k, f.enum[k], c.value); }).join('') + '</select>' : '<input type="number" class="kc" data-ed="condValue" data-id="' + i + '" value="' + c.value + '" aria-label="數值">'; } },
+            { k: 'plain', h: '白話', v: function (c) { return '<span class="small">' + esc(CORE.condText(c)) + '</span>'; }, wrap: true },
+            { k: 'me', h: '我通不通', v: function (c) { if (editingDraft() || rulesRole() === me()) return ''; var got = CORE.COND_FIELDS[c.field].get(S(), me(), now(), rulesRole()); var ok = CORE.passes(S(), { rules: { conditions: [c] }, state: 'active', life: rulesRole().life }, me(), now()).ok; return (ok ? tag('ok', '通') : tag('shelve', '不通')) + ' <span class="small muted">我是 ' + esc(String(CORE.COND_FIELDS[c.field].enum ? CORE.COND_FIELDS[c.field].enum[got] : got)) + '</span>'; } },
+            { k: 'act', h: '動作', v: function (c, i) { return editingDraft() ? btn('delCond', '刪', ' data-id="' + i + '"') : ''; } }
+          ],
+          add: { when: editingDraft, cells: function () { return { field: '<select id="addCondField" aria-label="欄位">' + Object.keys(CORE.COND_FIELDS).map(function (k) { return opt(k, CORE.COND_FIELDS[k].label, 'dailyPoints'); }).join('') + '</select>', op: '<select id="addCondOp" aria-label="比較">' + Object.keys(CORE.OPS).map(function (o) { return opt(o, CORE.OPS[o], '>='); }).join('') + '</select>', value: '<input type="number" class="kc" id="addCondValue" value="1000" aria-label="數值">', act: btn('addCond', '新增條件', '', 'pri') }; } }, empty: '沒有條件，誰都通。' },
+        { id: 'switches', title: '開關與村規', rowId: function (x) { return x.k; },
+          rows: function () { var ru = editingDraft() ? draft().rules : rulesRole().rules; return [{ k: 'bothMustPass', name: '要求兩方都通', v: ru.bothMustPass }, { k: 'mustAcceptVillage', name: '對方一定要接受我的村規', v: ru.mustAcceptVillage }, { k: 'village', name: '村規', v: ru.village }]; },
+          cols: [
+            { k: 'name', h: '項目', v: function (x) { return esc(x.name); } },
+            { k: 'v', h: '設定', v: function (x) {
+              if (x.k === 'village') return editingDraft() ? '<textarea data-ed="village" data-id="v" aria-label="村規">' + esc(x.v) + '</textarea>' : (x.v ? esc(x.v) : dash);
+              return editingDraft() ? '<label class="me"><input type="checkbox" data-ed="switch" data-id="' + x.k + '"' + (x.v ? ' checked' : '') + '> ' + (x.v ? '開' : '關') + '</label>' : (x.v ? tag('open', '開') : tag('todo', '關'));
+            }, wrap: true },
+            { k: 'note', h: '說明', v: function (x) { if (x.k === 'village') { var r = editingDraft() ? null : rulesRole(); return '<span class="muted small">誰寫的誰解釋。平台只記「接受了沒」。' + (r && r !== me() && r.rules.village ? (CORE.accepted(S(), me().serial, r.serial) ? ' 你已接受' : ' ' + btn('acceptVillage', '接受他的村規', ' data-id="' + r.serial + '"')) : '') + '</span>'; } return '<span class="muted small">' + (x.k === 'bothMustPass' ? '關：一方通就能對接' : '開：沒接受就沒有對接的基本資格') + '</span>'; }, wrap: true }
+          ] },
+        { id: 'create', title: editingDraft() ? '創角色' : '版本', rowId: function (x) { return x.k; },
+          rows: function () { if (editingDraft()) { var d = draft(); return [{ k: 'd', name: d.name, daily: d.dailyPoints, days: d.days, contact: d.contact }]; } var r = rulesRole(); return [{ k: 'r', name: r.name, hash: r.rulesHash, life: r.life, st: CORE.status(r, now()) }]; },
+          cols: [
+            { k: 'name', h: '名字', v: function (x) { return editingDraft() ? '<input type="text" data-ed="draftName" data-id="d" value="' + esc(x.name) + '" aria-label="名字">' : esc(x.name); } },
+            { k: 'daily', h: '每天的點', v: function (x) { return editingDraft() ? '<input type="number" class="kc" data-ed="draftDaily" data-id="d" value="' + x.daily + '" min="1" aria-label="每天的點">' : esc(String(rulesRole().dailyPoints)); } },
+            { k: 'days', h: '週期', v: function (x) { return editingDraft() ? '<input type="number" class="kc" data-ed="draftDays" data-id="d" value="' + x.days + '" min="1" aria-label="天數"> 天' : '<span class="small">' + esc(CORE.fmtUs(x.life.startUs).slice(0, 16)) + ' → ' + esc(CORE.fmtUs(x.life.endUs).slice(0, 16)) + '</span>'; } },
+            { k: 'contact', h: '聯絡方式', v: function (x) { return editingDraft() ? '<input type="text" data-ed="draftContact" data-id="d" value="' + esc(x.contact) + '" placeholder="電話、LINE、Email，或不填" aria-label="聯絡方式">' : '<span class="muted small">只給預約成功的人看</span>'; } },
+            { k: 'act', h: '動作', v: function (x) { return editingDraft() ? btn('createRole', '創角色（之後規則鎖住）', '', 'pri') + ' ' + btn('dropDraft', '丟掉草稿') : (rulesRole() === me() && x.st !== 'ended' ? btn('endEarly', '結束並重創', ' data-id="' + rulesRole().serial + '"') : '<span class="small muted">hash ' + esc(x.hash || '') + '</span>'); } }
+          ] }
+      ] },
+
+    resources: { no: 'Ⅳ', name: '資源', desc: '我的點能兌現的具體東西和價格（要幾點）。種類和價格週期內固定；數量可以隨時補。數量不夠而兌現失敗，會自動進入空窗。',
+      toolbar: function () { return '<label class="small">看誰的資源 ' + roleSel('resRole', editingResDraft() ? 'draft' : resRole().serial, true) + '</label>'; },
+      tables: [{ id: 'res', rowId: function (x) { return (editingResDraft() ? 'draft' : resRole().serial) + ':' + x.id; }, rows: function () { return editingResDraft() ? draft().resources : resRole().resources; },
+        cols: [
+          { k: 'name', h: '資源', v: function (x, i) { return editingResDraft() ? inp('resName', i, x.name, ' aria-label="資源"') : esc(x.name); } },
+          { k: 'price', h: '價格', num: true, v: function (x, i) { return editingResDraft() ? '<input type="number" class="kc" data-ed="resPrice" data-id="' + i + '" value="' + x.price + '" min="1" aria-label="價格">' : x.price + ' 點'; } },
+          { k: 'qty', h: '數量', num: true, v: function (x, i) { return editingResDraft() ? '<input type="number" class="kc" data-ed="resQty" data-id="' + i + '" value="' + x.qty + '" min="0" aria-label="數量">' : String(x.qty); } },
+          { k: 'mine', h: '我有多少他的點', num: true, v: function (x) { return editingResDraft() || resRole() === me() ? '' : String(CORE.balance(S(), me().serial, resRole().serial, now())); } },
+          { k: 'act', h: '動作', v: function (x, i) {
+            if (editingResDraft()) return btn('delRes', '刪', ' data-id="' + i + '"');
+            if (resRole() === me()) return btn('restock', '補 1 份', ' data-id="' + x.id + '"');
+            return btn('jump', '去兌現', ' data-s="redeem" data-id="' + resRole().serial + ':"', 'pri');
+          } }
+        ],
+        add: { when: editingResDraft, cells: function () { return { name: '<input type="text" id="addResName" placeholder="例如：陪跑一小時" aria-label="資源">', price: '<input type="number" class="kc" id="addResPrice" value="60" min="1" aria-label="價格">', qty: '<input type="number" class="kc" id="addResQty" value="1" min="0" aria-label="數量">', act: btn('addRes', '新增資源', '', 'pri') }; } }, empty: '沒有資源。' }] },
+
+    world: { no: 'Ⅴ', name: '世界', desc: '功能固定，外觀自由。平台的功能點：規則（屋）、資源（市集）、終點（台）、角色（碑）、點數（帳房，只有自己看得到）、地標。任何物件都能設門，內部最多 3 層。',
+      toolbar: function () {
+        var crumbs = ['<button type="button" class="lk" data-act="worldUp" data-n="0">外部</button>'];
+        UI.worldPath.forEach(function (id, i) { var o = CORE.findObject(worldRole().world, id); crumbs.push('<button type="button" class="lk" data-act="worldUp" data-n="' + (i + 1) + '">' + esc(o ? o.name : id) + '</button>'); });
+        return '<label class="small">哪個世界 ' + roleSel('worldRole', worldRole().serial) + '</label><span class="small">' + crumbs.join(' › ') + (UI.worldPath.length ? '（第 ' + UI.worldPath.length + ' 層內部）' : '') + '</span>';
+      },
+      tables: [{ id: 'objects', rowId: function (o) { return worldRole().serial + ':' + o.id; }, rows: function () { return levelObjects(); },
+        cols: [
+          { k: 'name', h: '名稱', v: function (o) { return inp('objName', o.id, o.name, ' aria-label="名稱"'); } },
+          { k: 'func', h: '功能', v: function (o) { return '<select data-ed="objFunc" data-id="' + o.id + '" aria-label="功能">' + Object.keys(CORE.FUNCS).map(function (k) { return opt(k, CORE.FUNCS[k].label, o.func); }).join('') + '</select>'; } },
+          { k: 'look', h: '外觀', v: function (o) { return '<select data-ed="objLook" data-id="' + o.id + '" aria-label="外觀">' + Object.keys(CORE.LOOKS).map(function (k) { return opt(k, k, o.look); }).join('') + opt('', '（自訂形體）', o.look || '') + '</select>'; } },
+          { k: 'color', h: '顏色', v: function (o) { return '<input type="color" data-ed="objColor" data-id="' + o.id + '" value="' + (o.parts[0] ? o.parts[0].color : '#999999') + '" aria-label="顏色">'; } },
+          { k: 'x', h: 'x', num: true, v: function (o) { return '<input type="number" class="xy" data-ed="objX" data-id="' + o.id + '" value="' + o.pos[0] + '" step="1" aria-label="x">'; } },
+          { k: 'z', h: 'z', num: true, v: function (o) { return '<input type="number" class="xy" data-ed="objZ" data-id="' + o.id + '" value="' + o.pos[1] + '" step="1" aria-label="z">'; } },
+          { k: 'door', h: '門', v: function (o) { if (UI.worldPath.length >= 2) return '<span class="auto">第 3 層不能再開門</span>'; return '<select data-ed="objDoor" data-id="' + o.id + '" aria-label="門">' + opt('', '沒有門', o.door ? o.door.visible : '') + opt('all', '門：所有人', o.door ? o.door.visible : '') + opt('self', '門：只有自己', o.door ? o.door.visible : '') + '</select>' + (o.door ? ' ' + btn('worldIn', '進去編輯（' + o.door.objects.length + '）', ' data-id="' + o.id + '"') : ''); } },
+          { k: 'walk', h: '走法用到', v: function (o) { var r = worldRole(), w = r.world.walk, out = []; w.circles.forEach(function (c, i) { if (c.object === o.id) out.push(r === me() ? L('walk', 'c' + i, '繞圈 ' + c.letter) : '繞圈 ' + c.letter); }); w.moves.forEach(function (m, i) { if (m.from === o.id || m.to === o.id) out.push(r === me() ? L('walk', 'm' + i, '走到 ' + m.digit) : '走到 ' + m.digit); }); return out.length ? out.join('、') : dash; } },
+          { k: 'act', h: '動作', v: function (o) { return btn('delObj', '刪', ' data-id="' + o.id + '"'); } }
+        ],
+        add: { cells: function () { return { name: '<input type="text" id="addObjName" placeholder="新地標的名稱" aria-label="新地標">', func: '<span class="auto">地標（新增後可改）</span>', look: '<select id="addObjLook" aria-label="外觀">' + Object.keys(CORE.LOOKS).map(function (k) { return opt(k, k, '山'); }).join('') + '</select>', color: '<input type="color" id="addObjColor" value="#8A8F96" aria-label="顏色">', x: '<input type="number" class="xy" id="addObjX" value="0" aria-label="x">', z: '<input type="number" class="xy" id="addObjZ" value="0" aria-label="z">', act: btn('addObj', '新增', '', 'pri') }; } } }] },
+
+    walk: { no: 'Ⅵ', name: '走法', desc: '繞某個物件一圈是哪個字母（兩圈就是前一個字母）；從甲走到乙是哪個數字。字母決定後面要走幾個數字：J 一個、I 兩個……沒有字母就直接走 11 個數字。',
+      tables: [
+        { id: 'circles', title: '繞圈', rowId: function (c, i) { return 'c' + i; }, rows: function () { return me().world.walk.circles; },
+          cols: [
+            { k: 'obj', h: '繞這個物件', v: function (c, i) { return '<select data-ed="circleObj" data-id="' + i + '" aria-label="物件">' + objOpts(c.object) + '</select> ' + L('world', me().serial + ':' + c.object, '⇢'); } },
+            { k: 'letter', h: '一圈是', v: function (c, i) { return '<select data-ed="circleLetter" data-id="' + i + '" aria-label="一圈是">' + 'JIHGFEDCBA'.split('').map(function (Lx) { return opt(Lx, Lx, c.letter); }).join('') + '</select>'; } },
+            { k: 'act', h: '動作', v: function (c, i) { return btn('delCircle', '刪', ' data-id="' + i + '"'); } }
+          ],
+          add: { cells: function () { return { obj: '<select id="addCircleObj" aria-label="物件">' + objOpts('') + '</select>', letter: '<select id="addCircleLetter" aria-label="一圈是">' + 'JIHGFEDCBA'.split('').map(function (Lx) { return opt(Lx, Lx, 'J'); }).join('') + '</select>', act: btn('addCircle', '加一條', '', 'pri') }; } }, empty: '還沒有繞圈的走法。' },
+        { id: 'moves', title: '走到', rowId: function (m, i) { return 'm' + i; }, rows: function () { return me().world.walk.moves; },
+          cols: [
+            { k: 'from', h: '從', v: function (m, i) { return '<select data-ed="moveFrom" data-id="' + i + '" aria-label="從">' + objOpts(m.from) + '</select>'; } },
+            { k: 'to', h: '走到', v: function (m, i) { return '<select data-ed="moveTo" data-id="' + i + '" aria-label="走到">' + objOpts(m.to) + '</select>'; } },
+            { k: 'digit', h: '是數字', v: function (m, i) { return '<select data-ed="moveDigit" data-id="' + i + '" aria-label="數字">' + '0123456789'.split('').map(function (d) { return opt(d, d, m.digit); }).join('') + '</select>'; } },
+            { k: 'act', h: '動作', v: function (m, i) { return btn('delMove', '刪', ' data-id="' + i + '"'); } }
+          ],
+          add: { cells: function () { var os = allObjs(me()); return { from: '<select id="addMoveFrom" aria-label="從">' + objOpts(os[0].id) + '</select>', to: '<select id="addMoveTo" aria-label="走到">' + objOpts((os[1] || os[0]).id) + '</select>', digit: '<select id="addMoveDigit" aria-label="數字">' + '0123456789'.split('').map(function (d) { return opt(d, d, '1'); }).join('') + '</select>', act: btn('addMove', '加一條', '', 'pri') }; } }, empty: '還沒有走到的走法。' },
+        { id: 'targets', title: '要去哪裡', rowId: function (r) { return r.serial; }, rows: function () { return S().roles.filter(function (r) { return r !== me() && CORE.status(r, now()) !== 'ended'; }); },
+          cols: [
+            { k: 'code', h: '代號', v: function (r) { return roleLink(r); } },
+            { k: 'route', h: '用我的走法怎麼走', v: function (r) { var rt = CORE.route(me().world.walk, allObjs(me()), CORE.abbrev(r.serial)); return rt.missing ? tag('shelve', rt.missing) : esc(rt.steps.join('，')); }, wrap: true },
+            { k: 'act', h: '動作', v: function (r) { return btn('portal', '直接開傳送門', ' data-id="' + CORE.abbrev(r.serial) + '"'); } }
+          ],
+          add: { cells: function () { return { code: '<input type="text" id="codeIn" placeholder="輸入代號，例如 J2" autocapitalize="characters" aria-label="代號" style="width:9em">', act: btn('portalIn', '開傳送門', '', 'pri') }; } } }
+      ] },
+
+    slots: { no: 'Ⅶ', name: '對接時段', desc: '對接一定在約好的那一微秒。主人在終點公開幾個時段，每個設名額和每次要給多少點（不超過當天剩的）。想來的人要預約，條件通才約得到。名額是容量不是條件，空窗中也能開。',
+      tables: [
+        { id: 'mine', title: '我開的時段', rowId: function (s) { return s.id; }, rows: function () { return me().slots.slice().sort(function (a, b) { return a.atUs - b.atUs; }); },
+          cols: [
+            { k: 'at', h: '那一微秒', v: function (s) { return num(s.atUs); } },
+            { k: 'left', h: '還有', v: function (s) { var d = (s.atUs - now()) / 1e6; return d > 0 ? '<span class="num">' + d.toFixed(0) + ' 秒</span>' : tag('todo', '已過'); } },
+            { k: 'cap', h: '名額', num: true, v: function (s) { return s.bookings.length + '／' + s.capacity; } },
+            { k: 'give', h: '每次給', num: true, v: function (s) { return s.give + ' 點'; } },
+            { k: 'who', h: '預約的人', v: function (s) { return s.bookings.length ? s.bookings.map(function (b) { return L('roles', b, esc(roleName(b))) + (s.docked.indexOf(b) >= 0 ? ' ' + tag('ok', '已對接') : ''); }).join('、') : dash; } },
+            { k: 'act', h: '動作', v: function (s) { return s.atUs > now() && !s.bookings.length ? btn('delSlot', '刪', ' data-id="' + s.id + '"') : ''; } }
+          ],
+          add: { cells: function () { return { at: '<input type="number" class="kc" id="addSlotMin" value="3" min="1" aria-label="幾分鐘後"> 分鐘後', cap: '<input type="number" class="kc" id="addSlotCap" value="1" min="1" aria-label="名額">', give: '<input type="number" class="kc" id="addSlotGive" value="100" min="0" aria-label="每次給幾點">', act: btn('addSlot', '開時段', '', 'pri') }; } }, empty: '還沒開時段。' },
+        { id: 'booked', title: '我預約的', rowId: function (x) { return x.s.id; }, rows: function () { var out = []; S().roles.forEach(function (r) { if (r === me()) return; r.slots.forEach(function (s) { if (s.bookings.indexOf(me().serial) >= 0) out.push({ r: r, s: s }); }); }); return out.sort(function (a, b) { return a.s.atUs - b.s.atUs; }); },
+          cols: [
+            { k: 'who', h: '主人', v: function (x) { return roleLink(x.r); } },
+            { k: 'at', h: '那一微秒', v: function (x) { return num(x.s.atUs); } },
+            { k: 'left', h: '還有', v: function (x) { var d = (x.s.atUs - now()) / 1e6; return x.s.docked.indexOf(me().serial) >= 0 ? tag('ok', '已對接') : d > 0 ? '<span class="num">' + d.toFixed(0) + ' 秒</span>' : tag('shelve', '錯過'); } },
+            { k: 'give', h: '主人每次給', num: true, v: function (x) { return x.s.give + ' 點'; } },
+            { k: 'contact', h: '聯絡方式', v: function (x) { return CORE.contactVisible(S(), x.r, me().serial, now()) ? (x.r.contact ? esc(x.r.contact) : '<span class="muted">（沒填）</span>') : dash; } },
+            { k: 'act', h: '動作', v: function (x) { return btn('portal', '傳送過去', ' data-id="' + CORE.abbrev(x.r.serial) + '"', 'pri') + (x.s.atUs > now() && x.s.docked.indexOf(me().serial) < 0 ? ' ' + btn('cancelBook', '取消', ' data-id="' + x.s.id + '"') : ''); } }
+          ], empty: '還沒預約任何時段。到查詢頁找人。' },
+        { id: 'open', title: '可以預約的時段', rowId: function (x) { return 'o' + x.s.id; }, rows: function () { var out = []; S().roles.forEach(function (r) { if (r === me() || CORE.status(r, now()) === 'ended') return; r.slots.forEach(function (s) { if (s.atUs > now() && s.bookings.indexOf(me().serial) < 0 && s.bookings.length < s.capacity) out.push({ r: r, s: s }); }); }); return out.sort(function (a, b) { return a.s.atUs - b.s.atUs; }); },
+          cols: [
+            { k: 'who', h: '主人', v: function (x) { return roleLink(x.r) + ' ' + stTag(x.r); } },
+            { k: 'at', h: '那一微秒', v: function (x) { return num(x.s.atUs); } },
+            { k: 'cap', h: '名額', v: function (x) { return x.s.bookings.length + '／' + x.s.capacity; } },
+            { k: 'elig', h: '條件', v: function (x) { var e = CORE.eligible(S(), x.r, me(), now()); return e.ok ? tag('ok', e.how) : tag('shelve', e.reason); }, wrap: true },
+            { k: 'act', h: '動作', v: function (x) { return CORE.eligible(S(), x.r, me(), now()).ok ? btn('book', '預約', ' data-id="' + x.s.id + '"', 'pri') : btn('jump', '看規則', ' data-s="rules" data-id="' + x.r.serial + ':"'); } }
+          ], empty: '目前沒有可以預約的時段。' }
+      ] },
+
+    dockings: { no: 'Ⅷ', name: '對接紀錄', desc: '雙方角色、時間、各給了多少點。角色就是版本，紀錄本身就說明雙方接受的是哪一套規則。',
+      tables: [{ id: 'dk', rowId: function (d) { return d.id; }, rows: function () { return S().dockings.slice().reverse(); }, mine: function (d) { return d.a === me().serial || d.b === me().serial; },
+        cols: [
+          { k: 'at', h: '時間', v: function (d) { return num(d.atUs); } },
+          { k: 'a', h: '主人', v: function (d) { return L('roles', d.a, esc(roleName(d.a))); } },
+          { k: 'b', h: '來的人', v: function (d) { return L('roles', d.b, esc(roleName(d.b))); } },
+          { k: 'ga', h: '主人給', num: true, v: function (d) { return String(d.gaveA); } },
+          { k: 'gb', h: '來的人給', num: true, v: function (d) { return String(d.gaveB); } },
+          { k: 'how', h: '怎麼通的', v: function (d) { return '<span class="small">' + esc(d.how || '') + '</span>'; }, wrap: true },
+          { k: 'slot', h: '時段', v: function (d) { return L('slots', d.slot, '⇢'); } }
+        ], empty: '還沒有對接。' }] },
+
+    points: { no: 'Ⅸ', name: '點數', desc: '誰手上有誰的點、多少、從哪一次對接拿到的。A 點對 A 自己沒用；發點的人結束，他的點作廢；空窗中暫停兌現。',
+      toolbar: function () { return tag('open', '我今天還能給 ' + CORE.remainingToday(S(), me(), now()) + ' 點（每天 ' + me().dailyPoints + '，隔天歸零）'); },
+      tables: [
+        { id: 'hold', title: '我手上的別人的點', rowId: function (g) { return g.issuer.serial; }, rows: function () { return CORE.holdings(S(), me().serial, now()); },
+          cols: [
+            { k: 'who', h: '發點的人', v: function (g) { return roleLink(g.issuer); } },
+            { k: 'n', h: '多少', num: true, v: function (g) { return String(g.amount); } },
+            { k: 'st', h: '狀態', v: function (g) { return stTag(g.issuer); } },
+            { k: 'end', h: '到期', v: function (g) { return '<span class="small num">' + esc(CORE.fmtUs(g.endUs).slice(0, 16)) + '</span>'; } },
+            { k: 'can', h: '能兌現嗎', v: function (g) { return g.status === 'active' ? tag('ok', '可以') : g.status === 'vacancy' ? tag('open', '暫停') : tag('shelve', '作廢'); } },
+            { k: 'act', h: '動作', v: function (g) { return g.status === 'active' ? btn('jump', '去兌現', ' data-s="redeem" data-id="' + g.issuer.serial + ':"', 'pri') : ''; } }
+          ], empty: '手上沒有別人的點。' },
+        { id: 'issued', title: '我發出去、還在別人手上的', rowId: function (x) { return x.who; }, rows: function () { var h = CORE.holdersOf(S(), me().serial, now()); return Object.keys(h).map(function (k) { return { who: k, n: h[k] }; }); },
+          cols: [{ k: 'who', h: '誰', v: function (x) { return L('roles', x.who, esc(roleName(x.who))); } }, { k: 'n', h: '多少', num: true, v: function (x) { return String(x.n); } }], empty: '沒有人拿著我的點。' },
+        { id: 'all', title: '每一筆', rowId: function (p) { return p.id; }, rows: function () { return S().points.filter(function (p) { return p.holder === me().serial || p.issuer === me().serial; }).slice().reverse(); },
+          cols: [
+            { k: 'at', h: '時間', v: function (p) { return num(p.atUs); } },
+            { k: 'issuer', h: '發點的人', v: function (p) { return L('roles', p.issuer, esc(roleName(p.issuer))); } },
+            { k: 'holder', h: '拿到的人', v: function (p) { return L('roles', p.holder, esc(roleName(p.holder))); } },
+            { k: 'n', h: '數量', num: true, v: function (p) { return String(p.amount); } },
+            { k: 'spent', h: '用掉', num: true, v: function (p) { return String(p.spent); } },
+            { k: 'dock', h: '對接', v: function (p) { return L('dockings', p.docking, '⇢'); } },
+            { k: 'sig', h: '簽章', v: function (p) { return p.sig ? esc(p.sig) : '<span class="muted small">（多人版才簽）</span>'; } }
+          ], empty: '還沒有點數。' }
+      ] },
+
+    redeem: { no: 'Ⅹ', name: '兌現', desc: '拿著 A 點，照 A 的資源表向 A 換東西。A 在空窗期暫停；A 的週期結束 A 點作廢。A 付不出 = 兌現失敗，A 自動進入空窗，留下公開紀錄。',
+      toolbar: function () { var r = redeemIssuer(); return '<label class="small">向誰兌現 ' + roleSel('redeemIssuer', r ? r.serial : '') + '</label>' + (r ? '<span class="small">我有 <b>' + CORE.balance(S(), me().serial, r.serial, now()) + '</b> ' + esc(r.name) + '點 ' + stTag(r) + '</span>' : ''); },
+      tables: [
+        { id: 'offer', title: '資源表', rowId: function (x) { return 'rd' + x.id; }, rows: function () { var r = redeemIssuer(); return r ? r.resources : []; },
+          cols: [
+            { k: 'name', h: '資源', v: function (x) { return esc(x.name); } },
+            { k: 'price', h: '價格', num: true, v: function (x) { return x.price + ' 點'; } },
+            { k: 'qty', h: '還有', num: true, v: function (x) { return x.qty ? String(x.qty) : tag('shelve', '0'); } },
+            { k: 'can', h: '換得到嗎', v: function (x) { var r = redeemIssuer(), bal = CORE.balance(S(), me().serial, r.serial, now()), st = CORE.status(r, now()); return st !== 'active' ? tag('open', STATUS[st] + '，暫停') : bal < x.price ? tag('todo', '點不夠（差 ' + (x.price - bal) + '）') : x.qty < 1 ? tag('shelve', '數量 0：換了會兌現失敗') : tag('ok', '可以'); } },
+            { k: 'act', h: '動作', v: function (x) { var r = redeemIssuer(); return r === me() ? '' : btn('redeem', '兌現', ' data-id="' + x.id + '"', 'pri'); } }
+          ], empty: '他沒有列資源。' },
+        { id: 'records', title: '兌現紀錄（公開）', rowId: function (x) { return x.id; }, rows: function () { return S().redeems.slice().reverse(); }, mine: function (x) { return x.holder === me().serial || x.issuer === me().serial; },
+          cols: [
+            { k: 'at', h: '時間', v: function (x) { return num(x.atUs); } },
+            { k: 'holder', h: '拿點的人', v: function (x) { return L('roles', x.holder, esc(roleName(x.holder))); } },
+            { k: 'issuer', h: '發點的人', v: function (x) { return L('roles', x.issuer, esc(roleName(x.issuer))); } },
+            { k: 'name', h: '資源', v: function (x) { return esc(x.name); } },
+            { k: 'cost', h: '花了', num: true, v: function (x) { return String(x.cost); } },
+            { k: 'ok', h: '結果', v: function (x) { return x.ok ? tag('ok', '換到') : tag('shelve', '兌現失敗，主人進入空窗'); } }
+          ], empty: '還沒有兌現。' }
+      ] }
+  };
+  function queryCols() {
+    return [
+      { k: 'who', h: '角色', v: function (r) { return roleLink(r) + ' ' + stTag(r); } },
+      { k: 'daily', h: '每天的點', num: true, v: function (r) { return String(r.dailyPoints); } },
+      { k: 'days', h: '剩幾天', num: true, v: function (r) { return String(Math.floor(CORE.daysLeft(r, now()))); } },
+      { k: 'slot', h: '最近時段', v: function (r) { var s = CORE.nextSlot(r, now()); return s ? L('slots', 'o' + s.id, esc(CORE.fmtUs(s.atUs).slice(5, 19)) + '（' + s.bookings.length + '／' + s.capacity + '）') : dash; } },
+      { k: 'dock', h: '對接過', num: true, v: function (r) { return String(CORE.dockCount(S(), r.serial)); } },
+      { k: 'elig', h: '能對接嗎', v: function (r) { var e = CORE.eligible(S(), r, me(), now()); return e.ok ? tag('ok', e.how) : tag('shelve', e.reason); }, wrap: true },
+      { k: 'act', h: '動作', v: function (r) { var s = CORE.nextSlot(r, now()), e = CORE.eligible(S(), r, me(), now()); var free = r.slots.filter(function (x) { return x.atUs > now() && x.bookings.length < x.capacity && x.bookings.indexOf(me().serial) < 0; }).sort(function (a, b) { return a.atUs - b.atUs; })[0]; return btn('jump', '看規則', ' data-s="rules" data-id="' + r.serial + ':"') + ' ' + btn('portal', '傳送過去', ' data-id="' + CORE.abbrev(r.serial) + '"') + (e.ok && free ? ' ' + btn('book', '預約', ' data-id="' + free.id + '"', 'pri') : ''); } }
+    ];
+  }
+  function redeemIssuer() { return roleOf(UI.redeemIssuer) || CORE.holdings(S(), me().serial, now()).map(function (g) { return g.issuer; })[0] || S().roles.find(function (r) { return r !== me(); }) || null; }
+
+  /* ---------- 通用表格（沿用 v5） ---------- */
+  function renderTable(sk, T) {
+    var cols = T.cols, rows = T.rows();
+    var letters = '<tr class="letters"><th class="rn"></th>' + cols.map(function (c, i) { return '<th class="' + (i === 0 ? 'fz' : '') + '">' + colLetter(i) + '</th>'; }).join('') + '</tr>';
+    var names = '<tr class="names"><th class="rn"><span class="small">列</span></th>' + cols.map(function (c, i) { return '<th class="' + (i === 0 ? 'fz' : '') + (c.num ? ' n' : '') + '">' + esc(c.h) + '</th>'; }).join('') + '</tr>';
+    var body = rows.map(function (r, i) {
+      var id = T.rowId(r, i);
+      var tds = cols.map(function (c, ci) { return '<td class="' + (ci === 0 ? 'fz' : '') + (c.num ? ' n' : '') + (c.wrap ? ' wrap' : '') + '" data-c="' + ci + '">' + c.v(r, i) + '</td>'; }).join('');
+      var cls = (T.mine && T.mine(r) ? 'mine ' : '') + (T.cls ? T.cls(r) : '');
+      return '<tr data-row data-id="' + esc(id) + '" data-i="' + (i + 1) + '" class="' + cls + '"><td class="rn">' + (i + 1) + '</td>' + tds + '</tr>';
+    }).join('');
+    if (T.add && (!T.add.when || T.add.when())) {
+      var cells = T.add.cells();
+      body += '<tr class="addrow" data-i="＊"><td class="rn"><span aria-hidden="true">＊</span></td>' + cols.map(function (c, ci) { return '<td class="' + (ci === 0 ? 'fz' : '') + (c.wrap ? ' wrap' : '') + '" data-c="' + ci + '">' + (cells[c.k] != null ? cells[c.k] : '<span class="auto">自動</span>') + '</td>'; }).join('') + '</tr>';
+    }
+    var empty = !rows.length && T.empty ? '<div class="empty">' + esc(T.empty) + '</div>' : '';
+    return (T.title ? '<h3 class="tt">' + esc(T.title) + '</h3>' : '') + '<div class="wb"><table class="ws" data-sheet="' + sk + '" data-table="' + T.id + '"><thead>' + letters + names + '</thead><tbody>' + body + '</tbody></table>' + empty + '</div>' + (T.foot ? T.foot() : '');
+  }
+  function render() {
+    if (!$('view-sheet') || $('view-sheet').hidden) { renderTabs(); return; }
+    var sk = UI.sheet, Sh = SHEETS[sk];
+    var scroll = $('view-sheet').scrollTop;
+    var h = '<div class="sheet-head">' + (Sh.no ? '<span class="no">表 ' + Sh.no + '</span>' : '') + '<h2>' + esc(Sh.name) + '</h2></div><p class="sheet-desc">' + esc(Sh.desc) + '</p>';
+    if (Sh.toolbar) h += '<div class="toolbar">' + Sh.toolbar() + '</div>';
+    h += Sh.tables.map(function (T) { return renderTable(sk, T); }).join('');
+    h += '<div class="msg" id="sheetMsg" hidden></div>';
+    var nx = nextSheet();
+    h += '<div class="nextbar">' + btn('nextSheet', '下一步 → ' + SHEETS[nx.sheet].name, '', 'pri') + (sk === 'next' ? ' ' + btn('resetAll', '全部還原成預設') : '') + '</div>';
+    $('main').innerHTML = h;
+    renderTabs();
+    $('nameBox').textContent = Sh.no || Sh.name; $('nameBox').title = Sh.name; $('fxVal').textContent = '';
+    $('backBtn').disabled = !UI.hist.length;
+    if (UI.focus) focusRow(); else $('view-sheet').scrollTop = render.last === sk ? scroll : 0;
+    render.last = sk;
+  }
+  function nextSheet() {
+    if (UI.sheet === 'next') { var n = steps().next; return n ? { sheet: n.sheet, id: n.row } : { sheet: 'query', id: null }; }
+    var i = ORDER.indexOf(UI.sheet);
+    return { sheet: ORDER[(i + 1) % ORDER.length], id: null };
+  }
+  function renderTabs() {
+    var world = APP.isWorld();
+    $('tabs').innerHTML = '<a data-act="world"' + (world ? ' aria-current="page"' : '') + '><b>裡</b>裡世界</a><span class="sep" aria-hidden="true"></span>' +
+      ORDER.map(function (k) { var Sh = SHEETS[k]; return '<a data-act="go" data-s="' + k + '"' + (!world && UI.sheet === k ? ' aria-current="page"' : '') + '>' + (Sh.no ? '<b>' + Sh.no + '</b>' : '') + esc(Sh.name) + '</a>'; }).join('');
+    var cur = $('tabs').querySelector('[aria-current]'); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  function focusRow() {
+    var id = UI.focus; UI.focus = null;
+    var tr = document.querySelector('.ws tr[data-row][data-id="' + CSS.escape(id) + '"]');
+    if (!tr) { sheetMsg('你目前看不到這一列'); return; }
+    tr.scrollIntoView({ block: 'center' });
+    tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash');
+    var td = tr.querySelector('td[data-c="0"]'); if (td) selectCell(td);
+  }
+  function selectCell(td) {
+    document.querySelectorAll('.ws td.sel').forEach(function (x) { x.classList.remove('sel'); });
+    td.classList.add('sel');
+    var table = td.closest('table'), sk = table.dataset.sheet, Sh = SHEETS[sk], tr = td.parentElement, ci = +td.dataset.c;
+    var th = table.querySelectorAll('thead tr.names th')[ci + 1];
+    $('nameBox').textContent = (Sh.no || Sh.name) + '!' + colLetter(ci) + tr.dataset.i;
+    $('nameBox').title = Sh.name + '．' + (th ? th.textContent : '') + '．第 ' + tr.dataset.i + ' 列';
+    var v = stripTags(td.innerHTML); $('fxVal').textContent = v; $('fxVal').title = v;
+    UI.sel = { sk: sk, id: tr.dataset.id, ci: ci };
+  }
+  function sheetMsg(t) { var el = $('sheetMsg'); if (!el) { APP.msg(t); return; } el.textContent = t; el.hidden = false; setTimeout(function () { el.hidden = true; }, 3600); }
+
+  /* ---------- 跳轉與返回 ---------- */
+  function navigate(sheet, id) {
+    if (!SHEETS[sheet]) return;
+    UI.hist.push({ sheet: UI.sheet }); if (UI.hist.length > 60) UI.hist.shift();
+    UI.sheet = sheet; UI.focus = id || null;
+    if (id && id.indexOf(':') > 0) {
+      var who = id.split(':')[0], rest = id.split(':')[1];
+      if (sheet === 'world') { UI.worldRole = who; var hit = rest && CORE.allObjects(worldRole().world).find(function (x) { return x.o.id === rest; }); UI.worldPath = hit ? hit.path : []; }
+      if (sheet === 'rules') { UI.rulesRole = who; UI.focus = null; }
+      if (sheet === 'resources') { UI.resRole = who; UI.focus = rest ? id : null; }
+      if (sheet === 'redeem') { UI.redeemIssuer = who; UI.focus = null; }
+    }
+    if (!APP.isWorld()) render(); else APP.showTab('sheet');
+  }
+  function back() { var h = UI.hist.pop(); if (!h) return; UI.sheet = h.sheet; UI.focus = null; render(); }
+
+  /* ---------- 動作 ---------- */
+  // 規則函式擋下時也可能已經改了資料（例如兌現失敗自動空窗），所以失敗也存檔、重畫
+  function run(fn, ok) { var msg0 = ok, r = null; try { r = fn(); } catch (e) { msg0 = e.message; r = null; } APP.save(); render(); if (msg0) sheetMsg(msg0); return r; }
+  var v = function (id) { var el = $(id); return el ? el.value : ''; };
+  var ACT = {
+    world: function () { APP.showTab('world'); },
+    go: function (b) { navigate(b.dataset.s, null); },
+    jump: function (b) { navigate(b.dataset.s, b.dataset.id || null); },
+    nextSheet: function () { var n = nextSheet(); navigate(n.sheet, n.id); },
+    resetAll: function () { APP.resetAll(); },
+    search: function () { UI.kw = v('kwIn'); render(); },
+    portal: function (b) { APP.openPortal(b.dataset.id); },
+    portalIn: function () { var c = v('codeIn').trim().toUpperCase(); if (c) APP.openPortal(c); },
+    // 角色
+    newDraft: function () { run(function () { var name = v('addRoleName').trim(); if (!name) throw new Error('先寫名字'); newDraft({ name: name, dailyPoints: Math.floor(+v('addRoleDaily')) || 1800, days: Math.floor(+v('addRoleDays')) || 30 }); UI.rulesRole = 'draft'; UI.resRole = 'draft'; navigate('rules', 'draft:'); }); },
+    dropDraft: function () { S().draft = null; UI.rulesRole = null; UI.resRole = null; run(function () {}); },
+    createRole: function () { run(function () {
+      var d = draft(); if (!d) throw new Error('沒有草稿');
+      var t = now();
+      var r = CORE.createRole(S(), { name: d.name, dailyPoints: d.dailyPoints, life: { startUs: t, endUs: t + d.days * CORE.DAY_US }, rules: d.rules, resources: d.resources, contact: d.contact, prev: d.prev }, t);
+      S().draft = null; UI.rulesRole = r.serial; UI.resRole = r.serial;
+      APP.becomeMe(roleIdx(r)); UI.focus = r.serial; navigate('roles', r.serial);
+    }, '創好了，規則表從現在起鎖住'); },
+    endEarly: function (b) { run(function () {
+      var r = roleOf(b.dataset.id);
+      var hs = CORE.holdersOf(S(), r.serial, now());
+      CORE.endEarly(S(), r.serial, now(), Object.keys(hs));   // 單機：持有人都在本機，視為同意
+      newDraft({ name: r.name, dailyPoints: r.dailyPoints, days: 30, prev: r.serial, contact: r.contact, rules: JSON.parse(JSON.stringify(r.rules)), resources: r.resources.map(function (x) { return { name: x.name, price: x.price, qty: x.qty }; }) });
+      UI.rulesRole = 'draft'; UI.resRole = 'draft'; navigate('rules', 'draft:');
+    }, '角色結束了，草稿帶著原本的規則，改好再創'); },
+    recreate: function (b) { run(function () { var r = roleOf(b.dataset.id); newDraft({ name: r.name, dailyPoints: r.dailyPoints, days: 30, prev: r.serial, contact: r.contact, rules: JSON.parse(JSON.stringify(r.rules)), resources: r.resources.map(function (x) { return { name: x.name, price: x.price, qty: x.qty }; }) }); UI.rulesRole = 'draft'; UI.resRole = 'draft'; navigate('rules', 'draft:'); }); },
+    vacIn: function (b) { run(function () { CORE.enterVacancy(S(), b.dataset.id, now()); }, '進入空窗：每天的點停發、別人手上的點暫停兌現'); },
+    vacOut: function (b) { run(function () { CORE.leaveVacancy(S(), b.dataset.id, now()); }, '離開空窗了'); },
+    acceptVillage: function (b) { run(function () { CORE.accept(S(), me().serial, b.dataset.id); }, '接受了'); },
+    // 規則草稿
+    addUse: function () { run(function () { var t = v('addUse').trim(); if (!t) throw new Error('先寫內容'); draft().rules.uses.push(t); }); },
+    delUse: function (b) { run(function () { draft().rules.uses.splice(+b.dataset.id, 1); }); },
+    addCond: function () { run(function () { var f = v('addCondField'), fd = CORE.COND_FIELDS[f]; draft().rules.conditions.push(fd.enum ? { field: f, op: '=', value: Object.keys(fd.enum)[0] } : { field: f, op: v('addCondOp'), value: +v('addCondValue') || 0 }); }); },
+    delCond: function (b) { run(function () { draft().rules.conditions.splice(+b.dataset.id, 1); }); },
+    addRes: function () { run(function () { var n = v('addResName').trim(); if (!n) throw new Error('先寫資源名稱'); draft().resources.push({ name: n, price: Math.floor(+v('addResPrice')) || 1, qty: Math.floor(+v('addResQty')) || 0 }); }); },
+    delRes: function (b) { run(function () { draft().resources.splice(+b.dataset.id, 1); }); },
+    restock: function (b) { run(function () { CORE.restock(S(), me().serial, b.dataset.id, 1); }, '補了 1 份'); },
+    // 世界、走法
+    worldIn: function (b) { UI.worldPath.push(b.dataset.id); render(); },
+    worldUp: function (b) { UI.worldPath = UI.worldPath.slice(0, +b.dataset.n); render(); },
+    addObj: function () { run(function () {
+      var r = worldRole(), name = v('addObjName').trim(); if (!name) throw new Error('先寫名稱');
+      var id = 'o' + Date.now().toString(36);
+      levelObjects().push({ id: id, name: name, func: 'none', pos: [+v('addObjX') || 0, +v('addObjZ') || 0], look: v('addObjLook') || '山', parts: CORE.look(v('addObjLook') || '山', v('addObjColor') || '#8A8F96') });
+      APP.worldRefresh(r); UI.focus = r.serial + ':' + id;
+    }, '新增了地標'); },
+    delObj: function (b) { run(function () {
+      var r = worldRole(), id = b.dataset.id, lv = levelObjects();
+      if (!UI.worldPath.length && lv.length <= 1) throw new Error('至少留一個物件');
+      var gone = {}, o0 = lv.find(function (o) { return o.id === id; });
+      if (o0) CORE.allObjects({ objects: [o0] }).forEach(function (x) { gone[x.o.id] = true; });
+      lv.splice(lv.indexOf(o0), 1);
+      r.world.walk.circles = r.world.walk.circles.filter(function (c) { return !gone[c.object]; });
+      r.world.walk.moves = r.world.walk.moves.filter(function (m) { return !gone[m.from] && !gone[m.to]; });
+      APP.worldRefresh(r); if (r === me()) APP.walkChanged();
+    }, '刪掉了，用到它的走法也一起刪'); },
+    addCircle: function () { run(function () { me().world.walk.circles.push({ object: v('addCircleObj'), letter: v('addCircleLetter') || 'J' }); APP.walkChanged(); }); },
+    delCircle: function (b) { run(function () { me().world.walk.circles.splice(+b.dataset.id, 1); APP.walkChanged(); }); },
+    addMove: function () { run(function () { if (v('addMoveFrom') === v('addMoveTo')) throw new Error('從和走到要不同'); me().world.walk.moves.push({ from: v('addMoveFrom'), to: v('addMoveTo'), digit: v('addMoveDigit') || '1' }); APP.walkChanged(); }); },
+    delMove: function (b) { run(function () { me().world.walk.moves.splice(+b.dataset.id, 1); APP.walkChanged(); }); },
+    // 時段、預約、兌現
+    addSlot: function () { run(function () { var min = +v('addSlotMin'); if (!(min >= 1)) throw new Error('幾分鐘後要至少 1'); var s = CORE.addSlot(S(), me().serial, now() + min * 60e6 + Math.floor(Math.random() * 1000), v('addSlotCap'), v('addSlotGive'), now()); UI.focus = s.id; }, '開了時段'); },
+    delSlot: function (b) { run(function () { me().slots = me().slots.filter(function (s) { return s.id !== b.dataset.id; }); }); },
+    book: function (b) { run(function () { var s = CORE.book(S(), me().serial, b.dataset.id, now()); navigate('slots', s.id); }, '預約好了。那一微秒站在他的終點上就對接。'); },
+    cancelBook: function (b) { run(function () { CORE.cancelBooking(S(), me().serial, b.dataset.id); }, '取消了'); },
+    redeem: function (b) { run(function () { var r = redeemIssuer(); var rec = CORE.redeem(S(), me().serial, r.serial, b.dataset.id, now()); UI.focus = rec.id; }, '換到了'); }
+  };
+
+  /* ---------- 編輯 ---------- */
+  var EDIT = {
+    me: function (id) { APP.becomeMe(roleIdx(roleOf(id))); },
+    rulesRole: function (id, val) { UI.rulesRole = val; },
+    resRole: function (id, val) { UI.resRole = val; },
+    worldRole: function (id, val) { UI.worldRole = val; UI.worldPath = []; },
+    redeemIssuer: function (id, val) { UI.redeemIssuer = val; },
+    useText: function (id, val) { draft().rules.uses[+id] = val; },
+    condField: function (id, val) { var c = draft().rules.conditions[+id], fd = CORE.COND_FIELDS[val]; c.field = val; if (fd.enum) { c.op = '='; c.value = Object.keys(fd.enum)[0]; } else if (typeof c.value !== 'number') { c.value = 0; c.op = '>='; } },
+    condOp: function (id, val) { draft().rules.conditions[+id].op = val; },
+    condValue: function (id, val) { var c = draft().rules.conditions[+id]; c.value = CORE.COND_FIELDS[c.field].enum ? val : +val; },
+    switch: function (id, val, el) { draft().rules[id] = !!el.checked; },
+    village: function (id, val) { draft().rules.village = val; },
+    draftName: function (id, val) { draft().name = val; },
+    draftDaily: function (id, val) { draft().dailyPoints = Math.floor(+val) || 1; },
+    draftDays: function (id, val) { draft().days = Math.floor(+val) || 1; },
+    draftContact: function (id, val) { draft().contact = val; },
+    resName: function (id, val) { draft().resources[+id].name = val; },
+    resPrice: function (id, val) { draft().resources[+id].price = Math.floor(+val) || 1; },
+    resQty: function (id, val) { draft().resources[+id].qty = Math.floor(+val) || 0; },
+    objName: function (id, val) { objEdit(id, function (o) { o.name = val; }); },
+    objFunc: function (id, val) { objEdit(id, function (o) { o.func = val; }); },
+    objX: function (id, val) { objEdit(id, function (o) { o.pos[0] = +val || 0; }); },
+    objZ: function (id, val) { objEdit(id, function (o) { o.pos[1] = +val || 0; }); },
+    objLook: function (id, val) { objEdit(id, function (o) { if (val) { o.look = val; o.parts = CORE.look(val, o.parts[0] ? o.parts[0].color : '#999999'); } else o.look = ''; }); },
+    objColor: function (id, val) { objEdit(id, function (o) { if (o.look) o.parts = CORE.look(o.look, val); else if (o.parts[0]) o.parts[0].color = val; }); },
+    objDoor: function (id, val) { objEdit(id, function (o) { if (!val) delete o.door; else if (o.door) o.door.visible = val; else o.door = { visible: val, start: [0, 4], objects: [] }; }); },
+    circleObj: function (id, val) { me().world.walk.circles[+id].object = val; APP.walkChanged(); },
+    circleLetter: function (id, val) { me().world.walk.circles[+id].letter = val; APP.walkChanged(); },
+    moveFrom: function (id, val) { me().world.walk.moves[+id].from = val; APP.walkChanged(); },
+    moveTo: function (id, val) { me().world.walk.moves[+id].to = val; APP.walkChanged(); },
+    moveDigit: function (id, val) { me().world.walk.moves[+id].digit = val; APP.walkChanged(); }
+  };
+  function objEdit(id, fn) { var r = worldRole(), o = levelObjects().find(function (x) { return x.id === id; }); if (!o) return; fn(o); APP.worldRefresh(r, UI.worldPath.length ? null : o.id); }
+
+  var busy = false;
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]');
+    if (b && ACT[b.dataset.act]) { if (busy) return; busy = true; try { ACT[b.dataset.act](b); } finally { busy = false; } return; }
+    var td = e.target.closest('.ws[data-sheet] tbody td'); if (!td || td.classList.contains('rn') || !td.parentElement.hasAttribute('data-row')) return;
+    selectCell(td);
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t.dataset || !t.dataset.ed || !EDIT[t.dataset.ed] || busy) return;
+    busy = true;
+    try {
+      try { EDIT[t.dataset.ed](t.dataset.id, t.value, t); APP.save(); }
+      catch (err) { sheetMsg(err.message); return; }
+      if (t.dataset.ed === 'me') return;
+      render();
+    } finally { busy = false; }
+  });
+  $('backBtn').addEventListener('click', back);
+  renderTabs();
+  return { render: render, renderTabs: renderTabs, navigate: navigate, back: back, steps: steps, ui: UI, ORDER: ORDER, SHEETS: SHEETS };
+})();
+
+</script>
+</body></html>
