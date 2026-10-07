@@ -17,6 +17,11 @@ var J1 = '00000000001', J2 = '00000000002';
     if (k !== 'help') assert((await H.ev("document.querySelectorAll('#smain th').length")) > 0 && (await H.ev("document.querySelectorAll('#smain .rn').length")) > 0 && (await H.ev("document.querySelectorAll('#smain .fx, #smain .colletter').length")) === 0, '有欄名、列號，沒有欄字母和 fx');
   }
   await H.sheet('roles'); await pg.screenshot({ path: OUT + '/v7_sheet_1_roles.png' });
+  // 360px 寬：標題列的 ←、標題、「看誰」、「表 ⇄ 裡」互不重疊
+  await H.sheet('uses');
+  var ov = await H.ev("(function(){var els=['#sback','#stitle','#swho select','#swapToGame'].map(function(q){var r=document.querySelector(q).getBoundingClientRect();return {q:q,l:r.left,r:r.right,t:r.top,b:r.bottom};});var bad=[];for(var i=0;i<els.length;i++)for(var j=i+1;j<els.length;j++){var a=els[i],b=els[j];if(a.l<b.r-1&&b.l<a.r-1&&a.t<b.b-1&&b.t<a.b-1)bad.push(a.q+'×'+b.q);}return {bad:bad,w:innerWidth,whoRight:els[2].r};})()");
+  assert(ov.w === 360 && ov.bad.length === 0 && ov.whoRight <= 360, '360px 寬標題列元素不重疊（看誰、切換鈕）' + (ov.bad.length ? '：' + ov.bad.join('、') : ''));
+  await pg.screenshot({ path: OUT + '/v7_sheet_1b_uses.png' });
   assert((await H.ev("document.querySelectorAll('#stabs a').length")) === 20 && (await H.ev("getComputedStyle(document.querySelector('#stabs a.g-find')).borderTopColor")) !== (await H.ev("getComputedStyle(document.querySelector('#stabs a.g-mine')).borderTopColor")), '分頁列用顏色分組');
 
   // 連結跳轉與返回

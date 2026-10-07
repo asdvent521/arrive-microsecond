@@ -55,7 +55,8 @@ var WORLD = (function () {
     ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshLambertMaterial({ color: 0xcfd8df }));
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
-    var grid = new THREE.GridHelper(120, 60, 0xb9c4cd, 0xc4ced6);
+    var grid = new THREE.GridHelper(120, 30, 0xd6dde4, 0xdde3e9);   // 格線淡一點、間距 4 單位
+    grid.material.transparent = true; grid.material.opacity = 0.55;
     grid.position.y = 0.01;
     scene.add(grid);
 

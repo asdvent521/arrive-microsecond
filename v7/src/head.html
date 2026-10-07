@@ -52,16 +52,19 @@ button,input,select,textarea{font:inherit;color:inherit}
 @keyframes whiteflash{0%{opacity:1}100%{opacity:0}}
 .hud{position:absolute;inset:0;pointer-events:none}
 .hud>*{pointer-events:auto}
-.plate{position:absolute;left:12px;top:8px;background:var(--hud);border:1px solid var(--line);border-radius:var(--r-m);padding:6px 10px;min-width:150px;backdrop-filter:blur(6px)}
+.hudTop{position:absolute;left:12px;right:12px;top:8px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;pointer-events:none}
+.hudTop>*{pointer-events:auto}
+.plate{position:relative;max-width:calc(100% - 100px);background:var(--hud);border:1px solid var(--line);border-radius:var(--r-m);padding:6px 10px;min-width:150px;backdrop-filter:blur(6px)}
 .plate .who{font-family:var(--serif);font-weight:700;font-size:.98rem;white-space:nowrap}
 .plate .who small{font-weight:400;color:var(--muted);margin-left:4px}
 .energy{height:10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;margin:4px 0 2px}
 .energy i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--brass));transition:width .4s}
 .plate .en{font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
-.code{font-family:var(--serif);font-size:1.3rem;letter-spacing:.14em;color:var(--brass);line-height:1.2;min-height:1.2em}
+.code{font-family:var(--serif);font-size:1.3rem;letter-spacing:.14em;color:var(--brass);line-height:1.2}
+.code:empty{display:none}
 .plate .row{display:flex;gap:6px;margin-top:4px}
-.task{position:absolute;left:50%;top:8px;transform:translateX(-50%);max-width:calc(100% - 330px);background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;backdrop-filter:blur(6px)}
-@media (max-width:520px){.task{top:auto;bottom:calc(60px + env(safe-area-inset-bottom,0px));left:12px;right:12px;transform:none;max-width:none}}
+/* 任務提示：名牌下方、畫面上方中間；底部對話框開著也看得到 */
+.task{position:relative;align-self:center;max-width:100%;background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;backdrop-filter:blur(6px)}
 .count{position:absolute;right:12px;top:52px;background:var(--ink);color:var(--panel);border-radius:999px;padding:4px 12px;font-variant-numeric:tabular-nums;font-size:.9rem}
 .toast{position:absolute;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:calc(100% - 32px);background:var(--ink);color:var(--panel);border-radius:var(--r-m);padding:8px 14px;font-size:.9rem;z-index:15}
 .tools{position:absolute;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;align-items:flex-end}
@@ -94,11 +97,12 @@ button,input,select,textarea{font:inherit;color:inherit}
 
 /* ===== 表世界：簡單的 Excel ===== */
 #view-sheet{background:var(--bg);display:flex;flex-direction:column}
-.sbar{flex:none;display:flex;align-items:center;gap:8px;padding:8px 60px 8px 12px;border-bottom:1px solid var(--line);background:var(--panel);min-height:48px}
+.sbar{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:8px 100px 8px 12px;border-bottom:1px solid var(--line);background:var(--panel);min-height:48px}
 .sbar .back{all:unset;cursor:pointer;padding:4px 8px;border-radius:var(--r-s);border:1px solid var(--line)}
 .sbar .back:disabled{opacity:.35}
 .sbar h2{font-family:var(--serif);font-size:1.05rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sbar .who{margin-left:auto;font-size:.84rem;display:flex;align-items:center;gap:4px}
+.sbar .who{flex-basis:100%;font-size:.84rem;display:flex;align-items:center;gap:4px}   /* 看誰另起一行，不跟切換鈕擠 */
+.sbar .who[hidden]{display:none}
 .sbar select{min-height:32px;padding:2px 6px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
 #smain{flex:1;min-height:0;overflow:auto;padding:0 0 calc(var(--tabs-h) + 8px + env(safe-area-inset-bottom,0px))}
 .ws{border-collapse:separate;border-spacing:0;font-size:.9rem;width:max-content;min-width:100%}
@@ -133,6 +137,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 <main id="view-game" class="view">
   <div id="stage"></div>
   <div class="hud">
+    <div class="hudTop">
     <div class="plate" id="plate">
       <div class="who"><span id="plateCode">J1</span><small id="plateName"></small></div>
       <div class="energy"><i id="energyBar" style="width:100%"></i></div>
@@ -140,9 +145,10 @@ button,input,select,textarea{font:inherit;color:inherit}
       <div class="code" id="codeLine"></div>
       <div class="row"><button class="btn sm" id="btnBuild" type="button">建造</button><button class="btn sm" id="btnMap" type="button">地圖</button><button class="btn sm" id="btnHome" type="button" hidden>回家</button><button class="btn sm" id="btnLeave" type="button" hidden>出門</button></div>
     </div>
+    <button class="task" id="task" type="button"></button>
+    </div>
     <button class="swap" id="swapToSheet" type="button">表 ⇄ 裡</button>
     <div class="count" id="countdown" hidden></div>
-    <button class="task" id="task" type="button"></button>
     <div class="toast" id="toast" hidden></div>
     <div class="dlg" id="dlg"><h3><span id="dlgTitle"></span><button class="x" id="dlgClose" type="button" aria-label="關閉">×</button></h3><div class="body" id="dlgBody"></div><div class="opts" id="dlgOpts"></div></div>
     <div class="map" id="map" hidden></div>

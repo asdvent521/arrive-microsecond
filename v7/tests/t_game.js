@@ -19,6 +19,11 @@ var J1 = '00000000001', J2 = '00000000002';
   assert(await H.dlgOpen(), '走到角色碑旁，對話框升起');
   var box = await H.ev("(function(){var r=document.getElementById('dlg').getBoundingClientRect();return {h:r.height,bottom:r.bottom,win:innerHeight};})()");
   assert(box.h <= box.win * 0.4 + 1 && Math.abs(box.bottom - box.win) < 2, '對話框貼底、高度 ' + Math.round(box.h) + ' ≤ 40% 畫面（' + box.win + '）');
+  // 對話框開著時，任務提示在畫面上方還看得到；名牌的代號行沒內容時不占位置
+  var vis = await H.ev("(function(){var t=document.getElementById('task').getBoundingClientRect(),d=document.getElementById('dlg').getBoundingClientRect(),p=document.getElementById('plate').getBoundingClientRect(),s=document.getElementById('swapToSheet').getBoundingClientRect();return {taskTop:t.top,taskBottom:t.bottom,dlgTop:d.top,win:innerHeight,plateRight:p.right,swapLeft:s.left,codeH:document.getElementById('codeLine').getBoundingClientRect().height,w:t.width};})()");
+  assert(vis.w > 0 && vis.taskBottom < vis.dlgTop && vis.taskBottom < vis.win / 2, '對話框開著，任務提示仍在上半部看得到（底 ' + Math.round(vis.taskBottom) + ' < 對話框頂 ' + Math.round(vis.dlgTop) + '）');
+  assert(vis.plateRight <= vis.swapLeft, '名牌和切換鈕不重疊');
+  assert(vis.codeH === 0, '代號行沒內容時不占位置');
   var opts = await H.opts();
   assert(opts.indexOf('換角色') >= 0 && opts.indexOf('新角色') >= 0 && opts.indexOf('進入空窗') >= 0 && opts.indexOf('結束並重創') >= 0 && opts.indexOf('歷史紀錄') >= 0, '角色碑的選項：' + opts.join('/'));
   await pg.screenshot({ path: OUT + '/v7_game_2_dialog.png' });
@@ -45,6 +50,7 @@ var J1 = '00000000001', J2 = '00000000002';
   await H.walkTo(0, 7); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 15000 });
   assert((await H.ev("WORLD.guideCount()")) < n0, '繞完一圈，那一段光點熄掉');
   assert((await pg.textContent('#codeLine')).indexOf('J') === 0, '代號一個字一個字浮在名牌下：' + (await pg.textContent('#codeLine')));
+  assert((await H.ev("document.getElementById('codeLine').getBoundingClientRect().height")) > 0, '有代號時代號行才出現');
 
   // 建造模式：改外觀、搬移後，走法照樣走得出 J2
   await H.ev("GAME.dec().reset(); WORLD.setGuide([])");
@@ -59,7 +65,7 @@ var J1 = '00000000001', J2 = '00000000002';
   await H.walkTo(0, 7); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 15000 });
   var rp = await H.ev("WORLD.objectAt('role_" + J1 + "')"); await H.walkTo(rp.x, rp.z + rp.radius + 0.6);
   await pg.waitForFunction("GAME.dec().lastAt === 'role_" + J1 + "'", null, { timeout: 15000 });
-  await H.walkTo(6, 3.2); await pg.waitForFunction("GAME.dec().done === 'J2'", null, { timeout: 15000 });
+  await H.walkTo(0, 3); await H.walkTo(6, 3.2); await pg.waitForFunction("GAME.dec().done === 'J2'", null, { timeout: 15000 });
   assert((await pg.textContent('#toast')).indexOf('傳送門') >= 0, '改外觀、搬移後照樣走得出 J2，傳送門打開');
   await H.ev("GAME.enterPortal()"); await pg.waitForTimeout(300);
   assert((await pg.textContent('#plateName')).indexOf('在 阿澄 的世界') >= 0 && !(await pg.isHidden('#btnHome')), '到了阿澄的世界，有回家鈕');
