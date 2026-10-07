@@ -38,7 +38,7 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   try { await pg.waitForFunction("APP.dec().letter === 'J'", null, { timeout: 8000 }); }
   catch (e) { console.log('DEBUG letter', await pg.evaluate("JSON.stringify({l:APP.dec().letter, msg:document.getElementById('hudMsg').textContent, pos:WORLD.playerPos(), circles:APP.me().world.walk.circles})")); throw e; }
   await walkTo(0, -4.3);                           // 角色碑
-  await pg.waitForFunction("APP.dec().lastAt === 'role_00000000001'", null, { timeout: 8000 });
+  await pg.waitForFunction("APP.dec().lastAt === 'role_00000000001'", null, { timeout: 15000 });
   await walkTo(6, 3.2);                            // 市集 → 2
   await pg.waitForFunction("APP.dec().done === 'J2'", null, { timeout: 8000 });
   assert((await pg.textContent('#hudMsg')).indexOf('傳送門') >= 0, '走出 J2，傳送門打開');

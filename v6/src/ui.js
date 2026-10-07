@@ -14,7 +14,9 @@
   var allObjs = function (r) { return CORE.allObjects(r.world).map(function (x) { return x.o; }); };
 
   /* ---------- HUD ---------- */
+  var NO3D = '3D 引擎沒載入，裡世界暫時不能用；表世界分頁照常能用。重新整理試試看。';
   function msg(text, keep) {
+    if (!text && !WORLD.available) { text = NO3D; keep = true; }   // 沒有 3D 時，提示一直留著
     var el = $('hudMsg'); el.textContent = text; el.hidden = !text;
     clearTimeout(msgTimer);
     if (!keep && text) msgTimer = setTimeout(function () { el.hidden = true; }, 3200);
@@ -210,8 +212,10 @@
   }
   function worldRefresh(role, objId) { if (role === cur.role) { if (objId) WORLD.refreshObject(objId); else WORLD.loadWorld(role.world, { visiting: cur.visiting }); } }
 
-  if (typeof THREE === 'undefined') { $('hudMsg').hidden = false; $('hudMsg').textContent = '3D 引擎沒載入，請檢查網路後重新整理。表世界分頁還是能用。'; }
-  else { WORLD.init($('stage')); WORLD.loadWorld(me.world); }
+  if (!WORLD.available) {
+    msg('');
+    $('stage').innerHTML = '<div class="empty" style="padding:24px">3D 引擎沒載入</div>';
+  } else { WORLD.init($('stage')); WORLD.loadWorld(me.world); }
   drawCode(); drawWhere(); drawNear(null);
   window.APP = {
     state: function () { return state; }, me: function () { return me; }, cur: function () { return cur; }, dec: function () { return dec; },
