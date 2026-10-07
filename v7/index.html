@@ -2030,7 +2030,7 @@ var SHEET = (function () {
   function back() { var h = UI.hist.pop(); if (!h) return; UI.sheet = h.sheet; UI.who = h.who; UI.focus = null; render(); }
 
   /* ---------- 動作 ---------- */
-  function run(fn, ok) { var r = APP.run(fn, ok); render(); if (r.msg) smsg(r.msg); return r; }
+  function run(fn, ok) { var r = APP.run(fn, ok); if (r.msg) smsg(r.msg); return r; }   // APP.run 發 change 時已經重畫過，不再畫一次（否則閃一下的那列會被蓋掉）
   var v = function (id) { var el = $(id); return el ? el.value : ''; };
   var ACT = {
     go: function (b) { navigate(b.dataset.s, null); },
