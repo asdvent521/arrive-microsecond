@@ -164,13 +164,17 @@
 
   /* ---------- 那一微秒：預約者站在主人的終點上就對接 ---------- */
   function goalId(role) { var g = allObjs(role).find(function (o) { return o.func === 'goal'; }); return g ? g.id : null; }
+  var lastMiss = 0;
   setInterval(function () {
     $('clock').textContent = CORE.fmtUs(now());
+    var t = now();
+    // 規則層清算：過了判定窗還沒對接的預約，標為錯過
+    if (CORE.expire(state, t)) { CORE.save(state); refresh(); if (cur.visiting) msg('那一微秒過了，這次錯過，這個時段不能再對接。', true); }
     if (!cur.visiting) return;
-    var r = cur.role, t = now();
-    var mine = r.slots.filter(function (s) { return s.bookings.indexOf(me.serial) >= 0 && s.docked.indexOf(me.serial) < 0 && !docked[s.id]; }).sort(function (a, b) { return a.atUs - b.atUs; });
+    var r = cur.role;
+    var mine = r.slots.filter(function (s) { return s.bookings.indexOf(me.serial) >= 0 && s.docked.indexOf(me.serial) < 0 && !CORE.missed(s, me.serial) && !docked[s.id]; }).sort(function (a, b) { return a.atUs - b.atUs; });
     var g = goalId(r), onIt = g ? WORLD.distanceTo(g) < 1.0 : false;
-    if (!mine.length) { $('hudGoalText').textContent = '你沒有預約 ' + r.name + ' 的時段'; $('giveBox').hidden = true; return; }
+    if (!mine.length) { var ms = r.slots.filter(function (s) { return CORE.missed(s, me.serial); }).length; $('hudGoalText').textContent = ms ? '錯過了 ' + ms + ' 個時段；' + (r.slots.some(function (s) { return s.atUs > t && s.bookings.indexOf(me.serial) < 0 && s.bookings.length < s.capacity; }) ? '可以再預約' : '沒有別的時段了') : '你沒有預約 ' + r.name + ' 的時段'; $('giveBox').hidden = true; return; }
     var s = mine[0];
     if (t < s.atUs) {
       $('hudGoalText').textContent = '離對接還有 ' + ((s.atUs - t) / 1e6).toFixed(1) + ' 秒' + (onIt ? '，你在終點上' : '，先走到終點台');
@@ -178,8 +182,9 @@
       var max = CORE.remainingToday(state, me, t); $('giveIn').max = max; if (+$('giveIn').value > max) $('giveIn').value = max;
       return;
     }
+    // 那一微秒到了：只有站在終點上的這一格判定算數；不在就等規則層標錯過
+    if (!onIt) { $('hudGoalText').textContent = '那一微秒到了，你不在終點上'; $('giveBox').hidden = true; return; }
     docked[s.id] = true;
-    if (!onIt) { $('hudGoalText').textContent = '錯過了那一微秒'; $('giveBox').hidden = true; msg('那一微秒你不在終點上，這次沒對接。', true); return; }
     try {
       var give = Math.min(+$('giveIn').value || 0, CORE.remainingToday(state, me, t));
       var ownerGive = Math.min(s.give, CORE.remainingToday(state, r, t));

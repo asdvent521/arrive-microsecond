@@ -545,7 +545,7 @@ var CORE = (function () {
     if (!(atUs > (now || nowUs()))) bad('對接時段要在未來');
     var cap = Math.floor(+capacity); if (!(cap >= 1)) bad('名額要至少 1');
     var g = Math.floor(+give); if (!(g >= 0)) bad('要給多少點要是 0 以上');
-    var s = { id: newId('slot'), atUs: atUs, capacity: cap, give: g, bookings: [], docked: [] };
+    var s = { id: newId('slot'), atUs: atUs, capacity: cap, give: g, bookings: [], docked: [], missed: [], refused: [] };
     r.slots.push(s);
     return s;
   }
@@ -561,6 +561,24 @@ var CORE = (function () {
     return x.slot;
   }
   function cancelBooking(state, visitorSerial, slotId) { var x = slotOf(state, slotId); if (!x) bad('沒有這個時段'); x.slot.bookings = x.slot.bookings.filter(function (s) { return s !== visitorSerial; }); }
+  // 空窗角色的拒絕：只有「自己做不到對方（預約者）的要求」時，才能拒絕這次預約或對接；其他情況不能拒絕
+  function canRefuse(state, owner, visitor, atUs) {
+    if (status(owner, atUs) !== 'vacancy') return { ok: false, reason: '不在空窗期：條件通不通由規則表決定，不能拒絕' };
+    var p = passes(state, visitor, owner, atUs);
+    if (p.ok) return { ok: false, reason: '你做得到對方的要求，不能拒絕' };
+    return { ok: true, reason: '做不到對方的要求：' + p.failed.join('；') };
+  }
+  function refuse(state, ownerSerial, slotId, visitorSerial, atUs) {
+    var x = slotOf(state, slotId); if (!x || x.owner.serial !== ownerSerial) bad('沒有這個時段');
+    var visitor = need(state, visitorSerial);
+    if (x.slot.bookings.indexOf(visitorSerial) < 0) bad('他沒有預約這個時段');
+    if (x.slot.docked.indexOf(visitorSerial) >= 0) bad('已經對接過了，不能拒絕');
+    var c = canRefuse(state, x.owner, visitor, atUs); if (!c.ok) bad(c.reason);
+    x.slot.bookings = x.slot.bookings.filter(function (s) { return s !== visitorSerial; });
+    (x.slot.refused = x.slot.refused || []).push(visitorSerial);
+    state.records.push({ kind: 'refuse', at: atUs, text: abbrev(ownerSerial) + ' ' + x.owner.name + '（空窗）拒絕了 ' + abbrev(visitorSerial) + ' ' + visitor.name + ' 的預約：' + c.reason });
+    return c;
+  }
   // 聯絡方式只給預約成功、還沒對接完的人看；主人結束就看不到
   function contactVisible(state, owner, viewer, atUs) {
     if (owner.serial === viewer) return true;
@@ -568,13 +586,31 @@ var CORE = (function () {
     return owner.slots.some(function (s) { return s.bookings.indexOf(viewer) >= 0 && s.docked.indexOf(viewer) < 0; });
   }
 
-  /* ---------- 規則 7：對接。那一微秒預約者站在主人的終點上；各給不超過當天剩下的 ---------- */
+  /* ---------- 規則 7：對接。只有時段那一微秒的判定算數；過了沒對接就是錯過 ---------- */
+  var DOCK_WINDOW_US = 1e6;   // 那一微秒的判定由畫面層在下一格送進來，容許 1 秒內；再晚就是錯過
+  function missed(slot, visitorSerial) { return (slot.missed || []).indexOf(visitorSerial) >= 0; }
+  function markMissed(state, slot, visitorSerial, atUs) {
+    if (missed(slot, visitorSerial)) return;
+    (slot.missed = slot.missed || []).push(visitorSerial);
+    state.records.push({ kind: 'miss', at: atUs, text: abbrev(visitorSerial) + ' 錯過了 ' + fmtUs(slot.atUs) + ' 的對接' });
+  }
+  // 清算：所有已經過了判定窗、預約了卻沒對接的，標為錯過
+  function expire(state, atUs) {
+    var n = 0;
+    state.roles.forEach(function (r) { r.slots.forEach(function (s) {
+      if (atUs < s.atUs + DOCK_WINDOW_US) return;
+      s.bookings.forEach(function (b) { if (s.docked.indexOf(b) < 0 && !missed(s, b)) { markMissed(state, s, b, atUs); n++; } });
+    }); });
+    return n;
+  }
   function dock(state, slotId, visitorSerial, giveOwner, giveVisitor, atUs) {
     var x = slotOf(state, slotId); if (!x) bad('沒有這個時段');
     var owner = x.owner, visitor = need(state, visitorSerial);
     if (x.slot.bookings.indexOf(visitorSerial) < 0) bad('沒有預約不能對接');
     if (x.slot.docked.indexOf(visitorSerial) >= 0) bad('這個時段已經對接過了');
+    if (missed(x.slot, visitorSerial)) bad('那一微秒已經錯過了，這個時段不能再對接');
     if (atUs < x.slot.atUs) bad('還沒到那一微秒');
+    if (atUs >= x.slot.atUs + DOCK_WINDOW_US) { markMissed(state, x.slot, visitorSerial, atUs); bad('那一微秒過了，這次錯過；之後不能再對接'); }
     var e = eligible(state, owner, visitor, atUs); if (!e.ok) bad('對接不成立：' + e.reason);
     var go = Math.floor(+giveOwner), gv = Math.floor(+giveVisitor);
     if (!(go >= 0) || !(gv >= 0)) bad('給多少要是 0 以上');
@@ -698,7 +734,7 @@ var CORE = (function () {
         bothMustPass: !!ru.bothMustPass, mustAcceptVillage: !!ru.mustAcceptVillage, village: str(ru.village || '', LIMITS.text, '村規'), villageKey: ru.villageKey == null ? null : str(ru.villageKey, 200, '金鑰') }; })(r.rules),
       rulesHash: str(r.rulesHash || '', 20, 'hash'),
       resources: list(r.resources || [], LIMITS.rules, '資源').map(function (x) { obj(x, '資源'); return { id: ident(x.id, '資源'), name: str(x.name, LIMITS.name, '資源'), price: num(x.price, '價格'), qty: num(x.qty, '數量') }; }),
-      slots: list(r.slots || [], 200, '時段').map(function (s) { obj(s, '時段'); return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), give: num(s.give || 0, '給多少'), bookings: list(s.bookings || [], 200, '預約').map(function (b) { return str(b, 11, '預約'); }), docked: list(s.docked || [], 200, '對接').map(function (b) { return str(b, 11, '對接'); }) }; }),
+      slots: list(r.slots || [], 200, '時段').map(function (s) { obj(s, '時段'); var ser = function (what) { return function (b) { return str(b, 11, what); }; }; return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), give: num(s.give || 0, '給多少'), bookings: list(s.bookings || [], 200, '預約').map(ser('預約')), docked: list(s.docked || [], 200, '對接').map(ser('對接')), missed: list(s.missed || [], 200, '錯過').map(ser('錯過')), refused: list(s.refused || [], 200, '拒絕').map(ser('拒絕')) }; }),
       contact: str(r.contact || '', LIMITS.text, '聯絡方式'),
       world: cleanWorld(r.world)
     };
@@ -745,7 +781,7 @@ var CORE = (function () {
     status: status, givenToday: givenToday, remainingToday: remainingToday, rulesHash: rulesHash, assertUnchanged: assertUnchanged, holdersOf: holdersOf, endEarly: endEarly, recreate: recreate, createRole: createRole,
     COND_FIELDS: COND_FIELDS, OPS: OPS, condText: condText, passes: passes, eligible: eligible, accepted: accepted, accept: accept,
     canVisit: canVisit, canCome: canCome, searchResources: searchResources, nextSlot: nextSlot, dockCount: dockCount,
-    addSlot: addSlot, slotOf: slotOf, book: book, cancelBooking: cancelBooking, contactVisible: contactVisible, dock: dock,
+    addSlot: addSlot, slotOf: slotOf, book: book, cancelBooking: cancelBooking, contactVisible: contactVisible, dock: dock, expire: expire, missed: missed, DOCK_WINDOW_US: DOCK_WINDOW_US, canRefuse: canRefuse, refuse: refuse,
     balance: balance, holdings: holdings, redeem: redeem, enterVacancy: enterVacancy, leaveVacancy: leaveVacancy, restock: restock, pointValid: pointValid,
     defaultWorld: defaultWorld, fresh: fresh, load: load, save: save, findRole: findRole, roleOf: roleOf
   };
@@ -1390,13 +1426,17 @@ var WORLD = (function () {
 
   /* ---------- 那一微秒：預約者站在主人的終點上就對接 ---------- */
   function goalId(role) { var g = allObjs(role).find(function (o) { return o.func === 'goal'; }); return g ? g.id : null; }
+  var lastMiss = 0;
   setInterval(function () {
     $('clock').textContent = CORE.fmtUs(now());
+    var t = now();
+    // 規則層清算：過了判定窗還沒對接的預約，標為錯過
+    if (CORE.expire(state, t)) { CORE.save(state); refresh(); if (cur.visiting) msg('那一微秒過了，這次錯過，這個時段不能再對接。', true); }
     if (!cur.visiting) return;
-    var r = cur.role, t = now();
-    var mine = r.slots.filter(function (s) { return s.bookings.indexOf(me.serial) >= 0 && s.docked.indexOf(me.serial) < 0 && !docked[s.id]; }).sort(function (a, b) { return a.atUs - b.atUs; });
+    var r = cur.role;
+    var mine = r.slots.filter(function (s) { return s.bookings.indexOf(me.serial) >= 0 && s.docked.indexOf(me.serial) < 0 && !CORE.missed(s, me.serial) && !docked[s.id]; }).sort(function (a, b) { return a.atUs - b.atUs; });
     var g = goalId(r), onIt = g ? WORLD.distanceTo(g) < 1.0 : false;
-    if (!mine.length) { $('hudGoalText').textContent = '你沒有預約 ' + r.name + ' 的時段'; $('giveBox').hidden = true; return; }
+    if (!mine.length) { var ms = r.slots.filter(function (s) { return CORE.missed(s, me.serial); }).length; $('hudGoalText').textContent = ms ? '錯過了 ' + ms + ' 個時段；' + (r.slots.some(function (s) { return s.atUs > t && s.bookings.indexOf(me.serial) < 0 && s.bookings.length < s.capacity; }) ? '可以再預約' : '沒有別的時段了') : '你沒有預約 ' + r.name + ' 的時段'; $('giveBox').hidden = true; return; }
     var s = mine[0];
     if (t < s.atUs) {
       $('hudGoalText').textContent = '離對接還有 ' + ((s.atUs - t) / 1e6).toFixed(1) + ' 秒' + (onIt ? '，你在終點上' : '，先走到終點台');
@@ -1404,8 +1444,9 @@ var WORLD = (function () {
       var max = CORE.remainingToday(state, me, t); $('giveIn').max = max; if (+$('giveIn').value > max) $('giveIn').value = max;
       return;
     }
+    // 那一微秒到了：只有站在終點上的這一格判定算數；不在就等規則層標錯過
+    if (!onIt) { $('hudGoalText').textContent = '那一微秒到了，你不在終點上'; $('giveBox').hidden = true; return; }
     docked[s.id] = true;
-    if (!onIt) { $('hudGoalText').textContent = '錯過了那一微秒'; $('giveBox').hidden = true; msg('那一微秒你不在終點上，這次沒對接。', true); return; }
     try {
       var give = Math.min(+$('giveIn').value || 0, CORE.remainingToday(state, me, t));
       var ownerGive = Math.min(s.give, CORE.remainingToday(state, r, t));
@@ -1674,7 +1715,13 @@ var SHEET = (function () {
             { k: 'left', h: '還有', v: function (s) { var d = (s.atUs - now()) / 1e6; return d > 0 ? '<span class="num">' + d.toFixed(0) + ' 秒</span>' : tag('todo', '已過'); } },
             { k: 'cap', h: '名額', num: true, v: function (s) { return s.bookings.length + '／' + s.capacity; } },
             { k: 'give', h: '每次給', num: true, v: function (s) { return s.give + ' 點'; } },
-            { k: 'who', h: '預約的人', v: function (s) { return s.bookings.length ? s.bookings.map(function (b) { return L('roles', b, esc(roleName(b))) + (s.docked.indexOf(b) >= 0 ? ' ' + tag('ok', '已對接') : ''); }).join('、') : dash; } },
+            { k: 'who', h: '預約的人', v: function (s) { var out = s.bookings.map(function (b) {
+              var t = L('roles', b, esc(roleName(b)));
+              if (s.docked.indexOf(b) >= 0) return t + ' ' + tag('ok', '已對接');
+              if (CORE.missed(s, b)) return t + ' ' + tag('shelve', '錯過');
+              var c = CORE.canRefuse(S(), me(), roleOf(b), now());   // 空窗中、做不到對方的要求，才有拒絕按鈕
+              return t + (c.ok ? ' ' + btn('refuse', '拒絕（做不到對方的要求）', ' data-id="' + s.id + '" data-who="' + b + '"') : '');
+            }); (s.refused || []).forEach(function (b) { out.push(L('roles', b, esc(roleName(b))) + ' ' + tag('shelve', '已拒絕')); }); return out.length ? out.join('、') : dash; }, wrap: true },
             { k: 'act', h: '動作', v: function (s) { return s.atUs > now() && !s.bookings.length ? btn('delSlot', '刪', ' data-id="' + s.id + '"') : ''; } }
           ],
           add: { cells: function () { return { at: '<input type="number" class="kc" id="addSlotMin" value="3" min="1" aria-label="幾分鐘後"> 分鐘後', cap: '<input type="number" class="kc" id="addSlotCap" value="1" min="1" aria-label="名額">', give: '<input type="number" class="kc" id="addSlotGive" value="100" min="0" aria-label="每次給幾點">', act: btn('addSlot', '開時段', '', 'pri') }; } }, empty: '還沒開時段。' },
@@ -1682,7 +1729,7 @@ var SHEET = (function () {
           cols: [
             { k: 'who', h: '主人', v: function (x) { return roleLink(x.r); } },
             { k: 'at', h: '那一微秒', v: function (x) { return num(x.s.atUs); } },
-            { k: 'left', h: '還有', v: function (x) { var d = (x.s.atUs - now()) / 1e6; return x.s.docked.indexOf(me().serial) >= 0 ? tag('ok', '已對接') : d > 0 ? '<span class="num">' + d.toFixed(0) + ' 秒</span>' : tag('shelve', '錯過'); } },
+            { k: 'left', h: '還有', v: function (x) { var d = (x.s.atUs - now()) / 1e6; return x.s.docked.indexOf(me().serial) >= 0 ? tag('ok', '已對接') : CORE.missed(x.s, me().serial) ? tag('shelve', '錯過，不能再對接') : d > 0 ? '<span class="num">' + d.toFixed(0) + ' 秒</span>' : tag('open', '判定中'); } },
             { k: 'give', h: '主人每次給', num: true, v: function (x) { return x.s.give + ' 點'; } },
             { k: 'contact', h: '聯絡方式', v: function (x) { return CORE.contactVisible(S(), x.r, me().serial, now()) ? (x.r.contact ? esc(x.r.contact) : '<span class="muted">（沒填）</span>') : dash; } },
             { k: 'act', h: '動作', v: function (x) { return btn('portal', '傳送過去', ' data-id="' + CORE.abbrev(x.r.serial) + '"', 'pri') + (x.s.atUs > now() && x.s.docked.indexOf(me().serial) < 0 ? ' ' + btn('cancelBook', '取消', ' data-id="' + x.s.id + '"') : ''); } }
@@ -1922,6 +1969,7 @@ var SHEET = (function () {
     delSlot: function (b) { run(function () { me().slots = me().slots.filter(function (s) { return s.id !== b.dataset.id; }); }); },
     book: function (b) { run(function () { var s = CORE.book(S(), me().serial, b.dataset.id, now()); navigate('slots', s.id); }, '預約好了。那一微秒站在他的終點上就對接。'); },
     cancelBook: function (b) { run(function () { CORE.cancelBooking(S(), me().serial, b.dataset.id); }, '取消了'); },
+    refuse: function (b) { run(function () { CORE.refuse(S(), me().serial, b.dataset.id, b.dataset.who, now()); }, '拒絕了，留下紀錄'); },
     redeem: function (b) { run(function () { var r = redeemIssuer(); var rec = CORE.redeem(S(), me().serial, r.serial, b.dataset.id, now()); UI.focus = rec.id; }, '換到了'); }
   };
 

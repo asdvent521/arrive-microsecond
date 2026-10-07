@@ -349,7 +349,7 @@ var CORE = (function () {
     if (!(atUs > (now || nowUs()))) bad('對接時段要在未來');
     var cap = Math.floor(+capacity); if (!(cap >= 1)) bad('名額要至少 1');
     var g = Math.floor(+give); if (!(g >= 0)) bad('要給多少點要是 0 以上');
-    var s = { id: newId('slot'), atUs: atUs, capacity: cap, give: g, bookings: [], docked: [] };
+    var s = { id: newId('slot'), atUs: atUs, capacity: cap, give: g, bookings: [], docked: [], missed: [], refused: [] };
     r.slots.push(s);
     return s;
   }
@@ -365,6 +365,24 @@ var CORE = (function () {
     return x.slot;
   }
   function cancelBooking(state, visitorSerial, slotId) { var x = slotOf(state, slotId); if (!x) bad('沒有這個時段'); x.slot.bookings = x.slot.bookings.filter(function (s) { return s !== visitorSerial; }); }
+  // 空窗角色的拒絕：只有「自己做不到對方（預約者）的要求」時，才能拒絕這次預約或對接；其他情況不能拒絕
+  function canRefuse(state, owner, visitor, atUs) {
+    if (status(owner, atUs) !== 'vacancy') return { ok: false, reason: '不在空窗期：條件通不通由規則表決定，不能拒絕' };
+    var p = passes(state, visitor, owner, atUs);
+    if (p.ok) return { ok: false, reason: '你做得到對方的要求，不能拒絕' };
+    return { ok: true, reason: '做不到對方的要求：' + p.failed.join('；') };
+  }
+  function refuse(state, ownerSerial, slotId, visitorSerial, atUs) {
+    var x = slotOf(state, slotId); if (!x || x.owner.serial !== ownerSerial) bad('沒有這個時段');
+    var visitor = need(state, visitorSerial);
+    if (x.slot.bookings.indexOf(visitorSerial) < 0) bad('他沒有預約這個時段');
+    if (x.slot.docked.indexOf(visitorSerial) >= 0) bad('已經對接過了，不能拒絕');
+    var c = canRefuse(state, x.owner, visitor, atUs); if (!c.ok) bad(c.reason);
+    x.slot.bookings = x.slot.bookings.filter(function (s) { return s !== visitorSerial; });
+    (x.slot.refused = x.slot.refused || []).push(visitorSerial);
+    state.records.push({ kind: 'refuse', at: atUs, text: abbrev(ownerSerial) + ' ' + x.owner.name + '（空窗）拒絕了 ' + abbrev(visitorSerial) + ' ' + visitor.name + ' 的預約：' + c.reason });
+    return c;
+  }
   // 聯絡方式只給預約成功、還沒對接完的人看；主人結束就看不到
   function contactVisible(state, owner, viewer, atUs) {
     if (owner.serial === viewer) return true;
@@ -372,13 +390,31 @@ var CORE = (function () {
     return owner.slots.some(function (s) { return s.bookings.indexOf(viewer) >= 0 && s.docked.indexOf(viewer) < 0; });
   }
 
-  /* ---------- 規則 7：對接。那一微秒預約者站在主人的終點上；各給不超過當天剩下的 ---------- */
+  /* ---------- 規則 7：對接。只有時段那一微秒的判定算數；過了沒對接就是錯過 ---------- */
+  var DOCK_WINDOW_US = 1e6;   // 那一微秒的判定由畫面層在下一格送進來，容許 1 秒內；再晚就是錯過
+  function missed(slot, visitorSerial) { return (slot.missed || []).indexOf(visitorSerial) >= 0; }
+  function markMissed(state, slot, visitorSerial, atUs) {
+    if (missed(slot, visitorSerial)) return;
+    (slot.missed = slot.missed || []).push(visitorSerial);
+    state.records.push({ kind: 'miss', at: atUs, text: abbrev(visitorSerial) + ' 錯過了 ' + fmtUs(slot.atUs) + ' 的對接' });
+  }
+  // 清算：所有已經過了判定窗、預約了卻沒對接的，標為錯過
+  function expire(state, atUs) {
+    var n = 0;
+    state.roles.forEach(function (r) { r.slots.forEach(function (s) {
+      if (atUs < s.atUs + DOCK_WINDOW_US) return;
+      s.bookings.forEach(function (b) { if (s.docked.indexOf(b) < 0 && !missed(s, b)) { markMissed(state, s, b, atUs); n++; } });
+    }); });
+    return n;
+  }
   function dock(state, slotId, visitorSerial, giveOwner, giveVisitor, atUs) {
     var x = slotOf(state, slotId); if (!x) bad('沒有這個時段');
     var owner = x.owner, visitor = need(state, visitorSerial);
     if (x.slot.bookings.indexOf(visitorSerial) < 0) bad('沒有預約不能對接');
     if (x.slot.docked.indexOf(visitorSerial) >= 0) bad('這個時段已經對接過了');
+    if (missed(x.slot, visitorSerial)) bad('那一微秒已經錯過了，這個時段不能再對接');
     if (atUs < x.slot.atUs) bad('還沒到那一微秒');
+    if (atUs >= x.slot.atUs + DOCK_WINDOW_US) { markMissed(state, x.slot, visitorSerial, atUs); bad('那一微秒過了，這次錯過；之後不能再對接'); }
     var e = eligible(state, owner, visitor, atUs); if (!e.ok) bad('對接不成立：' + e.reason);
     var go = Math.floor(+giveOwner), gv = Math.floor(+giveVisitor);
     if (!(go >= 0) || !(gv >= 0)) bad('給多少要是 0 以上');
@@ -502,7 +538,7 @@ var CORE = (function () {
         bothMustPass: !!ru.bothMustPass, mustAcceptVillage: !!ru.mustAcceptVillage, village: str(ru.village || '', LIMITS.text, '村規'), villageKey: ru.villageKey == null ? null : str(ru.villageKey, 200, '金鑰') }; })(r.rules),
       rulesHash: str(r.rulesHash || '', 20, 'hash'),
       resources: list(r.resources || [], LIMITS.rules, '資源').map(function (x) { obj(x, '資源'); return { id: ident(x.id, '資源'), name: str(x.name, LIMITS.name, '資源'), price: num(x.price, '價格'), qty: num(x.qty, '數量') }; }),
-      slots: list(r.slots || [], 200, '時段').map(function (s) { obj(s, '時段'); return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), give: num(s.give || 0, '給多少'), bookings: list(s.bookings || [], 200, '預約').map(function (b) { return str(b, 11, '預約'); }), docked: list(s.docked || [], 200, '對接').map(function (b) { return str(b, 11, '對接'); }) }; }),
+      slots: list(r.slots || [], 200, '時段').map(function (s) { obj(s, '時段'); var ser = function (what) { return function (b) { return str(b, 11, what); }; }; return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), give: num(s.give || 0, '給多少'), bookings: list(s.bookings || [], 200, '預約').map(ser('預約')), docked: list(s.docked || [], 200, '對接').map(ser('對接')), missed: list(s.missed || [], 200, '錯過').map(ser('錯過')), refused: list(s.refused || [], 200, '拒絕').map(ser('拒絕')) }; }),
       contact: str(r.contact || '', LIMITS.text, '聯絡方式'),
       world: cleanWorld(r.world)
     };
@@ -549,7 +585,7 @@ var CORE = (function () {
     status: status, givenToday: givenToday, remainingToday: remainingToday, rulesHash: rulesHash, assertUnchanged: assertUnchanged, holdersOf: holdersOf, endEarly: endEarly, recreate: recreate, createRole: createRole,
     COND_FIELDS: COND_FIELDS, OPS: OPS, condText: condText, passes: passes, eligible: eligible, accepted: accepted, accept: accept,
     canVisit: canVisit, canCome: canCome, searchResources: searchResources, nextSlot: nextSlot, dockCount: dockCount,
-    addSlot: addSlot, slotOf: slotOf, book: book, cancelBooking: cancelBooking, contactVisible: contactVisible, dock: dock,
+    addSlot: addSlot, slotOf: slotOf, book: book, cancelBooking: cancelBooking, contactVisible: contactVisible, dock: dock, expire: expire, missed: missed, DOCK_WINDOW_US: DOCK_WINDOW_US, canRefuse: canRefuse, refuse: refuse,
     balance: balance, holdings: holdings, redeem: redeem, enterVacancy: enterVacancy, leaveVacancy: leaveVacancy, restock: restock, pointValid: pointValid,
     defaultWorld: defaultWorld, fresh: fresh, load: load, save: save, findRole: findRole, roleOf: roleOf
   };

@@ -17,6 +17,22 @@ assert.strictEqual(C.remainingToday(st, A, now + 60e6 + DAY), 1800, '隔天歸�
 var slot2 = C.addSlot(st, A.serial, now + 120e6, 1, 10, now);
 C.book(st, B.serial, slot2.id, now);
 throws(function () { C.dock(st, slot2.id, B.serial, 1, 0, now + 120e6); }, '不能預支');
+// 那一微秒：判定窗 1 秒內才算；過了就錯過，之後不能再對接
+var slot3 = C.addSlot(st, A.serial, now + 200e6, 1, 0, now);
+C.book(st, B.serial, slot3.id, now);
+throws(function () { C.dock(st, slot3.id, B.serial, 0, 0, now + 200e6 + C.DOCK_WINDOW_US); }, '錯過');
+assert.ok(C.missed(slot3, B.serial), '標為錯過');
+throws(function () { C.dock(st, slot3.id, B.serial, 0, 0, now + 200e6); }, '已經錯過');
+assert.strictEqual(st.records.slice(-1)[0].kind, 'miss');
+var slot4 = C.addSlot(st, A.serial, now + 300e6, 1, 0, now);
+C.book(st, B.serial, slot4.id, now);
+assert.ok(C.expire(st, now + 300e6 + 2e6) >= 1, '清算：過了沒對接的標為錯過（slot2 也一起）');
+assert.ok(C.missed(slot4, B.serial));
+assert.strictEqual(C.expire(st, now + 300e6 + 2e6), 0, '不會重複標');
+var slot5 = C.addSlot(st, A.serial, now + 400e6, 1, 0, now);
+C.book(st, B.serial, slot5.id, now);
+assert.strictEqual(C.expire(st, now + 400e6 + 0.5e6), 0, '判定窗內不算錯過');
+assert.ok(C.dock(st, slot5.id, B.serial, 0, 0, now + 400e6 + 0.5e6), '判定窗內可以對接');
 assert.strictEqual(C.balance(st, B.serial, A.serial, now), 1800); assert.strictEqual(C.balance(st, A.serial, B.serial, now), 500);
 
 // ---- 2. 生命週期：規則不能改、到期作廢、提早結束要清點數 ----
@@ -74,7 +90,23 @@ C.enterVacancy(s2, c.serial, now);
 var sc = C.addSlot(s2, c.serial, now + 70e6, 1, 0, now);
 C.book(s2, a.serial, sc.id, now);
 throws(function () { C.book(s2, b.serial, sc.id, now); }, '名額滿');
+// 空窗角色的拒絕：只有自己做不到對方（預約者）的要求才能拒絕；其他情況不能
+// J3 空窗；J1 的條件「對方每天的點數 ≥ 1000」，J3 只有 800 → J3 做不到 J1 的要求 → 可以拒絕 J1
+var ref = C.canRefuse(s2, c, a, now); assert.ok(ref.ok && ref.reason.indexOf('對方每天的點數') >= 0, '空窗的 J3 做不到 J1 的要求，可以拒絕：' + ref.reason);
+assert.ok(C.canRefuse(s2, c, b, now).ok, 'J3 對接 0 次，也做不到 J2 的要求（對接過幾次 ≥ 1），可以拒絕 J2');
+// 空窗的 J2 面對 J1：J2 每天 2000 做得到 J1 的要求（≥ 1000）→ 不能拒絕
+C.enterVacancy(s2, b.serial, now);
+var ref2 = C.canRefuse(s2, b, a, now); assert.ok(!ref2.ok && ref2.reason.indexOf('做得到') >= 0, '做得到對方的要求就不能拒絕：' + ref2.reason);
+C.leaveVacancy(s2, b.serial, now);
 C.leaveVacancy(s2, c.serial, now);
+assert.ok(!C.canRefuse(s2, c, a, now).ok && C.canRefuse(s2, c, a, now).reason.indexOf('不在空窗期') >= 0, '不在空窗不能拒絕');
+C.enterVacancy(s2, c.serial, now);
+C.refuse(s2, c.serial, sc.id, a.serial, now);
+assert.ok(sc.bookings.indexOf(a.serial) < 0 && sc.refused.indexOf(a.serial) >= 0 && s2.records.slice(-1)[0].kind === 'refuse', '拒絕後預約拿掉、留紀錄');
+throws(function () { C.refuse(s2, c.serial, sc.id, a.serial, now); }, '沒有預約');
+C.book(s2, a.serial, sc.id, now);
+C.leaveVacancy(s2, c.serial, now);
+throws(function () { C.refuse(s2, c.serial, sc.id, a.serial, now); }, '不在空窗期');
 throws(function () { C.addSlot(s2, b.serial, now - 1, 1, 0, now); }, '未來');
 assert.ok(C.contactVisible(s2, b, a.serial, now), '預約成功看得到聯絡方式');
 assert.ok(!C.contactVisible(s2, b, c.serial, now), '沒預約看不到');

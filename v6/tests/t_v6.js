@@ -119,6 +119,48 @@ function assert(c, m) { if (!c) { console.error('FAIL: ' + m); process.exitCode 
   assert((await pg.evaluate("APP.me().slots.length")) === 2, '開了時段');
   assert((await main()).indexOf('可以預約的時段') >= 0, '列出可以預約的時段');
 
+  // ---- 空窗角色的拒絕：只有做不到對方的要求才能拒絕 ----
+  // 阿澄進空窗、開時段；我預約（空窗角色條件關閉，一方通）；阿澄每天 2000 做得到我的要求 → 沒有拒絕按鈕
+  await pg.evaluate("APP.becomeMe(1)"); await pg.evaluate("APP.showTab('sheet'); SHEET.navigate('roles')"); await pg.waitForTimeout(150);
+  await jsClick('[data-act="vacIn"]');
+  await tab('slots'); await pg.fill('#addSlotMin', '9'); await jsClick('[data-act="addSlot"]');
+  var vs = await pg.evaluate("APP.me().slots[APP.me().slots.length-1].id");
+  await pg.evaluate("APP.becomeMe(0)"); await pg.evaluate("APP.showTab('sheet'); SHEET.navigate('slots')"); await pg.waitForTimeout(150);
+  await jsClick('[data-act="book"][data-id="' + vs + '"]');
+  assert((await pg.evaluate("CORE.slotOf(APP.state(),'" + vs + "').slot.bookings")).indexOf('00000000001') >= 0, '空窗的阿澄照樣有名額，我預約成功');
+  await pg.evaluate("APP.becomeMe(1)"); await pg.evaluate("APP.showTab('sheet'); SHEET.navigate('slots')"); await pg.waitForTimeout(150);
+  assert((await pg.$('[data-act="refuse"]')) === null, '阿澄做得到我的要求（2000 ≥ 1000）：沒有拒絕按鈕');
+  await tab('roles'); await jsClick('[data-act="vacOut"]');
+  // 小樂進空窗、開時段；我預約；小樂每天 800 做不到我的要求（≥ 1000）→ 有拒絕按鈕
+  await pg.evaluate("APP.becomeMe(2)"); await pg.evaluate("APP.showTab('sheet'); SHEET.navigate('roles')"); await pg.waitForTimeout(150);
+  await jsClick('[data-act="vacIn"]');
+  await tab('slots'); await pg.fill('#addSlotMin', '9'); await jsClick('[data-act="addSlot"]');
+  var ss = await pg.evaluate("APP.me().slots[0].id");
+  await pg.evaluate("APP.becomeMe(0)"); await pg.evaluate("APP.showTab('sheet'); SHEET.navigate('slots')"); await pg.waitForTimeout(150);
+  await jsClick('[data-act="book"][data-id="' + ss + '"]');
+  await pg.evaluate("APP.becomeMe(2)"); await pg.evaluate("APP.showTab('sheet'); SHEET.navigate('slots')"); await pg.waitForTimeout(150);
+  assert((await pg.$('[data-act="refuse"][data-who="00000000001"]')) !== null && (await main()).indexOf('拒絕（做不到對方的要求）') >= 0, '小樂做不到我的要求：出現拒絕按鈕');
+  await jsClick('[data-act="refuse"][data-who="00000000001"]');
+  var sl = await pg.evaluate("APP.me().slots[0]");
+  assert(sl.bookings.length === 0 && sl.refused.indexOf('00000000001') >= 0 && (await main()).indexOf('已拒絕') >= 0, '拒絕後預約拿掉、標已拒絕');
+  assert((await pg.evaluate("APP.state().records.slice(-1)[0].kind")) === 'refuse', '留下拒絕紀錄');
+  await tab('roles'); await jsClick('[data-act="vacOut"]');
+  await pg.evaluate("SHEET.navigate('slots')"); await pg.waitForTimeout(150);
+  assert((await pg.$('[data-act="refuse"]')) === null, '離開空窗後不能拒絕');
+
+  // ---- 那一微秒：不在終點上就錯過，之後不能再對接 ----
+  await pg.evaluate("APP.becomeMe(0)");
+  await pg.evaluate("(function(){ var s=APP.state(); var b=s.roles[1]; var sl=b.slots.find(function(x){return x.id==='" + vs + "'}); sl.atUs = DATA.nowUs() + 2e6; APP.save(); })()");
+  await pg.evaluate("APP.showTab('world'); APP.teleportTo(APP.state().roles[1])"); await pg.waitForTimeout(300);
+  await pg.waitForFunction("CORE.missed(CORE.slotOf(APP.state(),'" + vs + "').slot, '00000000001')", null, { timeout: 8000 });
+  assert(true, '規則層標為錯過');
+  assert((await pg.textContent('#hudGoalText')).indexOf('錯過了 1 個時段') >= 0, 'HUD 顯示錯過');
+  var tryDock = await pg.evaluate("(function(){ try { CORE.dock(APP.state(),'" + vs + "','00000000001',0,0,DATA.nowUs()); return 'ok'; } catch (e) { return e.message; } })()");
+  assert(tryDock.indexOf('錯過') >= 0, '錯過之後 dock() 擋下：' + tryDock);
+  await pg.evaluate("APP.showTab('sheet'); SHEET.navigate('slots')"); await pg.waitForTimeout(150);
+  assert((await main()).indexOf('錯過，不能再對接') >= 0, '我預約的表標錯過');
+  await pg.evaluate("APP.goHome()"); await pg.waitForTimeout(100);
+
   // ---- 角色：建草稿 → 規則（條件下拉）→ 資源 → 創角色；規則鎖住；結束並重創 ----
   await tab('roles');
   await pg.fill('#addRoleName', '新人'); await pg.fill('#addRoleDaily', '500'); await jsClick('[data-act="newDraft"]');
