@@ -68,7 +68,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .plate .row{display:flex;gap:6px;margin-top:4px}
 /* 任務提示：名牌下方、畫面上方中間；底部對話框開著也看得到 */
 .hint{align-self:center;font-size:.84rem;color:var(--ink);background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:4px 12px;backdrop-filter:blur(6px);display:flex;gap:8px;align-items:center}
-.hint .lk{all:unset;cursor:pointer;color:var(--brass);font-weight:700;text-decoration:underline;padding:4px 2px}
+.hudTop>.hint{pointer-events:none}   /* 字那一塊點穿過去，只有按鈕接得到 */
+.hint .lk{pointer-events:auto;all:unset;cursor:pointer;color:var(--brass);font-weight:700;text-decoration:underline;padding:4px 2px}
 .hint[hidden]{display:none}
 .task{position:relative;align-self:center;max-width:100%;background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;backdrop-filter:blur(6px)}
 .count{position:absolute;right:12px;top:52px;background:var(--ink);color:var(--panel);border-radius:999px;padding:4px 12px;font-variant-numeric:tabular-nums;font-size:.9rem}

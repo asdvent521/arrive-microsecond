@@ -29,7 +29,8 @@ var J1 = '00000000001';
   var pl = await H.ev("(function(){var l=document.querySelector('.label.portal');return {hidden:l.hidden, text:l.textContent};})()");
   assert(!pl.hidden && pl.text === '傳送門 → 阿澄（J2）', '傳送門有名牌：' + pl.text);
   assert((await H.ev("document.getElementById('hintEnter') !== null")), '上方提示有「進去」');
-  await pg.screenshot({ path: require('path').join(__dirname, 'shots', 'v7_portal.png') });
+  await pg.waitForTimeout(10000);
+  assert(!(await pg.isHidden('#hintEnter')), '傳送門的提示 10 秒後還在、「進去」還按得到');
   await H.tapAndWatch('portal');
   assert((await pg.textContent('#plateName')).indexOf('在 阿澄 的世界') >= 0, '手指點傳送門 → 到了阿澄的世界');
 
@@ -38,6 +39,25 @@ var J1 = '00000000001';
   await H.tapAndWatch('role_' + J1); assert((await H.dlgTitle()).indexOf('這裡是角色') === 0, '沒在走代號：點角色碑，停下開角色碑對話框');
   opened = await H.tapAndWatch('res_' + J1);
   assert(!opened && (await H.dlgTitle()).indexOf('這裡是資源') === 0 && (await H.ev("GAME.dec().code()")) === '' && (await H.ev("GAME.dec().lastAt")) === null, '沒有字母也沒有指引：角色碑走到市集不算數字，停下開市集對話框');
+  // 1c. 上方提示留到走開為止；字那一塊讓手指點穿過去
+  await H.fresh();
+  await H.tapAndWatch('rule_' + J1); await H.pick('繞一圈（J）'); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone();
+  await H.tapAndWatch('role_' + J1);
+  assert(!(await pg.isHidden('#hint')) && (await pg.textContent('#hintText')) === '到了角色碑', '到了角色碑：提示出現');
+  await pg.waitForTimeout(10000);
+  assert(!(await pg.isHidden('#hint')), '提示 10 秒後還在');
+  // 轉鏡頭，直到有一棟建築在提示的字後面；點那些字，人會走去那棟
+  var behind = null;
+  for (var k = 0; k < 14 && !behind; k++) {
+    await pg.waitForTimeout(k ? 500 : 900);
+    behind = await pg.evaluate(function () { var r = document.getElementById('hintText').getBoundingClientRect(); for (var i = 0; i < 5; i++) { var x = r.left + r.width * (i + 0.5) / 5, y = r.top + r.height / 2; var h = WORLD.hitTest(x, y); if (h && h !== 'ground' && h !== 'portal' && WORLD.distanceTo(h) > 2) return { id: h, x: x, y: y, el: document.elementFromPoint(x, y).id }; } return null; });
+    if (!behind) { await pg.mouse.move(180, 400); await pg.mouse.down(); await pg.mouse.move(120, 400, { steps: 6 }); await pg.mouse.move(60, 400, { steps: 6 }); await pg.mouse.up(); }
+  }
+  assert(behind && behind.el !== 'hintText', '提示的字後面有一棟建築（' + (behind && behind.id) + '），點那裡碰到的不是提示');
+  await pg.mouse.click(behind.x, behind.y); await pg.waitForTimeout(300);
+  assert((await H.ev("(WORLD.walkingTo() || {}).id")) === behind.id, '點提示的字 → 走去後面那棟建築');
+  await H.walkDone();
+
   // 2. 走路經過終點台：不跳對話框、不算到達
   await H.fresh(); await H.ev(listen);
   opened = await H.tapAndWatch({ x: 2, z: 2 }); assert(!opened && (await H.ev("window.__arrived.length")) === 0, '點地面走到 (2,2)，沒到達什麼');
@@ -113,9 +133,11 @@ var J1 = '00000000001';
   await H.fresh(); await pg.click('#btnMap'); await H.click('#map .node[data-go="J2"]');
   assert((await H.ev("WORLD.guideCount()")) === 14, 'J2 指引 14 個光點');
   var pb = await H.ev("WORLD.playerPos()");
-  await pg.click('#swapToSheet'); await pg.waitForTimeout(400); await pg.click('#swapToGame'); await pg.waitForTimeout(800);
+  await pg.click('#swapToSheet'); await pg.waitForTimeout(400);
+  var same = await H.sheetName(); await H.click('#stabs a[data-s="' + same + '"]');   // 再點一次同一張工作表
+  await pg.click('#swapToGame'); await pg.waitForTimeout(800);
   var pb2 = await H.ev("WORLD.playerPos()");
-  assert((await H.ev("WORLD.guideCount()")) === 14 && !(await H.ev("WORLD.isMoving()")) && Math.hypot(pb2.x - pb.x, pb2.z - pb.z) < 0.01, '切過去再切回：光點還是 14 個、人沒動');
+  assert((await H.ev("WORLD.guideCount()")) === 14 && !(await H.ev("WORLD.isMoving()")) && Math.hypot(pb2.x - pb.x, pb2.z - pb.z) < 0.01, '切過去、再點一次同一張工作表就切回：光點還是 14 個、人沒動');
   // (c) 照指引繞完規則屋，切過去再切回：剩下的光點還在
   await H.tapAndWatch('rule_' + J1); await H.click('#hintCircle'); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone();
   var gc = await H.ev("WORLD.guideCount()"); assert(gc === 2, '繞完規則屋，剩 2 個光點');
@@ -124,6 +146,12 @@ var J1 = '00000000001';
   // (d) 在表世界換到點數再切回：走到帳房
   await pg.click('#swapToSheet'); await pg.waitForTimeout(300); await H.click('#stabs a[data-s="points"]'); await pg.click('#swapToGame'); await H.walkDone();
   assert((await H.ev("WORLD.distanceTo('pts_" + J1 + "')")) < 1.2, '表世界換看點數再切回：走到帳房');
+
+  // (e) 停在規則屋旁、對話框開著，切過去再切回：對話框還在
+  await H.fresh(); await H.tapAndWatch('rule_' + J1);
+  assert((await H.dlgTitle()).indexOf('這裡是規則') === 0, '規則屋的對話框開著');
+  await pg.click('#swapToSheet'); await pg.waitForTimeout(400); await pg.click('#swapToGame'); await pg.waitForTimeout(600);
+  assert((await H.dlgOpen()) && (await H.dlgTitle()).indexOf('這裡是規則') === 0, '切過去再切回：對話框還在');
 
   // 9. 暫停時取消已排好的下一格：同一格內連切 4 次，不會疊出多個迴圈
   await H.fresh();
