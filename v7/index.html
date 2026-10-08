@@ -1795,13 +1795,13 @@ var GAME = (function () {
   WORLD.on('circle', feedCircle);
   WORLD.on('arrive', function (o, info) {
     if (cur.visiting) { APP.setStanding(o.func === 'goal' ? cur.role.serial : null); if (!moving) openNear(o); return; }   // 別人的世界：停下就開
-    var wasCode = codeMode();
+    // 要先繞出字母（或地圖指引開著）才算開始走代號；沒有的話在建築之間走來走去不算輸入數字
+    if (!codeMode()) { if (!moving) openNear(o); return; }
     var r = dec.feed({ type: 'arrive', object: o.id });
     guideProgress('arrive', o.id);
     if (r.type === 'digit') { toast('數字 ' + r.digit); drawCode(); }
     else if (r.type === 'done') { drawCode(); openPortal(r.code); }
-    if (wasCode || codeMode()) { arrivedAt = o.id; hint('到了' + o.name, o); }   // 走代號中：只提示，附「看看」「繞一圈」
-    else if (!moving) openNear(o);   // 停在建築旁才開對話框，用現在的狀態重畫
+    arrivedAt = o.id; hint('到了' + o.name, o);   // 走代號中：只提示，附「看看」「繞一圈」
   });
   WORLD.on('portal', function () { if (portalRole) teleport(portalRole); });
   $('btnHome').addEventListener('click', goHome);

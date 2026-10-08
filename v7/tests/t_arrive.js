@@ -26,6 +26,11 @@ var J1 = '00000000001';
   assert(!opened && !(await H.dlgOpen()) && (await H.ev("GAME.dec().done")) === 'J2' && (await pg.textContent('#toast')).indexOf('傳送門') >= 0, '走到市集：不開對話框，走出 J2、傳送門打開');
   assert((await H.ev("window.__arrived.join(',')")) === 'rule(點建築),role(點建築),resource(點建築)', '到達只有三次：' + (await H.ev("window.__arrived.join(',')")));
 
+  // 1b. 沒在走代號：從角色碑點市集，停下打開市集的對話框，解碼器沒記任何數字
+  await H.fresh();
+  await H.tapAndWatch('role_' + J1); assert((await H.dlgTitle()).indexOf('這裡是角色') === 0, '沒在走代號：點角色碑，停下開角色碑對話框');
+  opened = await H.tapAndWatch('res_' + J1);
+  assert(!opened && (await H.dlgTitle()).indexOf('這裡是資源') === 0 && (await H.ev("GAME.dec().code()")) === '' && (await H.ev("GAME.dec().lastAt")) === null, '沒有字母也沒有指引：角色碑走到市集不算數字，停下開市集對話框');
   // 2. 走路經過終點台：不跳對話框、不算到達
   await H.fresh(); await H.ev(listen);
   opened = await H.tapAndWatch({ x: 2, z: 2 }); assert(!opened && (await H.ev("window.__arrived.length")) === 0, '點地面走到 (2,2)，沒到達什麼');
