@@ -9,9 +9,9 @@ var WORLD = (function () {
     return { available: false, init: noop, on: noop, loadWorld: noop, refreshObject: noop, walkTo: noop, circleAround: noop, enter: function () { return false; }, leave: function () { return false; }, depth: function () { return 0; },
              stop: noop, showPortal: noop, hidePortal: noop, flash: noop, setArcFilter: noop, playerPos: function () { return { x: 0, z: 0 }; }, isMoving: function () { return false; },
              distanceTo: function () { return Infinity; }, insideAny: function () { return false; }, resize: noop, camera: { yaw: 0, dist: 0 }, zoomTo: noop,
-             setTapHook: noop, setGuide: noop, guideCount: function () { return 0; }, showPartner: noop, objectAt: function () { return null; }, movePlayerTo: noop, screenOf: function () { return null; }, resetRings: noop, pause: noop, resume: noop, frameCount: function () { return 0; } };
+             setTapHook: noop, setGuide: noop, guideCount: function () { return 0; }, showPartner: noop, objectAt: function () { return null; }, movePlayerTo: noop, screenOf: function () { return null; }, resetRings: noop, pause: noop, resume: noop, frameCount: function () { return 0; }, walkToObject: noop, walkingTo: function () { return null; } };
   }
-  var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl, wallGroup, guideGroup, partner, tapHook = null;
+  var renderer, scene, camera, ground, objGroup, pathGroup, portal, portalLabel, player, clock, arc, labelLayer, flashEl, wallGroup, guideGroup, partner, tapHook = null;
   var stack = [];            // 進門的層：[{objects, pos}]，最多 3 層
   var sceneInfo = { depth: 0, visiting: false };
   var objects = [];          // [{data, mesh, radius, top, pos:Vector3, label, inside, angle, startAngle, turned, count}]
@@ -96,7 +96,12 @@ var WORLD = (function () {
     beam.position.y = 2.6;
     var ring = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.18, 12, 40), new THREE.MeshBasicMaterial({ color: 0xffffff }));
     var glow = new THREE.Mesh(new THREE.CircleGeometry(1.5, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
-    portal.add(beam); portal.add(ring); portal.add(glow);
+    // v7：白光在淺色地面上看不見，加一圈有顏色的外框和地上的光暈
+    var halo = new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.14, 12, 48), new THREE.MeshBasicMaterial({ color: 0xa2731f }));
+    var floorGlow = new THREE.Mesh(new THREE.RingGeometry(1.2, 2.6, 48), new THREE.MeshBasicMaterial({ color: 0xa2731f, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
+    floorGlow.rotation.x = -Math.PI / 2; floorGlow.position.y = -1.75;
+    portal.add(beam); portal.add(ring); portal.add(glow); portal.add(halo); portal.add(floorGlow);
+    portalLabel = document.createElement('div'); portalLabel.className = 'label portal'; portalLabel.hidden = true; labelLayer.appendChild(portalLabel);
     portal.position.y = 1.8;
     portal.visible = false;
     scene.add(portal);
@@ -111,7 +116,7 @@ var WORLD = (function () {
     el.addEventListener('pointerup', onUp);
     el.addEventListener('pointercancel', onUp);
     el.addEventListener('wheel', function (e) { e.preventDefault(); zoomTo(cam.dist * (e.deltaY > 0 ? 1.1 : 0.9)); }, { passive: false });
-    requestAnimationFrame(loop);
+    rafId = requestAnimationFrame(loop);
   }
 
   /* ---------- 手勢：單指點＝走、單指拖＝轉鏡頭、兩指＝縮放 ---------- */
@@ -219,6 +224,7 @@ var WORLD = (function () {
   function loadScene(objs, start, path, visiting) {
     clear(objGroup); clear(pathGroup); clear(wallGroup);
     labelLayer.innerHTML = '';
+    if (portalLabel) { portalLabel.hidden = true; labelLayer.appendChild(portalLabel); }   // 傳送門的名牌要留著
     var inner = sceneInfo.depth > 0;
     objects = objs.map(function (o) { var e = makeEntry(o); objGroup.add(e.mesh); return e; });
     if (inner) {
@@ -377,7 +383,8 @@ var WORLD = (function () {
   }
 
   // 傳送門開在空地上：從最近的物件往外推，不會開在建築裡
-  function showPortal() {
+  function showPortal(labelText) {
+    portalLabel.textContent = labelText || '傳送門';
     var dir = new THREE.Vector3(0, 0, 1), nd = Infinity;
     objects.forEach(function (o) {
       var d = player.position.distanceTo(o.pos);
@@ -388,14 +395,14 @@ var WORLD = (function () {
     portal.position.y = 1.8;
     portal.visible = true;
   }
-  function hidePortal() { portal.visible = false; }
+  function hidePortal() { portal.visible = false; portalLabel.hidden = true; }
 
   /* ---------- 每一格：走、看、算 ---------- */
   var stuck = 0;
-  var paused = false, frames = 0;
+  var paused = false, frames = 0, rafId = 0;
   function loop() {
     if (paused) return;                 // 暫停：不排下一格、不畫、不走
-    requestAnimationFrame(loop);
+    rafId = requestAnimationFrame(loop);
     frames++;
     var dt = Math.min(clock.getDelta(), 0.05);
     if (waypoints.length) {
@@ -414,7 +421,7 @@ var WORLD = (function () {
     detect();
     drawArc();
     drawLabels();
-    if (portal.visible) { portal.children[1].lookAt(camera.position); portal.children[2].lookAt(camera.position); }
+    if (portal.visible) { portal.children[1].lookAt(camera.position); portal.children[2].lookAt(camera.position); portal.children[3].lookAt(camera.position); }
     var want = new THREE.Vector3().copy(player.position).add(camOffset());
     camera.position.lerp(want, gesture ? 0.5 : 0.08);
     camera.lookAt(player.position.x, 1, player.position.z);
@@ -494,6 +501,13 @@ var WORLD = (function () {
       o.label.hidden = !ok;
       if (ok) o.label.style.transform = 'translate(-50%,-100%) translate(' + ((v.x + 1) / 2 * w).toFixed(0) + 'px,' + ((1 - v.y) / 2 * h).toFixed(0) + 'px)';
     });
+    // 傳送門的名牌：寫要去誰
+    if (portal.visible) {
+      v.set(portal.position.x, portal.position.y + 2.6, portal.position.z).project(camera);
+      var pok = v.z < 1 && v.x > -1.1 && v.x < 1.1 && v.y > -1.1 && v.y < 1.1;
+      portalLabel.hidden = !pok;
+      if (pok) portalLabel.style.transform = 'translate(-50%,-100%) translate(' + ((v.x + 1) / 2 * w).toFixed(0) + 'px,' + ((1 - v.y) / 2 * h).toFixed(0) + 'px)';
+    } else portalLabel.hidden = true;
   }
 
   function playerPos() { return { x: player.position.x, z: player.position.z }; }
@@ -512,14 +526,17 @@ var WORLD = (function () {
   function objectAt(id) { var o = objects.find(function (x) { return x.data.id === id; }); return o ? { x: o.pos.x, z: o.pos.z, radius: o.radius } : null; }
   function movePlayerTo(x, z) { player.position.set(x, 0, z); waypoints = []; }
   // 表世界蓋著時暫停 3D（不畫、不跑走路），切回來從原地繼續
-  function pause() { paused = true; }
-  function resume() { if (!paused) return; paused = false; clock.getDelta(); requestAnimationFrame(loop); }
+  function pause() { if (paused) return; paused = true; cancelAnimationFrame(rafId); rafId = 0; }   // 已排好的下一格也取消，免得疊出兩個迴圈
+  function resume() { if (!paused) return; paused = false; clock.getDelta(); rafId = requestAnimationFrame(loop); }
+  // 程式要走去某棟建築（切換回來時用）：跟手指點它一樣，記住目標
+  function walkToObject(id) { var o = objects.find(function (x) { return x.data.id === id; }); if (!o) return; walkTo(edgePoint(o)); walkTarget = o; }
+  function walkingTo() { return waypoints.length && walkTarget ? walkTarget.data : null; }
   function frameCount() { return frames; }
   // 解碼器重置時一起清掉繞圈的累計，免得舊的半圈接著算
   function resetRings() { objects.forEach(function (o) { o.inside = false; o.count = 0; o.turned = 0; }); }
   // 把世界座標（或物件 id）投影成畫面上的像素位置；建造模式測試用真的點擊
   function screenOf(target) {
-    var p = typeof target === 'string' ? (function () { var o = objects.find(function (x) { return x.data.id === target; }); return o ? new THREE.Vector3(o.pos.x, o.top / 2, o.pos.z) : null; })() : new THREE.Vector3(target.x, 0, target.z);
+    var p = target === 'portal' ? (portal.visible ? portal.position.clone() : null) : typeof target === 'string' ? (function () { var o = objects.find(function (x) { return x.data.id === target; }); return o ? new THREE.Vector3(o.pos.x, o.top / 2, o.pos.z) : null; })() : new THREE.Vector3(target.x, 0, target.z);
     if (!p) return null;
     var r = renderer.domElement.getBoundingClientRect(), v = p.clone().project(camera);
     return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height };
@@ -533,7 +550,7 @@ var WORLD = (function () {
     return objects.some(function (o) { return Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) < o.radius + AVOID - 0.05; });
   }
 
-  return { available: true, setTapHook: setTapHook, setGuide: setGuide, guideCount: guideCount, showPartner: showPartner, objectAt: objectAt, movePlayerTo: movePlayerTo, screenOf: screenOf, resetRings: resetRings, pause: pause, resume: resume, frameCount: frameCount, init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
+  return { available: true, setTapHook: setTapHook, setGuide: setGuide, guideCount: guideCount, showPartner: showPartner, objectAt: objectAt, movePlayerTo: movePlayerTo, screenOf: screenOf, resetRings: resetRings, pause: pause, resume: resume, frameCount: frameCount, walkToObject: walkToObject, walkingTo: walkingTo, init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
            stop: stop, showPortal: showPortal, hidePortal: hidePortal, flash: flash, setArcFilter: setArcFilter,
            playerPos: playerPos, isMoving: isMoving, distanceTo: distanceTo, insideAny: insideAny, resize: resize,
            camera: cam, zoomTo: zoomTo };

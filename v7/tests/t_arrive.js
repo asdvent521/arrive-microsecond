@@ -25,6 +25,13 @@ var J1 = '00000000001';
   opened = await H.tapAndWatch('res_' + J1);
   assert(!opened && !(await H.dlgOpen()) && (await H.ev("GAME.dec().done")) === 'J2' && (await pg.textContent('#toast')).indexOf('傳送門') >= 0, '走到市集：不開對話框，走出 J2、傳送門打開');
   assert((await H.ev("window.__arrived.join(',')")) === 'rule(點建築),role(點建築),resource(點建築)', '到達只有三次：' + (await H.ev("window.__arrived.join(',')")));
+  // 傳送門看得到：有顏色的外框、名牌寫要去誰；用手指點門進去
+  var pl = await H.ev("(function(){var l=document.querySelector('.label.portal');return {hidden:l.hidden, text:l.textContent};})()");
+  assert(!pl.hidden && pl.text === '傳送門 → 阿澄（J2）', '傳送門有名牌：' + pl.text);
+  assert((await H.ev("document.getElementById('hintEnter') !== null")), '上方提示有「進去」');
+  await pg.screenshot({ path: require('path').join(__dirname, 'shots', 'v7_portal.png') });
+  await H.tapAndWatch('portal');
+  assert((await pg.textContent('#plateName')).indexOf('在 阿澄 的世界') >= 0, '手指點傳送門 → 到了阿澄的世界');
 
   // 1b. 沒在走代號：從角色碑點市集，停下打開市集的對話框，解碼器沒記任何數字
   await H.fresh();
@@ -69,9 +76,15 @@ var J1 = '00000000001';
   assert((await H.ev("GAME.dec().lastAt")) === 'rule_' + J1, '繞完一圈，人就算在規則屋');
   opened = await H.tapAndWatch('res_' + J1);
   assert(!opened && (await H.ev("GAME.dec().done")) === 'J2' && (await pg.textContent('#toast')).indexOf('傳送門') >= 0, '不開指引，規則屋 → 市集就走出 J2，傳送門打開');
+  await H.click('#hintEnter'); await pg.waitForTimeout(300);
+  assert((await pg.textContent('#plateName')).indexOf('在 阿澄 的世界') >= 0, '按「進去」也進得去');
+  await H.ev("GAME.goHome()"); await pg.waitForTimeout(300);
+  await H.tapAndWatch('rule_' + J1); await H.pick('繞一圈（J）'); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone(); await H.tapAndWatch('res_' + J1);
 
   // 6. 代號那行的小 ✕：清掉代號、繞圈、光點、傳送門；之後停在建築旁照常開對話框
   assert(!(await pg.isHidden('#codeClear')), '有代號時代號行有 ✕');
+  var xb = await H.ev("(function(){var r=document.getElementById('codeClear').getBoundingClientRect(), b=document.getElementById('btnBuild').getBoundingClientRect();return {w:r.width,h:r.height,bh:b.height};})()");
+  assert(xb.w >= 32 && xb.h >= 32 && xb.h >= xb.bh - 4, '✕ 至少 32 像素、跟「建造」差不多高（' + Math.round(xb.w) + '×' + Math.round(xb.h) + '，建造 ' + Math.round(xb.bh) + '）');
   await H.click('#codeClear');
   assert((await H.ev("JSON.stringify({code:GAME.dec().code(), last:GAME.dec().lastAt, guide:WORLD.guideCount(), x:document.getElementById('codeClear')!==null, h:document.getElementById('codeLine').getBoundingClientRect().height})")) === '{"code":"","last":null,"guide":0,"x":false,"h":0}', '按 ✕：代號、光點、傳送門全清，代號行不占位置');
   opened = await H.tapAndWatch('role_' + J1);
@@ -86,6 +99,38 @@ var J1 = '00000000001';
   await pg.click('#swapToGame'); await pg.waitForTimeout(500);
   var p0 = await H.ev("WORLD.playerPos()"); await H.tapAndWatch({ x: 3, z: 3 }); var p1 = await H.ev("WORLD.playerPos()");
   assert((await H.ev("WORLD.frameCount()")) > f1 && Math.hypot(p1.x - p0.x, p1.z - p0.z) > 1, '切回裡世界：3D 繼續畫，點地面照常會走');
+
+  // 8. 切去表世界沒換看別的東西就切回：一切照舊
+  // (a) 點終點台走到一半切過去再切回，最後停在終點台；途中切過去時表世界開的是「要去的那棟」（我開的時段），不是路過的
+  await H.fresh();
+  var sg = await H.onScreen('goal_' + J1); await pg.mouse.click(sg.x, sg.y); await pg.waitForTimeout(700);
+  assert((await H.ev("WORLD.isMoving()")), '往終點台走到一半');
+  await pg.click('#swapToSheet'); await pg.waitForTimeout(300);
+  assert((await H.sheetName()) === 'myslots', '走路途中切過去：表世界開「要去的那棟」對應的工作表（我開的時段）');
+  await pg.click('#swapToGame'); await H.walkDone();
+  assert((await H.dlgTitle()).indexOf('這裡是終點') === 0 && (await H.ev("WORLD.distanceTo('goal_" + J1 + "')")) < 1.2, '切回來繼續走，最後停在終點台');
+  // (b) 開著 J2 指引站著不動，切過去再切回：光點還是 14 個、人沒動
+  await H.fresh(); await pg.click('#btnMap'); await H.click('#map .node[data-go="J2"]');
+  assert((await H.ev("WORLD.guideCount()")) === 14, 'J2 指引 14 個光點');
+  var pb = await H.ev("WORLD.playerPos()");
+  await pg.click('#swapToSheet'); await pg.waitForTimeout(400); await pg.click('#swapToGame'); await pg.waitForTimeout(800);
+  var pb2 = await H.ev("WORLD.playerPos()");
+  assert((await H.ev("WORLD.guideCount()")) === 14 && !(await H.ev("WORLD.isMoving()")) && Math.hypot(pb2.x - pb.x, pb2.z - pb.z) < 0.01, '切過去再切回：光點還是 14 個、人沒動');
+  // (c) 照指引繞完規則屋，切過去再切回：剩下的光點還在
+  await H.tapAndWatch('rule_' + J1); await H.click('#hintCircle'); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone();
+  var gc = await H.ev("WORLD.guideCount()"); assert(gc === 2, '繞完規則屋，剩 2 個光點');
+  await pg.click('#swapToSheet'); await pg.waitForTimeout(400); await pg.click('#swapToGame'); await pg.waitForTimeout(800);
+  assert((await H.ev("WORLD.guideCount()")) === 2 && (await H.ev("GAME.dec().code()")) === 'J', '切過去再切回：剩下的光點和字母 J 都還在');
+  // (d) 在表世界換到點數再切回：走到帳房
+  await pg.click('#swapToSheet'); await pg.waitForTimeout(300); await H.click('#stabs a[data-s="points"]'); await pg.click('#swapToGame'); await H.walkDone();
+  assert((await H.ev("WORLD.distanceTo('pts_" + J1 + "')")) < 1.2, '表世界換看點數再切回：走到帳房');
+
+  // 9. 暫停時取消已排好的下一格：同一格內連切 4 次，不會疊出多個迴圈
+  await H.fresh();
+  var fa = await H.ev("WORLD.frameCount()"); await pg.waitForTimeout(1000); var fb = await H.ev("WORLD.frameCount()");
+  await H.ev("for (var i = 0; i < 4; i++) { APP.switchTo('sheet'); APP.switchTo('game'); }");
+  await pg.waitForTimeout(1000); var fc = await H.ev("WORLD.frameCount()"); await pg.waitForTimeout(1000); var fd = await H.ev("WORLD.frameCount()");
+  assert((fd - fc) <= (fb - fa) * 1.5 + 5, '連切 4 次後每秒畫的次數沒變多（' + (fb - fa) + ' → ' + (fd - fc) + '）');
 
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');

@@ -8,7 +8,7 @@ var J1 = '00000000001', J2 = '00000000002';
   await H.fresh();
   assert((await H.ev("typeof THREE")) === 'object' && (await H.ev("APP.view()")) === 'game', '一開就是裡世界，Three.js 打包在裡面');
   assert((await H.ev("document.querySelectorAll('#view-game table, #view-game th, #view-game td').length")) === 0, '裡世界沒有任何表格元素');
-  assert((await H.ev("document.querySelectorAll('.label').length")) === 5, '五個功能點都有標籤');
+  assert((await H.ev("document.querySelectorAll('.label:not(.portal)').length")) === 5, '五個功能點都有標籤');
   var plate = await pg.textContent('.plate');
   assert(plate.indexOf('J1') >= 0 && plate.indexOf('今天還能給 1800 / 1800 點') >= 0, '名牌：代號、名字、能量條');
   assert((await pg.textContent('#task')).indexOf('下一步：') === 0, '上方一行任務提示');
@@ -68,7 +68,7 @@ var J1 = '00000000001', J2 = '00000000002';
   opened = await H.tapAndWatch('res_' + J1); assert(!opened, '走到市集途中不開對話框');
   await pg.waitForFunction("GAME.dec().done === 'J2'", null, { timeout: 15000 });
   assert((await pg.textContent('#toast')).indexOf('傳送門') >= 0, '改外觀、搬移後照樣走得出 J2，傳送門打開');
-  await H.ev("GAME.enterPortal()"); await pg.waitForTimeout(300);
+  await H.tapAndWatch('portal');
   assert((await pg.textContent('#plateName')).indexOf('在 阿澄 的世界') >= 0 && !(await pg.isHidden('#btnHome')), '到了阿澄的世界，有回家鈕');
 
   // 那一微秒：預約、倒數、站上終點、交換滑桿、白光、對接；能量條下降

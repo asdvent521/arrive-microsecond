@@ -46,6 +46,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 #stage canvas{display:block}
 .labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .label{position:absolute;left:0;top:0;font-size:.78rem;padding:1px 8px;border-radius:999px;background:var(--hud);border:1px solid var(--line);color:var(--ink);white-space:nowrap;will-change:transform}
+.label.portal{color:var(--brass);border-color:var(--brass);font-weight:700}
 .label.rule{color:var(--teal)} .label.goal{color:var(--brass)} .label.resource,.label.points{color:var(--blue)}
 .whiteflash{position:absolute;inset:0;pointer-events:none;background:#fff;opacity:0}
 .whiteflash.go{animation:whiteflash .9s ease-out forwards}
@@ -62,7 +63,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .plate .en{font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .code{font-family:var(--serif);font-size:1.3rem;letter-spacing:.14em;color:var(--brass);line-height:1.2}
 .code{display:flex;align-items:center;gap:6px}
-.code .x{all:unset;cursor:pointer;font-size:.8rem;letter-spacing:0;color:var(--muted);border:1px solid var(--line);border-radius:999px;width:22px;height:22px;text-align:center;line-height:22px}
+.code .x{all:unset;cursor:pointer;font-size:1rem;letter-spacing:0;color:var(--muted);border:1px solid var(--line);border-radius:999px;width:34px;height:34px;text-align:center;line-height:34px}
 .code:empty{display:none}
 .plate .row{display:flex;gap:6px;margin-top:4px}
 /* 任務提示：名牌下方、畫面上方中間；底部對話框開著也看得到 */
