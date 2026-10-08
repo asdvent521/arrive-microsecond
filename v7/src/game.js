@@ -99,6 +99,8 @@ var GAME = (function () {
     var title = '這裡是' + f.label + '：' + o.name;
     if (build && mine) return buildDialog(o);
     var opts = [];
+    var circ = mine && r.world.walk.circles.find(function (c) { return c.object === o.id; });
+    if (circ) opts.push({ label: '繞一圈（' + circ.letter + '）', fn: function () { dialog(null); WORLD.circleAround(o.id); } });
     if (o.func === 'rule') {
       opts.push({ label: '閱讀規則', pri: true, fn: function () { readRules(r, 0); } });
       if (!mine && r.rules.village && !CORE.accepted(S(), me().serial, r.serial)) opts.push({ label: '接受村規', fn: function () { act(function () { CORE.accept(S(), me().serial, r.serial); }, '你接受了 ' + r.name + ' 的村規'); openNear(o); } });
@@ -235,7 +237,7 @@ var GAME = (function () {
 
   /* ---------- 建造模式：點物件 → 換外觀、換顏色、搬移、門、刪除、走法；新增地標 ---------- */
   function setBuild(on) {
-    build = on; drawPlate();
+    build = on; drawPlate(); hint('');
     WORLD.setTapHook(on ? function (hit) {
       if (moving) { if (hit.point) { act(function () { moving.pos = [Math.round(hit.point.x), Math.round(hit.point.z)]; WORLD.refreshObject(moving.id); }, '放下了'); moving = null; } return true; }
       if (hit.object) { buildDialog(hit.object); return true; }
@@ -289,7 +291,7 @@ var GAME = (function () {
   /* ---------- 傳送、回家 ---------- */
   function openPortal(code) {
     var role = CORE.findRole(S(), code);
-    if (!role || role === me()) { toast(role === me() ? code + ' 是自己，走別人的代號' : '沒有 ' + code + ' 這個角色', true); setTimeout(function () { dec.reset(); drawCode(); toast(''); }, 2200); return; }
+    if (!role || role === me()) { toast(role === me() ? code + ' 是自己，走別人的代號' : '沒有 ' + code + ' 這個角色', true); setTimeout(function () { dec.reset(); WORLD.resetRings(); drawCode(); toast(''); }, 2200); return; }
     portalRole = role; WORLD.showPortal(); WORLD.setGuide([]); guideSteps = null;
     toast('走出了 ' + code + '，白光傳送門打開了。點傳送門過去。', true);
   }
@@ -304,29 +306,44 @@ var GAME = (function () {
   function goHome() {
     if (cur.visiting) WORLD.flash();
     cur = { role: me(), visiting: false }; dialog(null); WORLD.showPartner(false);
-    dec.reset(); WORLD.loadWorld(me().world); APP.setStanding(null); APP.setFocus({ role: me().serial, func: null }); drawPlate(); toast('');
+    dec.reset(); WORLD.resetRings(); WORLD.loadWorld(me().world); APP.setStanding(null); APP.setFocus({ role: me().serial, func: null }); drawPlate(); toast('');
   }
 
   /* ---------- 世界事件 ---------- */
   // 走代號中（已走出字母或數字，或地上有指引光點）：到建築不自動升對話框，只在上方跳一行小字
   function codeMode() { return !cur.visiting && ((dec && dec.code() !== '') || WORLD.guideCount() > 0); }
   var hintTimer = null, arrivedAt = null;
-  function hint(text) { var el = $('hint'); el.textContent = text; el.hidden = !text; clearTimeout(hintTimer); if (text) hintTimer = setTimeout(function () { el.hidden = true; }, 2500); }
-  WORLD.on('near', function (o) { nearObj = o; if (cur.visiting && !(o && o.func === 'goal')) APP.setStanding(null); if (o && !moving && !codeMode()) openNear(o); else if (!o) { dialog(null); arrivedAt = null; } });   // 離開終點就不算站著
-  WORLD.on('turn', function (o, n) { if (!cur.visiting) toast('繞 ' + o.name + ' ' + n + ' 圈'); });
-  WORLD.on('circle', function (o, n) { if (cur.visiting) return; var r = dec.feed({ type: 'circle', object: o.id, count: n }); if (r.type === 'letter') { toast('字母 ' + r.letter); drawCode(); guideProgress('circle', o.id); } });
+  function hint(text, o) {   // 上方一行小字；到了建築時帶「看看」「繞一圈」按鈕
+    var el = $('hint'); clearTimeout(hintTimer);
+    if (!text) { el.hidden = true; el.innerHTML = ''; return; }
+    var circ = o && !cur.visiting && me().world.walk.circles.find(function (c) { return c.object === o.id; });
+    el.innerHTML = esc(text) + (o ? ' <button type="button" class="lk" id="hintLook">看看</button>' : '') + (circ ? ' <button type="button" class="lk" id="hintCircle">繞一圈（' + circ.letter + '）</button>' : '');
+    el.hidden = false;
+    if (o) { $('hintLook').onclick = function () { hint(''); openNear(o); }; if (circ) $('hintCircle').onclick = function () { hint(''); WORLD.circleAround(o.id); }; }
+    else hintTimer = setTimeout(function () { el.hidden = true; }, 2500);
+  }
+  // 靠近不開對話框（路過不算）；只有停下來（arrive）才開。離開終點就不算站著。
+  WORLD.on('near', function (o) { nearObj = o; if (cur.visiting && !(o && o.func === 'goal')) APP.setStanding(null); if (!o) { dialog(null); hint(''); arrivedAt = null; } });
+  WORLD.on('walkstart', function () { dialog(null); hint(''); });
+  // 繞完一圈當下就算走出字母（進入走代號狀態），不等離開範圍；離開範圍的結算若一樣就不再餵
+  function feedCircle(o, n) {
+    if (cur.visiting) return;
+    var c = me().world.walk.circles.find(function (x) { return x.object === o.id; });
+    if (c && dec.letter === String.fromCharCode(c.letter.charCodeAt(0) - (n - 1)) && !dec.digits) return;   // 這一圈已經算過了
+    var r = dec.feed({ type: 'circle', object: o.id, count: n });
+    if (r.type === 'letter') { toast('字母 ' + r.letter); drawCode(); guideProgress('circle', o.id); }
+  }
+  WORLD.on('turn', feedCircle);
+  WORLD.on('circle', feedCircle);
   WORLD.on('arrive', function (o, info) {
-    if (cur.visiting) { APP.setStanding(o.func === 'goal' ? cur.role.serial : null); return; }
+    if (cur.visiting) { APP.setStanding(o.func === 'goal' ? cur.role.serial : null); if (!moving) openNear(o); return; }   // 別人的世界：停下就開
     var wasCode = codeMode();
     var r = dec.feed({ type: 'arrive', object: o.id });
     guideProgress('arrive', o.id);
     if (r.type === 'digit') { toast('數字 ' + r.digit); drawCode(); }
     else if (r.type === 'done') { drawCode(); openPortal(r.code); }
-    if (wasCode || codeMode()) {
-      // 走代號中：第一次到只提示；再點一次同一棟才打開對話框
-      if (info && info.tapped && arrivedAt === o.id) { openNear(o); return; }
-      arrivedAt = o.id; hint('到了' + o.name);
-    } else if (!moving) openNear(o);   // 停在建築旁：用現在的狀態重畫對話框
+    if (wasCode || codeMode()) { arrivedAt = o.id; hint('到了' + o.name, o); }   // 走代號中：只提示，附「看看」「繞一圈」
+    else if (!moving) openNear(o);   // 停在建築旁才開對話框，用現在的狀態重畫
   });
   WORLD.on('portal', function () { if (portalRole) teleport(portalRole); });
   $('btnHome').addEventListener('click', goHome);

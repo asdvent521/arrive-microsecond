@@ -65,7 +65,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .code:empty{display:none}
 .plate .row{display:flex;gap:6px;margin-top:4px}
 /* 任務提示：名牌下方、畫面上方中間；底部對話框開著也看得到 */
-.hint{align-self:center;font-size:.8rem;color:var(--muted);background:var(--hud);border-radius:999px;padding:2px 10px;backdrop-filter:blur(6px)}
+.hint{align-self:center;font-size:.84rem;color:var(--ink);background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:4px 12px;backdrop-filter:blur(6px);display:flex;gap:8px;align-items:center}
+.hint .lk{all:unset;cursor:pointer;color:var(--brass);font-weight:700;text-decoration:underline;padding:4px 2px}
 .hint[hidden]{display:none}
 .task{position:relative;align-self:center;max-width:100%;background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;backdrop-filter:blur(6px)}
 .count{position:absolute;right:12px;top:52px;background:var(--ink);color:var(--panel);border-radius:999px;padding:4px 12px;font-variant-numeric:tabular-nums;font-size:.9rem}
@@ -816,7 +817,7 @@ var WORLD = (function () {
     return { available: false, init: noop, on: noop, loadWorld: noop, refreshObject: noop, walkTo: noop, circleAround: noop, enter: function () { return false; }, leave: function () { return false; }, depth: function () { return 0; },
              stop: noop, showPortal: noop, hidePortal: noop, flash: noop, setArcFilter: noop, playerPos: function () { return { x: 0, z: 0 }; }, isMoving: function () { return false; },
              distanceTo: function () { return Infinity; }, insideAny: function () { return false; }, resize: noop, camera: { yaw: 0, dist: 0 }, zoomTo: noop,
-             setTapHook: noop, setGuide: noop, guideCount: function () { return 0; }, showPartner: noop, objectAt: function () { return null; }, movePlayerTo: noop, screenOf: function () { return null; } };
+             setTapHook: noop, setGuide: noop, guideCount: function () { return 0; }, showPartner: noop, objectAt: function () { return null; }, movePlayerTo: noop, screenOf: function () { return null; }, resetRings: noop };
   }
   var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl, wallGroup, guideGroup, partner, tapHook = null;
   var stack = [];            // 進門的層：[{objects, pos}]，最多 3 層
@@ -1111,14 +1112,26 @@ var WORLD = (function () {
     var hg = raycaster.intersectObject(ground);
     // v7：建造模式等情況，先問接線層要不要接手這次點擊
     if (tapHook && tapHook({ object: o ? o.data : null, point: hg.length ? { x: hg[0].point.x, z: hg[0].point.z } : null })) return;
-    if (o) { walkTo(edgePoint(o)); walkTarget = o; return; }
-    if (hg.length) walkTo(hg[0].point);
+    if (o) {
+      var dist = Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) - o.radius;
+      if (dist < 1.6) walkPath(behindPoints(o)); else walkTo(edgePoint(o));   // 已經在旁邊：改走到建築背後的地面
+      walkTarget = o; emit('walkstart'); return;
+    }
+    if (hg.length) { walkTo(hg[0].point); emit('walkstart'); }
   }
   function edgePoint(o) {
     var dir = new THREE.Vector3().subVectors(player.position, o.pos); dir.y = 0;
     if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
     dir.normalize().multiplyScalar(o.radius + AVOID + 0.15);
     return new THREE.Vector3().addVectors(o.pos, dir);
+  }
+  // 站在建築旁再點它：繞到背後的地面（先走到側邊，再到正後方）
+  function behindPoints(o) {
+    var dir = new THREE.Vector3().subVectors(player.position, o.pos); dir.y = 0;
+    if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
+    dir.normalize();
+    var r = o.radius + AVOID + 0.6, side = new THREE.Vector3(-dir.z, 0, dir.x);
+    return [{ x: o.pos.x + side.x * r, z: o.pos.z + side.z * r }, { x: o.pos.x - dir.x * r, z: o.pos.z - dir.z * r }];
   }
   // 目標點如果在物件裡，推到物件邊上
   function outside(p) {
@@ -1303,6 +1316,8 @@ var WORLD = (function () {
   function showPartner(on) { if (on) { partner.position.copy(player.position).add(new THREE.Vector3(1.4, 0, 0)); partner.lookAt(player.position.x, 0, player.position.z); } partner.visible = !!on; }
   function objectAt(id) { var o = objects.find(function (x) { return x.data.id === id; }); return o ? { x: o.pos.x, z: o.pos.z, radius: o.radius } : null; }
   function movePlayerTo(x, z) { player.position.set(x, 0, z); waypoints = []; }
+  // 解碼器重置時一起清掉繞圈的累計，免得舊的半圈接著算
+  function resetRings() { objects.forEach(function (o) { o.inside = false; o.count = 0; o.turned = 0; }); }
   // 把世界座標（或物件 id）投影成畫面上的像素位置；建造模式測試用真的點擊
   function screenOf(target) {
     var p = typeof target === 'string' ? (function () { var o = objects.find(function (x) { return x.data.id === target; }); return o ? new THREE.Vector3(o.pos.x, o.top / 2, o.pos.z) : null; })() : new THREE.Vector3(target.x, 0, target.z);
@@ -1319,7 +1334,7 @@ var WORLD = (function () {
     return objects.some(function (o) { return Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) < o.radius + AVOID - 0.05; });
   }
 
-  return { available: true, setTapHook: setTapHook, setGuide: setGuide, guideCount: guideCount, showPartner: showPartner, objectAt: objectAt, movePlayerTo: movePlayerTo, screenOf: screenOf, init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
+  return { available: true, setTapHook: setTapHook, setGuide: setGuide, guideCount: guideCount, showPartner: showPartner, objectAt: objectAt, movePlayerTo: movePlayerTo, screenOf: screenOf, resetRings: resetRings, init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
            stop: stop, showPortal: showPortal, hidePortal: hidePortal, flash: flash, setArcFilter: setArcFilter,
            playerPos: playerPos, isMoving: isMoving, distanceTo: distanceTo, insideAny: insideAny, resize: resize,
            camera: cam, zoomTo: zoomTo };
@@ -1542,6 +1557,8 @@ var GAME = (function () {
     var title = '這裡是' + f.label + '：' + o.name;
     if (build && mine) return buildDialog(o);
     var opts = [];
+    var circ = mine && r.world.walk.circles.find(function (c) { return c.object === o.id; });
+    if (circ) opts.push({ label: '繞一圈（' + circ.letter + '）', fn: function () { dialog(null); WORLD.circleAround(o.id); } });
     if (o.func === 'rule') {
       opts.push({ label: '閱讀規則', pri: true, fn: function () { readRules(r, 0); } });
       if (!mine && r.rules.village && !CORE.accepted(S(), me().serial, r.serial)) opts.push({ label: '接受村規', fn: function () { act(function () { CORE.accept(S(), me().serial, r.serial); }, '你接受了 ' + r.name + ' 的村規'); openNear(o); } });
@@ -1678,7 +1695,7 @@ var GAME = (function () {
 
   /* ---------- 建造模式：點物件 → 換外觀、換顏色、搬移、門、刪除、走法；新增地標 ---------- */
   function setBuild(on) {
-    build = on; drawPlate();
+    build = on; drawPlate(); hint('');
     WORLD.setTapHook(on ? function (hit) {
       if (moving) { if (hit.point) { act(function () { moving.pos = [Math.round(hit.point.x), Math.round(hit.point.z)]; WORLD.refreshObject(moving.id); }, '放下了'); moving = null; } return true; }
       if (hit.object) { buildDialog(hit.object); return true; }
@@ -1732,7 +1749,7 @@ var GAME = (function () {
   /* ---------- 傳送、回家 ---------- */
   function openPortal(code) {
     var role = CORE.findRole(S(), code);
-    if (!role || role === me()) { toast(role === me() ? code + ' 是自己，走別人的代號' : '沒有 ' + code + ' 這個角色', true); setTimeout(function () { dec.reset(); drawCode(); toast(''); }, 2200); return; }
+    if (!role || role === me()) { toast(role === me() ? code + ' 是自己，走別人的代號' : '沒有 ' + code + ' 這個角色', true); setTimeout(function () { dec.reset(); WORLD.resetRings(); drawCode(); toast(''); }, 2200); return; }
     portalRole = role; WORLD.showPortal(); WORLD.setGuide([]); guideSteps = null;
     toast('走出了 ' + code + '，白光傳送門打開了。點傳送門過去。', true);
   }
@@ -1747,29 +1764,44 @@ var GAME = (function () {
   function goHome() {
     if (cur.visiting) WORLD.flash();
     cur = { role: me(), visiting: false }; dialog(null); WORLD.showPartner(false);
-    dec.reset(); WORLD.loadWorld(me().world); APP.setStanding(null); APP.setFocus({ role: me().serial, func: null }); drawPlate(); toast('');
+    dec.reset(); WORLD.resetRings(); WORLD.loadWorld(me().world); APP.setStanding(null); APP.setFocus({ role: me().serial, func: null }); drawPlate(); toast('');
   }
 
   /* ---------- 世界事件 ---------- */
   // 走代號中（已走出字母或數字，或地上有指引光點）：到建築不自動升對話框，只在上方跳一行小字
   function codeMode() { return !cur.visiting && ((dec && dec.code() !== '') || WORLD.guideCount() > 0); }
   var hintTimer = null, arrivedAt = null;
-  function hint(text) { var el = $('hint'); el.textContent = text; el.hidden = !text; clearTimeout(hintTimer); if (text) hintTimer = setTimeout(function () { el.hidden = true; }, 2500); }
-  WORLD.on('near', function (o) { nearObj = o; if (cur.visiting && !(o && o.func === 'goal')) APP.setStanding(null); if (o && !moving && !codeMode()) openNear(o); else if (!o) { dialog(null); arrivedAt = null; } });   // 離開終點就不算站著
-  WORLD.on('turn', function (o, n) { if (!cur.visiting) toast('繞 ' + o.name + ' ' + n + ' 圈'); });
-  WORLD.on('circle', function (o, n) { if (cur.visiting) return; var r = dec.feed({ type: 'circle', object: o.id, count: n }); if (r.type === 'letter') { toast('字母 ' + r.letter); drawCode(); guideProgress('circle', o.id); } });
+  function hint(text, o) {   // 上方一行小字；到了建築時帶「看看」「繞一圈」按鈕
+    var el = $('hint'); clearTimeout(hintTimer);
+    if (!text) { el.hidden = true; el.innerHTML = ''; return; }
+    var circ = o && !cur.visiting && me().world.walk.circles.find(function (c) { return c.object === o.id; });
+    el.innerHTML = esc(text) + (o ? ' <button type="button" class="lk" id="hintLook">看看</button>' : '') + (circ ? ' <button type="button" class="lk" id="hintCircle">繞一圈（' + circ.letter + '）</button>' : '');
+    el.hidden = false;
+    if (o) { $('hintLook').onclick = function () { hint(''); openNear(o); }; if (circ) $('hintCircle').onclick = function () { hint(''); WORLD.circleAround(o.id); }; }
+    else hintTimer = setTimeout(function () { el.hidden = true; }, 2500);
+  }
+  // 靠近不開對話框（路過不算）；只有停下來（arrive）才開。離開終點就不算站著。
+  WORLD.on('near', function (o) { nearObj = o; if (cur.visiting && !(o && o.func === 'goal')) APP.setStanding(null); if (!o) { dialog(null); hint(''); arrivedAt = null; } });
+  WORLD.on('walkstart', function () { dialog(null); hint(''); });
+  // 繞完一圈當下就算走出字母（進入走代號狀態），不等離開範圍；離開範圍的結算若一樣就不再餵
+  function feedCircle(o, n) {
+    if (cur.visiting) return;
+    var c = me().world.walk.circles.find(function (x) { return x.object === o.id; });
+    if (c && dec.letter === String.fromCharCode(c.letter.charCodeAt(0) - (n - 1)) && !dec.digits) return;   // 這一圈已經算過了
+    var r = dec.feed({ type: 'circle', object: o.id, count: n });
+    if (r.type === 'letter') { toast('字母 ' + r.letter); drawCode(); guideProgress('circle', o.id); }
+  }
+  WORLD.on('turn', feedCircle);
+  WORLD.on('circle', feedCircle);
   WORLD.on('arrive', function (o, info) {
-    if (cur.visiting) { APP.setStanding(o.func === 'goal' ? cur.role.serial : null); return; }
+    if (cur.visiting) { APP.setStanding(o.func === 'goal' ? cur.role.serial : null); if (!moving) openNear(o); return; }   // 別人的世界：停下就開
     var wasCode = codeMode();
     var r = dec.feed({ type: 'arrive', object: o.id });
     guideProgress('arrive', o.id);
     if (r.type === 'digit') { toast('數字 ' + r.digit); drawCode(); }
     else if (r.type === 'done') { drawCode(); openPortal(r.code); }
-    if (wasCode || codeMode()) {
-      // 走代號中：第一次到只提示；再點一次同一棟才打開對話框
-      if (info && info.tapped && arrivedAt === o.id) { openNear(o); return; }
-      arrivedAt = o.id; hint('到了' + o.name);
-    } else if (!moving) openNear(o);   // 停在建築旁：用現在的狀態重畫對話框
+    if (wasCode || codeMode()) { arrivedAt = o.id; hint('到了' + o.name, o); }   // 走代號中：只提示，附「看看」「繞一圈」
+    else if (!moving) openNear(o);   // 停在建築旁才開對話框，用現在的狀態重畫
   });
   WORLD.on('portal', function () { if (portalRole) teleport(portalRole); });
   $('btnHome').addEventListener('click', goHome);

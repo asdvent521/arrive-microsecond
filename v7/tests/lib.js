@@ -19,9 +19,44 @@ async function open(pagePath, opts) {
     ev: function (js) { return pg.evaluate(js); },
     // 裡世界
     walkTo: async function (x, z) { await pg.evaluate("WORLD.walkTo({x:" + x + ", z:" + z + "})"); await pg.waitForFunction("!WORLD.isMoving()", null, { timeout: 15000 }); await pg.waitForTimeout(250); },
-    goNear: async function (func, role) {               // 走到某個功能點旁邊（目前載入的世界）
-      var o = await pg.evaluate("(function(){var r=" + (role ? "CORE.roleOf(APP.state(),'" + role + "')" : "GAME.cur().role") + ";var o=APP.allObjs(r).find(function(x){return x.func==='" + func + "'});var p=WORLD.objectAt(o.id);return {x:p.x,z:p.z+p.radius+0.6};})()");
-      await H.walkTo(o.x, o.z); await pg.waitForTimeout(250);
+    goNear: async function (func, role) {               // 走到某個功能點旁邊：用手指點那棟建築；不在畫面上才退回程式走路
+      var o = await pg.evaluate("(function(){var r=" + (role ? "CORE.roleOf(APP.state(),'" + role + "')" : "GAME.cur().role") + ";var o=APP.allObjs(r).find(function(x){return x.func==='" + func + "'});var p=WORLD.objectAt(o.id);return {id:o.id,x:p.x,z:p.z+p.radius+0.6};})()");
+      var sc = null; try { sc = await H.onScreen(o.id); } catch (e) { sc = null; }
+      if (sc) { await pg.mouse.click(sc.x, sc.y); await pg.waitForFunction("!WORLD.isMoving()", null, { timeout: 15000 }); }
+      else await H.walkTo(o.x, o.z);
+      await pg.waitForTimeout(300);
+      // 走代號中到了建築只有提示：想看就按「看看」
+      if (!(await H.dlgOpen()) && (await pg.evaluate("document.getElementById('hintLook') !== null"))) { await H.click('#hintLook'); }
+    },
+    walkDone: async function () { await pg.waitForFunction("!WORLD.isMoving()", null, { timeout: 20000 }); await pg.waitForTimeout(300); },
+    // 點畫面走路，途中每 100ms 看一次對話框有沒有升起
+    // 目標不在畫面上就單指拖曳轉鏡頭，直到看得到
+    onScreen: async function (target) {
+      for (var k = 0; k < 10; k++) {
+        await pg.waitForTimeout(k ? 500 : 900);
+        // 建築：先試中心點，被 HUD 蓋住就試底部；地面點只有一個。點的位置一定要真的是 3D 畫布
+        var s = await pg.evaluate(function (t) {
+          var cands = typeof t === 'string' ? [WORLD.screenOf(t), (function () { var o = WORLD.objectAt(t); return o ? WORLD.screenOf({ x: o.x, z: o.z }) : null; })()] : [WORLD.screenOf(t)];
+          for (var i = 0; i < cands.length; i++) { var s = cands[i]; if (!s || s.x < 10 || s.x > innerWidth - 10 || s.y < 60 || s.y > innerHeight * 0.6) continue; var el = document.elementFromPoint(s.x, s.y); if (el && el.tagName === 'CANVAS') return s; }
+          return null;
+        }, target);
+        if (s) return s;
+        await pg.mouse.move(180, 400); await pg.mouse.down(); await pg.mouse.move(120, 400, { steps: 6 }); await pg.mouse.move(60, 400, { steps: 6 }); await pg.mouse.up();
+      }
+      throw new Error('轉了鏡頭還是看不到 ' + JSON.stringify(target));
+    },
+    tapAndWatch: async function (target) {
+      var s = await H.onScreen(target);
+      await pg.mouse.click(s.x, s.y);
+      var opened = false, t0 = Date.now();
+      while (Date.now() - t0 < 20000) {
+        await pg.waitForTimeout(100);
+        var r = await pg.evaluate("JSON.stringify({mv:WORLD.isMoving(), dlg:document.getElementById('dlg').classList.contains('open')})"); r = JSON.parse(r);
+        if (!r.mv) break;                       // 停下來之後開的不算「途中」
+        if (r.dlg) opened = true;
+      }
+      await pg.waitForTimeout(300);
+      return opened;
     },
     dlgTitle: function () { return pg.textContent('#dlgTitle'); },
     dlgBody: function () { return pg.textContent('#dlgBody'); },
@@ -33,10 +68,8 @@ async function open(pagePath, opts) {
       await pg.waitForTimeout(200);
     },
     setIn: async function (id, value) { await pg.evaluate(function (a) { var el = document.getElementById(a[0]); el.value = a[1]; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, [id, String(value)]); },
-    tapScreen: async function (target) {                 // 真的點畫面：target 是物件 id 或 {x,z}
-      await pg.waitForTimeout(900);                      // 等鏡頭停下來
-      var s = await pg.evaluate(function (t) { return WORLD.screenOf(t); }, target);
-      if (!s) throw new Error('投影不到 ' + JSON.stringify(target));
+    tapScreen: async function (target) {                 // 真的點畫面：target 是物件 id 或 {x,z}（會避開 HUD、轉鏡頭）
+      var s = await H.onScreen(target);
       await pg.mouse.click(s.x, s.y); await pg.waitForTimeout(250);
     },
     // 表世界

@@ -46,14 +46,16 @@ var J1 = '00000000001', J2 = '00000000002';
   assert((await pg.isHidden('#map')) && (await H.ev("WORLD.guideCount()")) > 1, '點 J2 → 地上亮出指引光點 ' + (await H.ev("WORLD.guideCount()")) + ' 個');
   await pg.screenshot({ path: OUT + '/v7_game_3_guide.png' });
   var n0 = await H.ev("WORLD.guideCount()");
-  await H.ev("WORLD.circleAround('rule_" + J1 + "')"); await pg.waitForFunction("!WORLD.isMoving()", null, { timeout: 15000 });
-  await H.walkTo(0, 7); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 15000 });
+  // 有指引光點＝走代號中：點規則屋走到旁邊，不開對話框，上方提示附「繞一圈（J）」，按了自動繞
+  var opened = await H.tapAndWatch('rule_' + J1);
+  assert(!opened && !(await H.dlgOpen()) && (await H.ev("document.getElementById('hintCircle') !== null")), '有指引時到規則屋：不開對話框，提示上有「繞一圈」');
+  await H.click('#hintCircle'); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone();
   assert((await H.ev("WORLD.guideCount()")) < n0, '繞完一圈，那一段光點熄掉');
   assert((await pg.textContent('#codeLine')).indexOf('J') === 0, '代號一個字一個字浮在名牌下：' + (await pg.textContent('#codeLine')));
   assert((await H.ev("document.getElementById('codeLine').getBoundingClientRect().height")) > 0, '有代號時代號行才出現');
 
   // 建造模式：改外觀、搬移後，走法照樣走得出 J2
-  await H.ev("GAME.dec().reset(); WORLD.setGuide([])");
+  await H.ev("GAME.dec().reset(); WORLD.resetRings(); WORLD.setGuide([])");
   await pg.click('#btnBuild'); await H.ev("GAME.dialog(null)");
   assert((await pg.textContent('#btnBuild')).indexOf('建造中') === 0, '建造模式開著');
   await H.tapScreen('role_' + J1); await H.pick('換外觀'); await H.pick('塔');
@@ -61,11 +63,10 @@ var J1 = '00000000001', J2 = '00000000002';
   assert(JSON.stringify(await H.ev("APP.allObjs(APP.me()).find(o=>o.func==='role').pos")) === '[2,-2]' && (await H.ev("APP.allObjs(APP.me()).find(o=>o.func==='role').look")) === '塔', '角色碑換成塔、搬到 (2,-2)');
   await pg.click('#btnBuild');
   assert(JSON.stringify(await H.ev("CORE.route(APP.me().world.walk, APP.allObjs(APP.me()), 'J2').steps")) === JSON.stringify(await H.ev("(function(){var r=CORE.route(CORE.fresh().roles[0].world.walk, CORE.allObjects(CORE.fresh().roles[0].world).map(x=>x.o),'J2');return r.steps;})()")), '走法表沒變，J2 的路線一樣');
-  await H.ev("WORLD.circleAround('rule_" + J1 + "')"); await pg.waitForFunction("!WORLD.isMoving()", null, { timeout: 15000 });
-  await H.walkTo(0, 7); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 15000 });
-  var rp = await H.ev("WORLD.objectAt('role_" + J1 + "')"); await H.walkTo(rp.x, rp.z + rp.radius + 0.6);
-  await pg.waitForFunction("GAME.dec().lastAt === 'role_" + J1 + "'", null, { timeout: 15000 });
-  await H.walkTo(6, 3.2); await pg.waitForFunction("GAME.dec().done === 'J2'", null, { timeout: 15000 });
+  await H.tapAndWatch('rule_' + J1); await H.pick('繞一圈（J）'); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone();
+  opened = await H.tapAndWatch('role_' + J1); assert(!opened && (await H.ev("GAME.dec().lastAt")) === 'role_' + J1, '點搬過的塔走過去，途中不開對話框，算進代號');
+  opened = await H.tapAndWatch('res_' + J1); assert(!opened, '走到市集途中不開對話框');
+  await pg.waitForFunction("GAME.dec().done === 'J2'", null, { timeout: 15000 });
   assert((await pg.textContent('#toast')).indexOf('傳送門') >= 0, '改外觀、搬移後照樣走得出 J2，傳送門打開');
   await H.ev("GAME.enterPortal()"); await pg.waitForTimeout(300);
   assert((await pg.textContent('#plateName')).indexOf('在 阿澄 的世界') >= 0 && !(await pg.isHidden('#btnHome')), '到了阿澄的世界，有回家鈕');

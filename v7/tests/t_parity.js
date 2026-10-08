@@ -85,10 +85,8 @@ var ROWS = [
 
   { name: '去對方那裡：走代號 J2、傳送門 ↔ 點代號',
     game: async function (H) {
-      await H.ev("WORLD.circleAround('rule_" + J1 + "')"); await H.pg.waitForFunction("!WORLD.isMoving()", null, { timeout: 15000 });
-      await H.walkTo(0, 7); await H.pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 15000 });
-      await H.walkTo(0, -4.3); await H.pg.waitForFunction("GAME.dec().lastAt === 'role_" + J1 + "'", null, { timeout: 15000 });
-      await H.walkTo(6, 3.2); await H.pg.waitForFunction("GAME.dec().done === 'J2'", null, { timeout: 15000 });
+      await H.tapAndWatch('rule_' + J1); await H.pick('繞一圈（J）'); await H.pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone();
+      await H.tapAndWatch('role_' + J1); await H.tapAndWatch('res_' + J1); await H.pg.waitForFunction("GAME.dec().done === 'J2'", null, { timeout: 15000 });
       assert((await H.pg.textContent('#toast')).indexOf('傳送門') >= 0, '走出 J2，傳送門打開');
       await H.ev("GAME.enterPortal()"); await H.pg.waitForTimeout(300);
       assert((await H.pg.textContent('#plateName')).indexOf('阿澄') >= 0, '名牌顯示在阿澄的世界');

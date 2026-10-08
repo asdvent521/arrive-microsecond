@@ -9,7 +9,7 @@ var WORLD = (function () {
     return { available: false, init: noop, on: noop, loadWorld: noop, refreshObject: noop, walkTo: noop, circleAround: noop, enter: function () { return false; }, leave: function () { return false; }, depth: function () { return 0; },
              stop: noop, showPortal: noop, hidePortal: noop, flash: noop, setArcFilter: noop, playerPos: function () { return { x: 0, z: 0 }; }, isMoving: function () { return false; },
              distanceTo: function () { return Infinity; }, insideAny: function () { return false; }, resize: noop, camera: { yaw: 0, dist: 0 }, zoomTo: noop,
-             setTapHook: noop, setGuide: noop, guideCount: function () { return 0; }, showPartner: noop, objectAt: function () { return null; }, movePlayerTo: noop, screenOf: function () { return null; } };
+             setTapHook: noop, setGuide: noop, guideCount: function () { return 0; }, showPartner: noop, objectAt: function () { return null; }, movePlayerTo: noop, screenOf: function () { return null; }, resetRings: noop };
   }
   var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl, wallGroup, guideGroup, partner, tapHook = null;
   var stack = [];            // 進門的層：[{objects, pos}]，最多 3 層
@@ -304,14 +304,26 @@ var WORLD = (function () {
     var hg = raycaster.intersectObject(ground);
     // v7：建造模式等情況，先問接線層要不要接手這次點擊
     if (tapHook && tapHook({ object: o ? o.data : null, point: hg.length ? { x: hg[0].point.x, z: hg[0].point.z } : null })) return;
-    if (o) { walkTo(edgePoint(o)); walkTarget = o; return; }
-    if (hg.length) walkTo(hg[0].point);
+    if (o) {
+      var dist = Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) - o.radius;
+      if (dist < 1.6) walkPath(behindPoints(o)); else walkTo(edgePoint(o));   // 已經在旁邊：改走到建築背後的地面
+      walkTarget = o; emit('walkstart'); return;
+    }
+    if (hg.length) { walkTo(hg[0].point); emit('walkstart'); }
   }
   function edgePoint(o) {
     var dir = new THREE.Vector3().subVectors(player.position, o.pos); dir.y = 0;
     if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
     dir.normalize().multiplyScalar(o.radius + AVOID + 0.15);
     return new THREE.Vector3().addVectors(o.pos, dir);
+  }
+  // 站在建築旁再點它：繞到背後的地面（先走到側邊，再到正後方）
+  function behindPoints(o) {
+    var dir = new THREE.Vector3().subVectors(player.position, o.pos); dir.y = 0;
+    if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
+    dir.normalize();
+    var r = o.radius + AVOID + 0.6, side = new THREE.Vector3(-dir.z, 0, dir.x);
+    return [{ x: o.pos.x + side.x * r, z: o.pos.z + side.z * r }, { x: o.pos.x - dir.x * r, z: o.pos.z - dir.z * r }];
   }
   // 目標點如果在物件裡，推到物件邊上
   function outside(p) {
@@ -496,6 +508,8 @@ var WORLD = (function () {
   function showPartner(on) { if (on) { partner.position.copy(player.position).add(new THREE.Vector3(1.4, 0, 0)); partner.lookAt(player.position.x, 0, player.position.z); } partner.visible = !!on; }
   function objectAt(id) { var o = objects.find(function (x) { return x.data.id === id; }); return o ? { x: o.pos.x, z: o.pos.z, radius: o.radius } : null; }
   function movePlayerTo(x, z) { player.position.set(x, 0, z); waypoints = []; }
+  // 解碼器重置時一起清掉繞圈的累計，免得舊的半圈接著算
+  function resetRings() { objects.forEach(function (o) { o.inside = false; o.count = 0; o.turned = 0; }); }
   // 把世界座標（或物件 id）投影成畫面上的像素位置；建造模式測試用真的點擊
   function screenOf(target) {
     var p = typeof target === 'string' ? (function () { var o = objects.find(function (x) { return x.data.id === target; }); return o ? new THREE.Vector3(o.pos.x, o.top / 2, o.pos.z) : null; })() : new THREE.Vector3(target.x, 0, target.z);
@@ -512,7 +526,7 @@ var WORLD = (function () {
     return objects.some(function (o) { return Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) < o.radius + AVOID - 0.05; });
   }
 
-  return { available: true, setTapHook: setTapHook, setGuide: setGuide, guideCount: guideCount, showPartner: showPartner, objectAt: objectAt, movePlayerTo: movePlayerTo, screenOf: screenOf, init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
+  return { available: true, setTapHook: setTapHook, setGuide: setGuide, guideCount: guideCount, showPartner: showPartner, objectAt: objectAt, movePlayerTo: movePlayerTo, screenOf: screenOf, resetRings: resetRings, init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
            stop: stop, showPortal: showPortal, hidePortal: hidePortal, flash: flash, setArcFilter: setArcFilter,
            playerPos: playerPos, isMoving: isMoving, distanceTo: distanceTo, insideAny: insideAny, resize: resize,
            camera: cam, zoomTo: zoomTo };
