@@ -1,0 +1,170 @@
+<title>到達那微秒 v7</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
+<style>
+/* 版面：兩種介面各一個全螢幕 view，右上一顆「表 ⇄ 裡」切換鈕 */
+:root{
+  --bg:#E6ECF1; --panel:#F7F9FB; --panel2:#EEF2F6; --ink:#16212D; --muted:#586676; --line:#C7D1DB; --grid:#D5DDE5;
+  --brass:#A2731F; --brass-soft:#F1E4C8; --teal:#1C7A73; --teal-soft:#D5ECE9; --rose:#9C4450; --rose-soft:#F3DDE0; --blue:#2D5A86; --blue-soft:#DCE7F2;
+  --green:#3F7A4A; --green-soft:#DCEBDD; --gold:#B8860B; --gold-soft:#F5E9C8;
+  --hud:rgba(247,249,251,.9);
+  --sans:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --serif:"Noto Serif TC","Songti TC","PMingLiU",serif;
+  --r-s:6px; --r-m:12px; --tabs-h:44px;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --bg:#0D141B; --panel:#151F29; --panel2:#1B2733; --ink:#E2E9F0; --muted:#93A1B0; --line:#2B3947; --grid:#26333F;
+  --brass:#D8A954; --brass-soft:#3A2E17; --teal:#43B5AA; --teal-soft:#15332F; --rose:#D57F8B; --rose-soft:#3A1E23; --blue:#7FA9D6; --blue-soft:#1C2C3D;
+  --green:#7CC08A; --green-soft:#1C3322; --gold:#E0B64B; --gold-soft:#3A3014; --hud:rgba(21,31,41,.9); color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0D141B; --panel:#151F29; --panel2:#1B2733; --ink:#E2E9F0; --muted:#93A1B0; --line:#2B3947; --grid:#26333F;
+  --brass:#D8A954; --brass-soft:#3A2E17; --teal:#43B5AA; --teal-soft:#15332F; --rose:#D57F8B; --rose-soft:#3A1E23; --blue:#7FA9D6; --blue-soft:#1C2C3D;
+  --green:#7CC08A; --green-soft:#1C3322; --gold:#E0B64B; --gold-soft:#3A3014; --hud:rgba(21,31,41,.9); color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--brass);outline-offset:1px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:.84rem}
+.btn{min-height:40px;padding:6px 14px;border-radius:var(--r-s);border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-weight:500;color:var(--ink)}
+.btn.pri{background:var(--brass);color:#fff;border-color:var(--brass)}
+.btn.sm{min-height:32px;padding:2px 10px;font-size:.84rem}
+.btn.warn{color:var(--rose);border-color:var(--rose)}
+.tag{display:inline-block;font-size:.74rem;padding:1px 7px;border-radius:999px;background:var(--teal-soft);color:var(--teal);white-space:nowrap}
+.tag.bad{background:var(--rose-soft);color:var(--rose)} .tag.wait{background:var(--brass-soft);color:var(--brass)} .tag.off{background:var(--panel2);color:var(--muted)}
+.swap{position:absolute;top:8px;right:12px;z-index:20;min-height:36px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:var(--hud);font-weight:700;cursor:pointer;backdrop-filter:blur(6px)}
+.view{position:absolute;inset:0}
+
+/* ===== 裡世界：畫面幾乎全給 3D ===== */
+#stage{position:absolute;inset:0}
+#stage canvas{display:block}
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.label{position:absolute;left:0;top:0;font-size:.78rem;padding:1px 8px;border-radius:999px;background:var(--hud);border:1px solid var(--line);color:var(--ink);white-space:nowrap;will-change:transform}
+.label.rule{color:var(--teal)} .label.goal{color:var(--brass)} .label.resource,.label.points{color:var(--blue)}
+.whiteflash{position:absolute;inset:0;pointer-events:none;background:#fff;opacity:0}
+.whiteflash.go{animation:whiteflash .9s ease-out forwards}
+@keyframes whiteflash{0%{opacity:1}100%{opacity:0}}
+.hud{position:absolute;inset:0;pointer-events:none}
+.hud>*{pointer-events:auto}
+.hudTop{position:absolute;left:12px;right:12px;top:8px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;pointer-events:none}
+.hudTop>*{pointer-events:auto}
+.plate{position:relative;max-width:calc(100% - 100px);background:var(--hud);border:1px solid var(--line);border-radius:var(--r-m);padding:6px 10px;min-width:150px;backdrop-filter:blur(6px)}
+.plate .who{font-family:var(--serif);font-weight:700;font-size:.98rem;white-space:nowrap}
+.plate .who small{font-weight:400;color:var(--muted);margin-left:4px}
+.energy{height:10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;margin:4px 0 2px}
+.energy i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--brass));transition:width .4s}
+.plate .en{font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.code{font-family:var(--serif);font-size:1.3rem;letter-spacing:.14em;color:var(--brass);line-height:1.2}
+.code{display:flex;align-items:center;gap:6px}
+.code .x{all:unset;cursor:pointer;font-size:.8rem;letter-spacing:0;color:var(--muted);border:1px solid var(--line);border-radius:999px;width:22px;height:22px;text-align:center;line-height:22px}
+.code:empty{display:none}
+.plate .row{display:flex;gap:6px;margin-top:4px}
+/* 任務提示：名牌下方、畫面上方中間；底部對話框開著也看得到 */
+.hint{align-self:center;font-size:.84rem;color:var(--ink);background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:4px 12px;backdrop-filter:blur(6px);display:flex;gap:8px;align-items:center}
+.hint .lk{all:unset;cursor:pointer;color:var(--brass);font-weight:700;text-decoration:underline;padding:4px 2px}
+.hint[hidden]{display:none}
+.task{position:relative;align-self:center;max-width:100%;background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;backdrop-filter:blur(6px)}
+.count{position:absolute;right:12px;top:52px;background:var(--ink);color:var(--panel);border-radius:999px;padding:4px 12px;font-variant-numeric:tabular-nums;font-size:.9rem}
+.toast{position:absolute;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:calc(100% - 32px);background:var(--ink);color:var(--panel);border-radius:var(--r-m);padding:8px 14px;font-size:.9rem;z-index:15}
+.tools{position:absolute;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.tools .btn{background:var(--hud);backdrop-filter:blur(6px)}
+/* 底部升起的對話框：高度不超過 40% */
+.dlg{position:absolute;left:0;right:0;bottom:0;max-height:40%;background:var(--panel);border-top:1px solid var(--line);border-radius:var(--r-m) var(--r-m) 0 0;padding:10px 16px calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;box-shadow:0 -8px 30px rgba(0,0,0,.15);transform:translateY(100%);transition:transform .25s;z-index:10}
+.dlg.open{transform:none}
+.dlg h3{font-family:var(--serif);font-size:1rem;margin:0;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dlg h3 .x{all:unset;cursor:pointer;color:var(--muted);padding:0 6px;font-size:1.1rem}
+.dlg .body{overflow:auto;font-size:.9rem;white-space:pre-line;min-height:0;flex:1}
+.dlg .opts{display:flex;gap:8px;flex-wrap:wrap}
+.dlg .opts .btn{flex:1 1 auto;min-width:7em}
+.dlg input[type=text],.dlg input[type=number],.dlg select,.dlg textarea{min-height:36px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg);max-width:100%}
+.dlg input[type=range]{width:100%}
+.dlg .field{display:flex;flex-direction:column;gap:3px;font-size:.84rem;color:var(--muted)}
+.dlg .list{display:flex;flex-direction:column;gap:4px}
+.dlg .item{display:flex;align-items:center;gap:8px;justify-content:space-between;border-bottom:1px solid var(--grid);padding:4px 0}
+.dlg .item span{min-width:0}
+.bar{height:8px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;width:9em;display:inline-block;vertical-align:middle}
+.bar i{display:block;height:100%;background:var(--teal)}
+/* 地圖 */
+.map{position:absolute;inset:0;background:var(--hud);backdrop-filter:blur(8px);z-index:12;padding:56px 16px 16px;overflow:auto}
+.map h3{font-family:var(--serif);margin:0 0 8px}
+.map .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.map .node{border:1px solid var(--line);border-radius:var(--r-m);padding:10px;background:var(--panel);cursor:pointer;text-align:left}
+.map .node.dim{opacity:.45}
+.map .node b{font-family:var(--serif);display:block}
+.map .node .small{display:block}
+.nothree{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);padding:24px;text-align:center}
+
+/* ===== 表世界：簡單的 Excel ===== */
+#view-sheet{background:var(--bg);display:flex;flex-direction:column}
+.sbar{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:8px 100px 8px 12px;border-bottom:1px solid var(--line);background:var(--panel);min-height:48px}
+.sbar .back{all:unset;cursor:pointer;padding:4px 8px;border-radius:var(--r-s);border:1px solid var(--line)}
+.sbar .back:disabled{opacity:.35}
+.sbar h2{font-family:var(--serif);font-size:1.05rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sbar .who{flex-basis:100%;font-size:.84rem;display:flex;align-items:center;gap:4px}   /* 看誰另起一行，不跟切換鈕擠 */
+.sbar .who[hidden]{display:none}
+.sbar select{min-height:32px;padding:2px 6px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
+#smain{flex:1;min-height:0;overflow:auto;padding:0 0 calc(var(--tabs-h) + 8px + env(safe-area-inset-bottom,0px))}
+.ws{border-collapse:separate;border-spacing:0;font-size:.9rem;width:max-content;min-width:100%}
+.ws th,.ws td{border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);padding:6px 8px;text-align:left;vertical-align:top;background:var(--panel);white-space:nowrap}
+.ws thead th{position:sticky;top:0;z-index:3;background:var(--panel2);font-weight:600;font-size:.84rem}
+.ws .rn{position:sticky;left:0;z-index:2;background:var(--panel2);color:var(--muted);text-align:right;font-size:.72rem;min-width:2.2rem;width:2.2rem;padding:6px 4px;font-variant-numeric:tabular-nums}
+.ws thead .rn{z-index:4}
+.ws .fz{position:sticky;left:2.2rem;z-index:1;box-shadow:1px 0 0 var(--line)}
+.ws thead .fz{z-index:4}
+.ws td.n,.ws th.n{text-align:right;font-variant-numeric:tabular-nums}
+.ws td.wrap{white-space:normal;min-width:12em;max-width:24em}
+.ws tr.flash > td{animation:rowflash 1.6s ease-out}
+@keyframes rowflash{0%,40%{background:var(--brass-soft)}100%{background:var(--panel)}}
+.ws tr.addrow > td{background:var(--blue-soft)}
+.ws tr.mine > td.fz{box-shadow:inset 3px 0 0 var(--teal),1px 0 0 var(--line)}
+.ws tr.next > td{background:var(--brass-soft)}
+.ws input[type=text],.ws input[type=number],.ws select,.ws textarea{min-height:32px;padding:3px 6px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
+.ws input[type=text]{width:11em} .ws input.kc{width:5.5em} .ws input.xy{width:4.2em} .ws textarea{width:16em;min-height:50px}
+.ws input[type=checkbox]{width:20px;height:20px}
+.lk{all:unset;cursor:pointer;color:var(--blue);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
+.empty{padding:14px;color:var(--muted);font-size:.9rem}
+.help{padding:12px 16px;max-width:44em;font-size:.92rem} .help h3{font-family:var(--serif);margin:14px 0 4px} .help p{margin:0 0 6px}
+.stabs{position:absolute;left:0;right:0;bottom:0;z-index:30;display:flex;align-items:flex-end;overflow-x:auto;background:var(--panel2);border-top:1px solid var(--line);padding:0 6px env(safe-area-inset-bottom,0px);height:calc(var(--tabs-h) + env(safe-area-inset-bottom,0px));scrollbar-width:thin}
+.stabs a{flex:none;display:flex;align-items:center;height:34px;padding:0 12px;color:var(--ink);font-size:.86rem;white-space:nowrap;border:1px solid transparent;border-bottom:0;border-radius:var(--r-s) var(--r-s) 0 0;cursor:pointer;border-top:3px solid var(--line)}
+.stabs a.g-todo{border-top-color:var(--brass)} .stabs a.g-mine{border-top-color:var(--blue)} .stabs a.g-find{border-top-color:var(--green)} .stabs a.g-book{border-top-color:var(--gold)} .stabs a.g-help{border-top-color:var(--muted)}
+.stabs a[aria-current="page"]{background:var(--panel);border-color:var(--line);font-weight:700}
+.stabs .sep{flex:none;width:1px;height:20px;background:var(--line);margin:0 4px 8px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<!-- 裡世界 -->
+<main id="view-game" class="view">
+  <div id="stage"></div>
+  <div class="hud">
+    <div class="hudTop">
+    <div class="plate" id="plate">
+      <div class="who"><span id="plateCode">J1</span><small id="plateName"></small></div>
+      <div class="energy"><i id="energyBar" style="width:100%"></i></div>
+      <div class="en" id="energyText"></div>
+      <div class="code" id="codeLine"></div>
+      <div class="row"><button class="btn sm" id="btnBuild" type="button">建造</button><button class="btn sm" id="btnMap" type="button">地圖</button><button class="btn sm" id="btnHome" type="button" hidden>回家</button><button class="btn sm" id="btnLeave" type="button" hidden>出門</button></div>
+    </div>
+    <button class="task" id="task" type="button"></button>
+    <div class="hint" id="hint" hidden></div>
+    </div>
+    <button class="swap" id="swapToSheet" type="button">表 ⇄ 裡</button>
+    <div class="count" id="countdown" hidden></div>
+    <div class="toast" id="toast" hidden></div>
+    <div class="dlg" id="dlg"><h3><span id="dlgTitle"></span><button class="x" id="dlgClose" type="button" aria-label="關閉">×</button></h3><div class="body" id="dlgBody"></div><div class="opts" id="dlgOpts"></div></div>
+    <div class="map" id="map" hidden></div>
+  </div>
+</main>
+
+<!-- 表世界 -->
+<main id="view-sheet" class="view" hidden>
+  <div class="sbar"><button class="back" id="sback" type="button" disabled aria-label="返回">←</button><h2 id="stitle">待辦</h2><span class="who" id="swho"></span></div>
+  <button class="swap" id="swapToGame" type="button">表 ⇄ 裡</button>
+  <div id="smain"></div>
+  <nav class="stabs" id="stabs" aria-label="工作表"></nav>
+</main>
