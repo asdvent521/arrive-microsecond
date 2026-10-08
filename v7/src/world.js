@@ -14,8 +14,10 @@ var WORLD = (function () {
   var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl, wallGroup, guideGroup, partner, tapHook = null;
   var stack = [];            // 進門的層：[{objects, pos}]，最多 3 層
   var sceneInfo = { depth: 0, visiting: false };
-  var objects = [];          // [{data, mesh, radius, top, pos:Vector3, label, inside, arrived, angle, startAngle, turned, count}]
+  var objects = [];          // [{data, mesh, radius, top, pos:Vector3, label, inside, angle, startAngle, turned, count}]
   var waypoints = [];
+  var walkTarget = null;     // v7：這趟是點了哪棟建築（null＝點地面或程式排的路）
+  var walkKind = 'walk';     // 'walk'｜'circle'：繞圈走完不算到達
   var handlers = {};
   var SPEED = 5;
   var AVOID = 0.55;          // 走路離物件邊緣的距離
@@ -27,8 +29,8 @@ var WORLD = (function () {
   var pointers = {};         // 目前按著的手指
   var gesture = null;        // {tap, x, y, yaw, dist, pinch}
 
-  function on(name, fn) { handlers[name] = fn; }
-  function emit(name, a, b) { if (handlers[name]) handlers[name](a, b); }
+  function on(name, fn) { (handlers[name] = handlers[name] || []).push(fn); }   // v7：可以掛多個
+  function emit(name, a, b) { (handlers[name] || []).forEach(function (fn) { fn(a, b); }); }
 
   function init(host) {
     hostEl = host;
@@ -203,7 +205,7 @@ var WORLD = (function () {
     label.textContent = o.name;
     labelLayer.appendChild(label);
     return { data: o, mesh: buildObject(o), radius: DATA.radiusOf(o), top: topOf(o), pos: new THREE.Vector3(o.pos[0], 0, o.pos[1]),
-             label: label, inside: false, arrived: false, angle: 0, startAngle: 0, turned: 0, count: 0 };
+             label: label, inside: false, angle: 0, startAngle: 0, turned: 0, count: 0 };
   }
 
   // world：角色的世界資料（已經過純資料檢查）；opts.visiting：傳送過去逛，畫出對方設定的路
@@ -243,7 +245,7 @@ var WORLD = (function () {
     hidePortal();
     arc.visible = false;
     detect.lastNear = undefined;
-    objects.forEach(function (o) { o.arrived = false; o.inside = false; });
+    objects.forEach(function (o) { o.inside = false; });
     player.children[0].material.color = new THREE.Color(sceneInfo.visiting ? 0x5c6670 : 0x2d5a86);
     scene.background = new THREE.Color(inner ? 0xcfc6b6 : sceneInfo.visiting ? 0xe4e0d6 : 0xdfe6ec);
     scene.fog.color = scene.background;
@@ -302,7 +304,7 @@ var WORLD = (function () {
     var hg = raycaster.intersectObject(ground);
     // v7：建造模式等情況，先問接線層要不要接手這次點擊
     if (tapHook && tapHook({ object: o ? o.data : null, point: hg.length ? { x: hg[0].point.x, z: hg[0].point.z } : null })) return;
-    if (o) { walkTo(edgePoint(o)); return; }
+    if (o) { walkTo(edgePoint(o)); walkTarget = o; return; }
     if (hg.length) walkTo(hg[0].point);
   }
   function edgePoint(o) {
@@ -319,8 +321,8 @@ var WORLD = (function () {
     });
     return p;
   }
-  function walkTo(p) { waypoints = [outside(new THREE.Vector3(p.x, 0, p.z))]; }
-  function walkPath(points) { waypoints = points.map(function (p) { return outside(new THREE.Vector3(p.x, 0, p.z)); }); }
+  function walkTo(p) { waypoints = [outside(new THREE.Vector3(p.x, 0, p.z))]; walkTarget = null; walkKind = 'walk'; }
+  function walkPath(points) { waypoints = points.map(function (p) { return outside(new THREE.Vector3(p.x, 0, p.z)); }); walkTarget = null; walkKind = 'walk'; }
   // 繞某個物件一圈：排一圈路徑點
   function circleAround(id) {
     var o = objects.find(function (x) { return x.data.id === id; });
@@ -332,9 +334,9 @@ var WORLD = (function () {
       var a = a0 + (i / 16) * Math.PI * 2;
       pts.push({ x: o.pos.x + Math.cos(a) * r, z: o.pos.z + Math.sin(a) * r });
     }
-    walkPath(pts);
+    walkPath(pts); walkKind = 'circle';
   }
-  function stop() { waypoints = []; }
+  function stop() { waypoints = []; walkTarget = null; }
 
   // 一步：想往 d 走，前面有物件就沿著它的邊滑過去
   function step(d, len, dt) {
@@ -392,6 +394,7 @@ var WORLD = (function () {
         stuck = player.position.distanceTo(before) < SPEED * dt * 0.2 ? stuck + dt : 0;
         if (stuck > 1.2) { waypoints.shift(); stuck = 0; }        // 卡住就放棄這個點
       }
+      if (!waypoints.length) stopped();
     }
     detect();
     drawArc();
@@ -403,6 +406,18 @@ var WORLD = (function () {
     renderer.render(scene, camera);
   }
 
+  // 到達：停下來才算，路過不算。(a) 點了這棟建築、走到旁邊停下；(b) 點地面、停下來的位置在它的範圍內。繞圈走完不算。
+  function stopped() {
+    var target = walkTarget, kind = walkKind; walkTarget = null; walkKind = 'walk';
+    if (kind === 'circle') return;
+    var hit = null, nd = Infinity;
+    objects.forEach(function (o) {
+      var dist = Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) - o.radius;
+      if (dist < (o === target ? 1.6 : 1.0) && dist < nd) { hit = o; nd = dist; }
+    });
+    if (target && hit !== target) hit = null;
+    if (hit) emit('arrive', hit.data, { tapped: hit === target });
+  }
   function detect() {
     var nearest = null, nd = Infinity;
     objects.forEach(function (o) {
@@ -410,10 +425,6 @@ var WORLD = (function () {
       var dist = Math.hypot(dx, dz);
       // 靠近：顯示這是什麼功能
       if (dist < o.radius + 3.5 && dist < nd) { nearest = o; nd = dist; }
-      // 到達：走到邊上
-      var arriveR = o.radius + 1.0;
-      if (!o.arrived && dist < arriveR) { o.arrived = true; emit('arrive', o.data); }
-      else if (o.arrived && dist > arriveR + 1.2) o.arrived = false;
       // 繞圈：在圈內累積轉過的角度，離開時結算
       var ringR = o.radius + 3.0;
       var ang = Math.atan2(dz, dx);

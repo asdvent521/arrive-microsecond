@@ -65,7 +65,7 @@ var J1 = '00000000001', J2 = '00000000002';
   await H.walkTo(0, 7); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 15000 });
   var rp = await H.ev("WORLD.objectAt('role_" + J1 + "')"); await H.walkTo(rp.x, rp.z + rp.radius + 0.6);
   await pg.waitForFunction("GAME.dec().lastAt === 'role_" + J1 + "'", null, { timeout: 15000 });
-  await H.walkTo(0, 3); await H.walkTo(6, 3.2); await pg.waitForFunction("GAME.dec().done === 'J2'", null, { timeout: 15000 });
+  await H.walkTo(6, 3.2); await pg.waitForFunction("GAME.dec().done === 'J2'", null, { timeout: 15000 });
   assert((await pg.textContent('#toast')).indexOf('傳送門') >= 0, '改外觀、搬移後照樣走得出 J2，傳送門打開');
   await H.ev("GAME.enterPortal()"); await pg.waitForTimeout(300);
   assert((await pg.textContent('#plateName')).indexOf('在 阿澄 的世界') >= 0 && !(await pg.isHidden('#btnHome')), '到了阿澄的世界，有回家鈕');

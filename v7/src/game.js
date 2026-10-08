@@ -308,15 +308,25 @@ var GAME = (function () {
   }
 
   /* ---------- 世界事件 ---------- */
-  WORLD.on('near', function (o) { nearObj = o; if (cur.visiting && !(o && o.func === 'goal')) APP.setStanding(null); if (o && !moving) openNear(o); else if (!o) dialog(null); });   // 離開終點就不算站著
+  // 走代號中（已走出字母或數字，或地上有指引光點）：到建築不自動升對話框，只在上方跳一行小字
+  function codeMode() { return !cur.visiting && ((dec && dec.code() !== '') || WORLD.guideCount() > 0); }
+  var hintTimer = null, arrivedAt = null;
+  function hint(text) { var el = $('hint'); el.textContent = text; el.hidden = !text; clearTimeout(hintTimer); if (text) hintTimer = setTimeout(function () { el.hidden = true; }, 2500); }
+  WORLD.on('near', function (o) { nearObj = o; if (cur.visiting && !(o && o.func === 'goal')) APP.setStanding(null); if (o && !moving && !codeMode()) openNear(o); else if (!o) { dialog(null); arrivedAt = null; } });   // 離開終點就不算站著
   WORLD.on('turn', function (o, n) { if (!cur.visiting) toast('繞 ' + o.name + ' ' + n + ' 圈'); });
   WORLD.on('circle', function (o, n) { if (cur.visiting) return; var r = dec.feed({ type: 'circle', object: o.id, count: n }); if (r.type === 'letter') { toast('字母 ' + r.letter); drawCode(); guideProgress('circle', o.id); } });
-  WORLD.on('arrive', function (o) {
+  WORLD.on('arrive', function (o, info) {
     if (cur.visiting) { APP.setStanding(o.func === 'goal' ? cur.role.serial : null); return; }
+    var wasCode = codeMode();
     var r = dec.feed({ type: 'arrive', object: o.id });
     guideProgress('arrive', o.id);
     if (r.type === 'digit') { toast('數字 ' + r.digit); drawCode(); }
     else if (r.type === 'done') { drawCode(); openPortal(r.code); }
+    if (wasCode || codeMode()) {
+      // 走代號中：第一次到只提示；再點一次同一棟才打開對話框
+      if (info && info.tapped && arrivedAt === o.id) { openNear(o); return; }
+      arrivedAt = o.id; hint('到了' + o.name);
+    } else if (!moving) openNear(o);   // 停在建築旁：用現在的狀態重畫對話框
   });
   WORLD.on('portal', function () { if (portalRole) teleport(portalRole); });
   $('btnHome').addEventListener('click', goHome);
@@ -370,6 +380,7 @@ var GAME = (function () {
     drawPlate();
   }
   function goFunc(r, func) {
+    guideSteps = null; WORLD.setGuide([]);   // 明確要去某個功能點：舊的指引光點清掉
     var o = allObjs(r).find(function (x) { return x.func === func; });
     if (o) { var p = WORLD.objectAt(o.id); if (p) WORLD.walkTo({ x: p.x, z: p.z + p.radius + 0.6 }); }
   }
