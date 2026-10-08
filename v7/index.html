@@ -62,6 +62,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .energy i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--brass));transition:width .4s}
 .plate .en{font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .code{font-family:var(--serif);font-size:1.3rem;letter-spacing:.14em;color:var(--brass);line-height:1.2}
+.code{display:flex;align-items:center;gap:6px}
+.code .x{all:unset;cursor:pointer;font-size:.8rem;letter-spacing:0;color:var(--muted);border:1px solid var(--line);border-radius:999px;width:22px;height:22px;text-align:center;line-height:22px}
 .code:empty{display:none}
 .plate .row{display:flex;gap:6px;margin-top:4px}
 /* 任務提示：名牌下方、畫面上方中間；底部對話框開著也看得到 */
@@ -806,6 +808,40 @@ if (typeof module !== 'undefined') module.exports = CORE;
   };
 })();
 
+/* ===== v7 加：繞完一圈的那棟就算人在那裡（規則層只加不改） ===== */
+(function () {
+  // 解碼器：繞出字母之後，下一段「走到」從繞的那棟算起
+  CORE.Decoder.prototype.feedV7 = function (ev) {
+    var r = this.feed(ev);
+    if (ev.type === 'circle' && r.type === 'letter') this.lastAt = ev.object;
+    return r;
+  };
+  // 路線說明：繞完那棟就是起點，不再多一步「走到那棟」
+  CORE.routeV7 = function (walk, objects, code) {
+    var serial = CORE.expand(code);
+    if (!serial) return { missing: code + ' 不是代號' };
+    var ab = CORE.abbrev(serial);
+    var name = function (id) { var o = objects.find(function (x) { return x.id === id; }); return o ? o.name : id; };
+    var steps = [], letter = /^[A-J]/.test(ab) ? ab[0] : null, digits = letter ? ab.slice(1) : ab, at = null;
+    if (letter) {
+      var best = null;
+      walk.circles.forEach(function (c) { var n = c.letter.charCodeAt(0) - letter.charCodeAt(0) + 1; if (n >= 1 && (!best || n < best.n)) best = { c: c, n: n }; });
+      if (!best) return { missing: '走法表裡沒有物件能繞出 ' + letter };
+      steps.push('繞' + name(best.c.object) + (best.n === 1 ? '一圈' : ' ' + best.n + ' 圈') + '（' + letter + '）');
+      at = best.c.object;
+    }
+    for (var i = 0; i < digits.length; i++) {
+      var d = digits[i];
+      var mv = walk.moves.find(function (m) { return m.digit === d && m.from === at; }) || walk.moves.find(function (m) { return m.digit === d; });
+      if (!mv) return { missing: '走法表裡沒有哪一段路是 ' + d };
+      if (mv.from !== at) steps.push('走到' + name(mv.from));
+      steps.push('再走到' + name(mv.to) + '（' + d + '）');
+      at = mv.to;
+    }
+    return { steps: steps, code: ab, from: at };
+  };
+})();
+
 /* ===== 畫面層：Three.js 照資料蓋世界 =====
  * 只讀資料、畫畫面、回報事件（靠近、到達、繞圈、點到傳送門）。規則都在 data.js。
  */
@@ -817,7 +853,7 @@ var WORLD = (function () {
     return { available: false, init: noop, on: noop, loadWorld: noop, refreshObject: noop, walkTo: noop, circleAround: noop, enter: function () { return false; }, leave: function () { return false; }, depth: function () { return 0; },
              stop: noop, showPortal: noop, hidePortal: noop, flash: noop, setArcFilter: noop, playerPos: function () { return { x: 0, z: 0 }; }, isMoving: function () { return false; },
              distanceTo: function () { return Infinity; }, insideAny: function () { return false; }, resize: noop, camera: { yaw: 0, dist: 0 }, zoomTo: noop,
-             setTapHook: noop, setGuide: noop, guideCount: function () { return 0; }, showPartner: noop, objectAt: function () { return null; }, movePlayerTo: noop, screenOf: function () { return null; }, resetRings: noop };
+             setTapHook: noop, setGuide: noop, guideCount: function () { return 0; }, showPartner: noop, objectAt: function () { return null; }, movePlayerTo: noop, screenOf: function () { return null; }, resetRings: noop, pause: noop, resume: noop, frameCount: function () { return 0; } };
   }
   var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl, wallGroup, guideGroup, partner, tapHook = null;
   var stack = [];            // 進門的層：[{objects, pos}]，最多 3 層
@@ -1200,8 +1236,11 @@ var WORLD = (function () {
 
   /* ---------- 每一格：走、看、算 ---------- */
   var stuck = 0;
+  var paused = false, frames = 0;
   function loop() {
+    if (paused) return;                 // 暫停：不排下一格、不畫、不走
     requestAnimationFrame(loop);
+    frames++;
     var dt = Math.min(clock.getDelta(), 0.05);
     if (waypoints.length) {
       var t = waypoints[0];
@@ -1316,6 +1355,10 @@ var WORLD = (function () {
   function showPartner(on) { if (on) { partner.position.copy(player.position).add(new THREE.Vector3(1.4, 0, 0)); partner.lookAt(player.position.x, 0, player.position.z); } partner.visible = !!on; }
   function objectAt(id) { var o = objects.find(function (x) { return x.data.id === id; }); return o ? { x: o.pos.x, z: o.pos.z, radius: o.radius } : null; }
   function movePlayerTo(x, z) { player.position.set(x, 0, z); waypoints = []; }
+  // 表世界蓋著時暫停 3D（不畫、不跑走路），切回來從原地繼續
+  function pause() { paused = true; }
+  function resume() { if (!paused) return; paused = false; clock.getDelta(); requestAnimationFrame(loop); }
+  function frameCount() { return frames; }
   // 解碼器重置時一起清掉繞圈的累計，免得舊的半圈接著算
   function resetRings() { objects.forEach(function (o) { o.inside = false; o.count = 0; o.turned = 0; }); }
   // 把世界座標（或物件 id）投影成畫面上的像素位置；建造模式測試用真的點擊
@@ -1334,7 +1377,7 @@ var WORLD = (function () {
     return objects.some(function (o) { return Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) < o.radius + AVOID - 0.05; });
   }
 
-  return { available: true, setTapHook: setTapHook, setGuide: setGuide, guideCount: guideCount, showPartner: showPartner, objectAt: objectAt, movePlayerTo: movePlayerTo, screenOf: screenOf, resetRings: resetRings, init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
+  return { available: true, setTapHook: setTapHook, setGuide: setGuide, guideCount: guideCount, showPartner: showPartner, objectAt: objectAt, movePlayerTo: movePlayerTo, screenOf: screenOf, resetRings: resetRings, pause: pause, resume: resume, frameCount: frameCount, init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
            stop: stop, showPortal: showPortal, hidePortal: hidePortal, flash: flash, setArcFilter: setArcFilter,
            playerPos: playerPos, isMoving: isMoving, distanceTo: distanceTo, insideAny: insideAny, resize: resize,
            camera: cam, zoomTo: zoomTo };
@@ -1408,7 +1451,7 @@ var APP = (function () {
     out.push({ id: 'resources', no: '③', name: '資源', ok: m.resources.length > 0, status: m.resources.length ? m.resources.map(function (x) { return x.name + ' ' + x.price + ' 點×' + x.qty; }).join('、') : '沒有資源', func: 'resource', hint: '我的點能兌現的東西和價格。數量可以隨時補。' });
     var funcs = ['rule', 'resource', 'goal', 'role'], has = funcs.filter(function (f) { return allObjs(m).some(function (o) { return o.func === f; }); });
     var others = state.roles.filter(function (r) { return r !== m && CORE.status(r, t) !== 'ended'; });
-    var rt = others.length ? CORE.route(m.world.walk, allObjs(m), CORE.abbrev(others[0].serial)) : { missing: '沒有別的角色' };
+    var rt = others.length ? CORE.routeV7(m.world.walk, allObjs(m), CORE.abbrev(others[0].serial)) : { missing: '沒有別的角色' };
     out.push({ id: 'world', no: '④', name: '世界與走法', ok: has.length === funcs.length && !rt.missing, status: (has.length === funcs.length ? '四個公開功能點都有' : '缺：' + funcs.filter(function (f) { return has.indexOf(f) < 0; }).map(function (f) { return CORE.FUNCS[f].label; }).join('、')) + '；' + (rt.missing ? rt.missing : '要去 ' + CORE.abbrev(others[0].serial) + '：' + rt.steps.join('，')), func: 'build', hint: '功能固定、外觀自由；走法決定代號怎麼走。' });
     var up = m.slots.filter(function (s) { return s.atUs > t; });
     out.push({ id: 'slots', no: '⑤', name: '開對接時段', ok: up.length > 0, status: up.length ? up.length + ' 個未來時段，最近 ' + CORE.fmtUs(up.sort(function (a, b) { return a.atUs - b.atUs; })[0].atUs) : '沒有開放的時段', func: 'goal', hint: '別人要預約才能來對接；名額是容量不是條件。' });
@@ -1514,19 +1557,26 @@ var GAME = (function () {
   }
   function drawCode() {
     if (!dec) return;
-    var code = dec.code(), need = dec.need();
-    $('codeLine').textContent = code ? code.split('').join(' ') + (need ? ' ' + '＿'.repeat(need) : '') : '';
+    var code = dec.code(), need = dec.need(), on = code || WORLD.guideCount() > 0 || portalRole;
+    // 有代號或光點時才顯示，附一個小 ✕ 全部清掉
+    $('codeLine').innerHTML = on ? esc(code ? code.split('').join(' ') + (need ? ' ' + '＿'.repeat(need) : '') : '（指引中）') + '<button type="button" class="x" id="codeClear" aria-label="清掉代號">✕</button>' : '';
+    if (on) $('codeClear').onclick = clearCode;
+  }
+  // 把走到一半的代號、繞圈、地上光點、傳送門一起清掉
+  function clearCode() {
+    dec.reset(); WORLD.resetRings(); guideSteps = null; WORLD.setGuide([]); WORLD.hidePortal(); portalRole = null; arrivedAt = null;
+    hint(''); toast(''); drawCode();
   }
 
   /* ---------- 指引：地上亮出一串光點 ---------- */
   function guideTo(code) {
-    var m = me(), rt = CORE.route(m.world.walk, allObjs(m), code);
+    var m = me(), rt = CORE.routeV7(m.world.walk, allObjs(m), code);
     if (rt.missing) { toast('走法表走不出 ' + code + '：' + rt.missing, true); WORLD.setGuide([]); guideSteps = null; return false; }
     guideSteps = { code: code, parts: [] };
     // 把路線拆成段：繞圈一段（一圈光點）、每個走到一段（一個光點）
     var circle = m.world.walk.circles.find(function (c) { var n = c.letter.charCodeAt(0) - rt.code.charCodeAt(0) + 1; return /^[A-J]/.test(rt.code) && n >= 1; });
     if (circle) { var o = WORLD.objectAt(circle.object); if (o) { var pts = []; for (var i = 0; i < 12; i++) { var a = i / 12 * Math.PI * 2; pts.push({ x: o.x + Math.cos(a) * (o.radius + 1.4), z: o.z + Math.sin(a) * (o.radius + 1.4) }); } guideSteps.parts.push({ kind: 'circle', object: circle.object, pts: pts }); } }
-    var digits = /^[A-J]/.test(rt.code) ? rt.code.slice(1) : rt.code, at = null;
+    var digits = /^[A-J]/.test(rt.code) ? rt.code.slice(1) : rt.code, at = circle ? circle.object : null;   // 繞完那棟就是起點
     for (var k = 0; k < digits.length; k++) {
       var d = digits[k], mv = m.world.walk.moves.find(function (x) { return x.digit === d && x.from === at; }) || m.world.walk.moves.find(function (x) { return x.digit === d; });
       if (!mv) break;
@@ -1534,7 +1584,7 @@ var GAME = (function () {
       var tt = WORLD.objectAt(mv.to); if (tt) guideSteps.parts.push({ kind: 'arrive', object: mv.to, pts: [{ x: tt.x, z: tt.z + tt.radius + 0.8 }] });
       at = mv.to;
     }
-    drawGuide();
+    drawGuide(); drawCode();
     toast('照地上的光點走，就走得出 ' + rt.code + '。', false);
     return true;
   }
@@ -1547,7 +1597,7 @@ var GAME = (function () {
   function guideProgress(kind, objectId) {
     if (!guideSteps || !guideSteps.parts.length) return;
     var p = guideSteps.parts[0];
-    if (p.kind === kind && p.object === objectId) { guideSteps.parts.shift(); drawGuide(); }
+    if (p.kind === kind && p.object === objectId) { guideSteps.parts.shift(); drawGuide(); drawCode(); }
   }
 
   /* ---------- 到了建築：對話框的選項 ---------- */
@@ -1750,7 +1800,7 @@ var GAME = (function () {
   function openPortal(code) {
     var role = CORE.findRole(S(), code);
     if (!role || role === me()) { toast(role === me() ? code + ' 是自己，走別人的代號' : '沒有 ' + code + ' 這個角色', true); setTimeout(function () { dec.reset(); WORLD.resetRings(); drawCode(); toast(''); }, 2200); return; }
-    portalRole = role; WORLD.showPortal(); WORLD.setGuide([]); guideSteps = null;
+    portalRole = role; WORLD.showPortal(); WORLD.setGuide([]); guideSteps = null; drawCode();
     toast('走出了 ' + code + '，白光傳送門打開了。點傳送門過去。', true);
   }
   function teleport(role) {
@@ -1788,7 +1838,7 @@ var GAME = (function () {
     if (cur.visiting) return;
     var c = me().world.walk.circles.find(function (x) { return x.object === o.id; });
     if (c && dec.letter === String.fromCharCode(c.letter.charCodeAt(0) - (n - 1)) && !dec.digits) return;   // 這一圈已經算過了
-    var r = dec.feed({ type: 'circle', object: o.id, count: n });
+    var r = dec.feedV7({ type: 'circle', object: o.id, count: n });   // 繞完那棟就算人在那裡
     if (r.type === 'letter') { toast('字母 ' + r.letter); drawCode(); guideProgress('circle', o.id); }
   }
   WORLD.on('turn', feedCircle);
@@ -1797,7 +1847,7 @@ var GAME = (function () {
     if (cur.visiting) { APP.setStanding(o.func === 'goal' ? cur.role.serial : null); if (!moving) openNear(o); return; }   // 別人的世界：停下就開
     // 要先繞出字母（或地圖指引開著）才算開始走代號；沒有的話在建築之間走來走去不算輸入數字
     if (!codeMode()) { if (!moving) openNear(o); return; }
-    var r = dec.feed({ type: 'arrive', object: o.id });
+    var r = dec.feedV7({ type: 'arrive', object: o.id });
     guideProgress('arrive', o.id);
     if (r.type === 'digit') { toast('數字 ' + r.digit); drawCode(); }
     else if (r.type === 'done') { drawCode(); openPortal(r.code); }
@@ -1859,7 +1909,7 @@ var GAME = (function () {
     var o = allObjs(r).find(function (x) { return x.func === func; });
     if (o) { var p = WORLD.objectAt(o.id); if (p) WORLD.walkTo({ x: p.x, z: p.z + p.radius + 0.6 }); }
   }
-  APP.on('view', function (v) { $('view-game').hidden = v !== 'game'; if (v === 'game') { WORLD.resize(); show(); } else dialog(null); });
+  APP.on('view', function (v) { $('view-game').hidden = v !== 'game'; if (v === 'game') { WORLD.resume(); WORLD.resize(); show(); } else { dialog(null); WORLD.pause(); } });   // 表世界蓋著時 3D 暫停
   APP.on('me', function () { dec = new CORE.Decoder(me().world.walk); goHome(); });
   APP.on('change', function () { if (APP.view() === 'game') drawPlate(); });
 

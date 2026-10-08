@@ -9,7 +9,7 @@ var WORLD = (function () {
     return { available: false, init: noop, on: noop, loadWorld: noop, refreshObject: noop, walkTo: noop, circleAround: noop, enter: function () { return false; }, leave: function () { return false; }, depth: function () { return 0; },
              stop: noop, showPortal: noop, hidePortal: noop, flash: noop, setArcFilter: noop, playerPos: function () { return { x: 0, z: 0 }; }, isMoving: function () { return false; },
              distanceTo: function () { return Infinity; }, insideAny: function () { return false; }, resize: noop, camera: { yaw: 0, dist: 0 }, zoomTo: noop,
-             setTapHook: noop, setGuide: noop, guideCount: function () { return 0; }, showPartner: noop, objectAt: function () { return null; }, movePlayerTo: noop, screenOf: function () { return null; }, resetRings: noop };
+             setTapHook: noop, setGuide: noop, guideCount: function () { return 0; }, showPartner: noop, objectAt: function () { return null; }, movePlayerTo: noop, screenOf: function () { return null; }, resetRings: noop, pause: noop, resume: noop, frameCount: function () { return 0; } };
   }
   var renderer, scene, camera, ground, objGroup, pathGroup, portal, player, clock, arc, labelLayer, flashEl, wallGroup, guideGroup, partner, tapHook = null;
   var stack = [];            // 進門的層：[{objects, pos}]，最多 3 層
@@ -392,8 +392,11 @@ var WORLD = (function () {
 
   /* ---------- 每一格：走、看、算 ---------- */
   var stuck = 0;
+  var paused = false, frames = 0;
   function loop() {
+    if (paused) return;                 // 暫停：不排下一格、不畫、不走
     requestAnimationFrame(loop);
+    frames++;
     var dt = Math.min(clock.getDelta(), 0.05);
     if (waypoints.length) {
       var t = waypoints[0];
@@ -508,6 +511,10 @@ var WORLD = (function () {
   function showPartner(on) { if (on) { partner.position.copy(player.position).add(new THREE.Vector3(1.4, 0, 0)); partner.lookAt(player.position.x, 0, player.position.z); } partner.visible = !!on; }
   function objectAt(id) { var o = objects.find(function (x) { return x.data.id === id; }); return o ? { x: o.pos.x, z: o.pos.z, radius: o.radius } : null; }
   function movePlayerTo(x, z) { player.position.set(x, 0, z); waypoints = []; }
+  // 表世界蓋著時暫停 3D（不畫、不跑走路），切回來從原地繼續
+  function pause() { paused = true; }
+  function resume() { if (!paused) return; paused = false; clock.getDelta(); requestAnimationFrame(loop); }
+  function frameCount() { return frames; }
   // 解碼器重置時一起清掉繞圈的累計，免得舊的半圈接著算
   function resetRings() { objects.forEach(function (o) { o.inside = false; o.count = 0; o.turned = 0; }); }
   // 把世界座標（或物件 id）投影成畫面上的像素位置；建造模式測試用真的點擊
@@ -526,7 +533,7 @@ var WORLD = (function () {
     return objects.some(function (o) { return Math.hypot(player.position.x - o.pos.x, player.position.z - o.pos.z) < o.radius + AVOID - 0.05; });
   }
 
-  return { available: true, setTapHook: setTapHook, setGuide: setGuide, guideCount: guideCount, showPartner: showPartner, objectAt: objectAt, movePlayerTo: movePlayerTo, screenOf: screenOf, resetRings: resetRings, init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
+  return { available: true, setTapHook: setTapHook, setGuide: setGuide, guideCount: guideCount, showPartner: showPartner, objectAt: objectAt, movePlayerTo: movePlayerTo, screenOf: screenOf, resetRings: resetRings, pause: pause, resume: resume, frameCount: frameCount, init: init, on: on, loadWorld: loadWorld, refreshObject: refreshObject, walkTo: walkTo, circleAround: circleAround, enter: enter, leave: leave, depth: depth,
            stop: stop, showPortal: showPortal, hidePortal: hidePortal, flash: flash, setArcFilter: setArcFilter,
            playerPos: playerPos, isMoving: isMoving, distanceTo: distanceTo, insideAny: insideAny, resize: resize,
            camera: cam, zoomTo: zoomTo };

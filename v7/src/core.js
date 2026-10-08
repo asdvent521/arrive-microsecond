@@ -626,3 +626,37 @@ if (typeof module !== 'undefined') module.exports = CORE;
     return out;
   };
 })();
+
+/* ===== v7 加：繞完一圈的那棟就算人在那裡（規則層只加不改） ===== */
+(function () {
+  // 解碼器：繞出字母之後，下一段「走到」從繞的那棟算起
+  CORE.Decoder.prototype.feedV7 = function (ev) {
+    var r = this.feed(ev);
+    if (ev.type === 'circle' && r.type === 'letter') this.lastAt = ev.object;
+    return r;
+  };
+  // 路線說明：繞完那棟就是起點，不再多一步「走到那棟」
+  CORE.routeV7 = function (walk, objects, code) {
+    var serial = CORE.expand(code);
+    if (!serial) return { missing: code + ' 不是代號' };
+    var ab = CORE.abbrev(serial);
+    var name = function (id) { var o = objects.find(function (x) { return x.id === id; }); return o ? o.name : id; };
+    var steps = [], letter = /^[A-J]/.test(ab) ? ab[0] : null, digits = letter ? ab.slice(1) : ab, at = null;
+    if (letter) {
+      var best = null;
+      walk.circles.forEach(function (c) { var n = c.letter.charCodeAt(0) - letter.charCodeAt(0) + 1; if (n >= 1 && (!best || n < best.n)) best = { c: c, n: n }; });
+      if (!best) return { missing: '走法表裡沒有物件能繞出 ' + letter };
+      steps.push('繞' + name(best.c.object) + (best.n === 1 ? '一圈' : ' ' + best.n + ' 圈') + '（' + letter + '）');
+      at = best.c.object;
+    }
+    for (var i = 0; i < digits.length; i++) {
+      var d = digits[i];
+      var mv = walk.moves.find(function (m) { return m.digit === d && m.from === at; }) || walk.moves.find(function (m) { return m.digit === d; });
+      if (!mv) return { missing: '走法表裡沒有哪一段路是 ' + d };
+      if (mv.from !== at) steps.push('走到' + name(mv.from));
+      steps.push('再走到' + name(mv.to) + '（' + d + '）');
+      at = mv.to;
+    }
+    return { steps: steps, code: ab, from: at };
+  };
+})();

@@ -66,7 +66,7 @@ var APP = (function () {
     out.push({ id: 'resources', no: '③', name: '資源', ok: m.resources.length > 0, status: m.resources.length ? m.resources.map(function (x) { return x.name + ' ' + x.price + ' 點×' + x.qty; }).join('、') : '沒有資源', func: 'resource', hint: '我的點能兌現的東西和價格。數量可以隨時補。' });
     var funcs = ['rule', 'resource', 'goal', 'role'], has = funcs.filter(function (f) { return allObjs(m).some(function (o) { return o.func === f; }); });
     var others = state.roles.filter(function (r) { return r !== m && CORE.status(r, t) !== 'ended'; });
-    var rt = others.length ? CORE.route(m.world.walk, allObjs(m), CORE.abbrev(others[0].serial)) : { missing: '沒有別的角色' };
+    var rt = others.length ? CORE.routeV7(m.world.walk, allObjs(m), CORE.abbrev(others[0].serial)) : { missing: '沒有別的角色' };
     out.push({ id: 'world', no: '④', name: '世界與走法', ok: has.length === funcs.length && !rt.missing, status: (has.length === funcs.length ? '四個公開功能點都有' : '缺：' + funcs.filter(function (f) { return has.indexOf(f) < 0; }).map(function (f) { return CORE.FUNCS[f].label; }).join('、')) + '；' + (rt.missing ? rt.missing : '要去 ' + CORE.abbrev(others[0].serial) + '：' + rt.steps.join('，')), func: 'build', hint: '功能固定、外觀自由；走法決定代號怎麼走。' });
     var up = m.slots.filter(function (s) { return s.atUs > t; });
     out.push({ id: 'slots', no: '⑤', name: '開對接時段', ok: up.length > 0, status: up.length ? up.length + ' 個未來時段，最近 ' + CORE.fmtUs(up.sort(function (a, b) { return a.atUs - b.atUs; })[0].atUs) : '沒有開放的時段', func: 'goal', hint: '別人要預約才能來對接；名額是容量不是條件。' });

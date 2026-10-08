@@ -55,6 +55,38 @@ var J1 = '00000000001';
   assert((await H.ev("GAME.dec().letter")) === 'J', '手動點地面繞一圈 → 字母 J');
   assert(!(await H.dlgOpen()), '繞的過程沒開對話框');
 
+  // 5. 繞完一圈的那棟就算人在那裡：走法表加「規則屋→市集＝2」，點規則屋 → 繞一圈 → 點市集，不開指引也走出 J2
+  await H.fresh(); await H.ev(listen);
+  await pg.click('#swapToSheet'); await pg.waitForTimeout(300); await H.sheet('moves');
+  await H.setIn('addMoveFrom', 'rule_' + J1); await H.setIn('addMoveTo', 'res_' + J1); await H.setIn('addMoveDigit', '2'); await H.click('[data-act="addMove"]');
+  assert((await H.rows()) === 4, '表世界加了一條走法：規則屋→市集＝2');
+  await pg.click('#swapToGame'); await pg.waitForTimeout(500);
+  assert(JSON.stringify(await H.ev("CORE.routeV7(APP.me().world.walk, APP.allObjs(APP.me()), 'J2').steps")) === JSON.stringify(['繞規則屋一圈（J）', '再走到市集（2）']), '路線說明從繞的那棟算起，沒有多一步「走到規則屋」');
+  await pg.click('#btnMap'); await H.click('#map .node[data-go="J2"]');
+  assert((await H.ev("WORLD.guideCount()")) === 13, '指引光點：一圈 12 點＋市集 1 點＝13，沒有規則屋那一點');
+  await H.click('#codeClear'); assert((await H.ev("WORLD.guideCount()")) === 0, '✕ 清掉指引');
+  await H.tapAndWatch('rule_' + J1); await H.pick('繞一圈（J）'); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone();
+  assert((await H.ev("GAME.dec().lastAt")) === 'rule_' + J1, '繞完一圈，人就算在規則屋');
+  opened = await H.tapAndWatch('res_' + J1);
+  assert(!opened && (await H.ev("GAME.dec().done")) === 'J2' && (await pg.textContent('#toast')).indexOf('傳送門') >= 0, '不開指引，規則屋 → 市集就走出 J2，傳送門打開');
+
+  // 6. 代號那行的小 ✕：清掉代號、繞圈、光點、傳送門；之後停在建築旁照常開對話框
+  assert(!(await pg.isHidden('#codeClear')), '有代號時代號行有 ✕');
+  await H.click('#codeClear');
+  assert((await H.ev("JSON.stringify({code:GAME.dec().code(), last:GAME.dec().lastAt, guide:WORLD.guideCount(), x:document.getElementById('codeClear')!==null, h:document.getElementById('codeLine').getBoundingClientRect().height})")) === '{"code":"","last":null,"guide":0,"x":false,"h":0}', '按 ✕：代號、光點、傳送門全清，代號行不占位置');
+  opened = await H.tapAndWatch('role_' + J1);
+  assert(!opened && (await H.dlgTitle()).indexOf('這裡是角色') === 0, '清掉之後停在角色碑旁照常開對話框');
+  await H.fresh(); assert((await H.ev("document.getElementById('codeClear')")) === null, '一開始沒有代號也沒有光點：不顯示 ✕');
+
+  // 7. 切到表世界時 3D 暫停：待 3 秒畫的次數是 0；切回來照常會動
+  await H.fresh();
+  await pg.click('#swapToSheet'); await pg.waitForTimeout(400);
+  var f0 = await H.ev("WORLD.frameCount()"); await pg.waitForTimeout(3000); var f1 = await H.ev("WORLD.frameCount()");
+  assert(f1 === f0, '表世界待 3 秒，3D 畫了 ' + (f1 - f0) + ' 次');
+  await pg.click('#swapToGame'); await pg.waitForTimeout(500);
+  var p0 = await H.ev("WORLD.playerPos()"); await H.tapAndWatch({ x: 3, z: 3 }); var p1 = await H.ev("WORLD.playerPos()");
+  assert((await H.ev("WORLD.frameCount()")) > f1 && Math.hypot(p1.x - p0.x, p1.z - p0.z) > 1, '切回裡世界：3D 繼續畫，點地面照常會走');
+
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');
 })().catch(function (e) { console.error(e); process.exit(1); });
