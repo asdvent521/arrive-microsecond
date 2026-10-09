@@ -57,6 +57,18 @@ var J1 = '00000000001', J2 = '00000000002';
   assert((await H.ev("APP.state().dockings.length")) === 1, '錯過的不算對接');
   await pg.screenshot({ path: OUT + '/v8_sheet_3_missed.png' });
 
+  // 「明天起」看得出改了什麼：J1 把早餐 100 改 120，換人去看，表世界資源表和裡世界商店都標「明天起 120 點」
+  await H.fresh(); await H.toSheet(); await H.sheet('resources');
+  await H.edit('[data-ed="resPrice"][data-id="r1b"]', 120);
+  assert((await H.main()).indexOf('明天起（今天的照舊）：早餐一頓：120 點') >= 0, '自己的表下面列出真的有改的地方');
+  await H.sheet('roles'); await H.edit('input[data-ed="me"][data-id="' + J2 + '"]', null, true);
+  await H.sheet('resources', J1 + ':');
+  var rm = await H.main();
+  assert(rm.indexOf('明天起 120 點') >= 0 && rm.indexOf('我 明天起會改（今天就公開）：早餐一頓：120 點') >= 0 && rm.indexOf('陪跑一小時：') < 0, '看別人的資源表：改的那一項標「明天起 120 點」，下面只列真的有改的');
+  await pg.click('#swapToGame'); await pg.waitForTimeout(400);
+  await H.ev("GAME.teleportTo(CORE.roleOf(APP.state(),'" + J1 + "'))"); await H.goNear('resource'); await H.pick('看商店');
+  assert((await H.dlgBody()).indexOf('早餐一頓　100 點') >= 0 && (await H.dlgBody()).indexOf('【明天起 120 點】') >= 0, '裡世界商店：今天 100 點，標「明天起 120 點」');
+
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');
 })().catch(function (e) { console.error(e); process.exit(1); });

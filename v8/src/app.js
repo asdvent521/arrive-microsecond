@@ -45,7 +45,7 @@ var APP = (function () {
     out.push({ id: 'role', no: '①', name: '每天的點', ok: true, status: CORE.abbrev(m.serial) + ' ' + m.name + '，每天 ' + v.dailyPoints + ' 點' + (p && p.dailyPoints !== v.dailyPoints ? '（明天起 ' + p.dailyPoints + '）' : '') + '，今天還能給 ' + CORE.remainingToday(state, m, t), func: 'role', hint: '一人一個角色。改每天的點隔天生效。' });
     var ru = v.rules, hasRules = ru.uses.length > 0 || ru.conditions.length > 0 || !!ru.village;
     out.push({ id: 'rules', no: '②', name: '寫規則與條件', ok: hasRules, status: hasRules ? ru.uses.length + ' 條用途、' + ru.conditions.length + ' 條條件' + (ru.bothMustPass ? '、要兩方都通' : '') + (ru.mustAcceptVillage ? '、要接受村規' : '') : '規則表是空的' + (p ? '；明天起的版本已經寫了' : ''), func: 'rule', hint: '我的點能做什麼、對接條件（固定格式）、村規。改了隔天生效。' });
-    var avail = CORE.availTotal(m);
+    var avail = CORE.availTotal(m, t);
     out.push({ id: 'resources', no: '③', name: '資源', ok: v.resources.length > 0 && avail > 0, status: v.resources.length ? v.resources.map(function (x) { return x.name + ' ' + x.price + ' 點，可換 ' + CORE.stockOf(m, x.id).avail; }).join('、') : '沒有資源', func: 'resource', hint: '我的點能換的東西和價格。沒貨就給不出點。' });
     var funcs = ['rule', 'resource', 'goal', 'role'], has = funcs.filter(function (f) { return allObjs(m).some(function (o) { return o.func === f; }); });
     var others = state.roles.filter(function (r) { return r !== m; });
@@ -54,9 +54,9 @@ var APP = (function () {
     var up = m.slots.filter(function (s) { return s.atUs > t; });
     out.push({ id: 'slots', no: '⑤', name: '開對接時段', ok: up.length > 0, status: up.length ? up.length + ' 個未來時段，最近 ' + CORE.fmtUs(up.sort(function (a, b) { return a.atUs - b.atUs; })[0].atUs) : '沒有開放的時段', func: 'goal', hint: '別人要預約才能來對接；名額是容量不是條件。' });
     var booked = CORE.myBookings(state, m, t).filter(function (b) { return b.slot.atUs > t; });
-    var chosen = booked.filter(function (b) { return CORE.wantsOf(b.slot, m.serial, b.owner.serial).length > 0; });
+    var chosen = booked.filter(function (b) { return CORE.wantsValid(state, b.slot, m.serial, b.owner.serial).length > 0; });
     var cv = CORE.canVisit(state, m, t);
-    out.push({ id: 'query', no: '⑥', name: '預約、選要換的東西', ok: booked.length > 0 && chosen.length === booked.length, status: booked.length ? '預約了 ' + booked.map(function (b) { return b.owner.name + ' ' + CORE.fmtUs(b.slot.atUs).slice(11, 19) + (CORE.wantsOf(b.slot, m.serial, b.owner.serial).length ? '（選好了）' : '（還沒選要換什麼）'); }).join('、') : cv.length ? '我可以去找：' + cv.map(function (r) { return r.name; }).join('、') : '目前沒有我符合條件的人', func: 'map', hint: '條件通才能預約；那一微秒之前選好要換他的什麼。' });
+    out.push({ id: 'query', no: '⑥', name: '預約、選要換的東西', ok: booked.length > 0 && chosen.length === booked.length, status: booked.length ? '預約了 ' + booked.map(function (b) { return b.owner.name + ' ' + CORE.fmtUs(b.slot.atUs).slice(11, 19) + (CORE.wantsValid(state, b.slot, m.serial, b.owner.serial).length ? '（選好了）' : '（還沒選要換什麼）'); }).join('、') : cv.length ? '我可以去找：' + cv.map(function (r) { return r.name; }).join('、') : '目前沒有我符合條件的人', func: 'map', hint: '條件通才能預約；那一微秒之前選好要換他的什麼。' });
     var next = out.find(function (x) { return !x.ok; }) || null;
     var place = { role: '走到角色碑', rule: '走到規則屋', resource: '走到市集', build: '按「建造」', goal: '走到終點台', map: '打開地圖' };
     var hint = next ? '下一步：' + next.name + ' → ' + place[next.func] : booked.length ? '等那一微秒：' + booked[0].owner.name + ' ' + CORE.fmtUs(booked[0].slot.atUs).slice(11, 19) + '，到時候站在他的終點上' : '都準備好了，去找人';

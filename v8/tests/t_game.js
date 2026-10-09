@@ -77,11 +77,10 @@ var J1 = '00000000001', J2 = '00000000002';
   assert((await H.ev("APP.state().roles[1].slots.some(s=>s.bookings.indexOf('" + J1 + "')>=0)")), '在對方終點台預約了');
   assert((await H.dlgTitle()).indexOf('我要 阿澄 的什麼') === 0, '預約後接著選要換主人的什麼');
   await H.click('[data-want-add="r2a"]'); assert((await pg.textContent('#wantTotal')) === '100', '選了改履歷，合計 100');
-  await H.pick('存好');
   // 主人（阿澄）要我的什麼：單機版主人不在場，用規則層替他選（換人成主人去選是表世界測試的事）
   await H.ev("(function(){var S=APP.state(),s=S.roles[1].slots.find(function(x){return x.bookings.indexOf('" + J1 + "')>=0 && !x.judged;});CORE.setWants(S,s.id,'" + J2 + "','" + J1 + "',['r1b']);APP.changed();})()");
-  await H.click('#dlgClose');
-  // 已經站在終點上、距那一微秒不到 60 秒 → 交換對話框升起
+  await H.pick('存好');   // 回到時刻表，開著不關
+  // 站在終點上、距那一微秒不到 60 秒 → 交換對話框蓋過時刻表升起
   await pg.waitForFunction("document.getElementById('dlgTitle').textContent.indexOf('交換') === 0", null, { timeout: 12000 });
   var xb = await H.dlgBody();
   assert(!(await pg.isHidden('#countdown')) && xb.indexOf('我要他的：100 點') >= 0 && xb.indexOf('他要我的：早餐一頓（100 點）') >= 0 && (await H.ev("document.getElementById('maxGive') !== null")), '倒數出現、交換對話框列出我要他的、他要我的、每人最多給：' + JSON.stringify({ cd: await pg.isHidden('#countdown'), body: xb }));

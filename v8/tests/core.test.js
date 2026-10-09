@@ -180,6 +180,39 @@ ok('6c. 改版、改價錢、下架都不影響已經保留的', function () {
   assert.strictEqual(C.holdStatus(h, T0 + DAY), 'held'); assert.strictEqual(h.name, '一杯茶'); assert.strictEqual(h.price, 50);
   assert.strictEqual(C.redeem(s, J2, h.id, T0 + DAY).ok, true, '下架了照樣換得到');
 });
+ok('5g. 時段在明天以後，來的人選了主人的東西，主人把它明天起下架：那一微秒這個方向不成立、不出錯、留紀錄；下架後還能改選', function () {
+  var s = base(), at = T0 + DAY + 60e6, slot = C.addSlot(s, J1, at, 5, null, T0);
+  C.book(s, J2, slot.id, T0); C.setPresent(s, J2, slot.id, true);
+  C.setWants(s, slot.id, J2, J1, ['y', 'x']);        // 乙要甲的茶和圖
+  C.setWants(s, slot.id, J1, J2, ['p']);             // 甲要乙的歌
+  C.removeResource(s, J1, 'y', T0);                  // 甲把茶明天起下架
+  var out = C.judge(s, at, {});
+  assert.strictEqual(out.length, 1, '不丟錯誤，照樣判');
+  var d = out[0].docking;
+  assert.strictEqual(d.ok, true); assert.strictEqual(d.gaveA, 0); assert.ok(/選的「一杯茶」那天已經下架/.test(d.failA), d.failA);
+  assert.strictEqual(d.gaveB, 200, '另一個方向照成交');
+  assert.strictEqual(s.dockings.length, 1); assert.ok(slot.judged && slot.docked.indexOf(J2) >= 0);
+  assert.deepStrictEqual(C.stockOf(s.roles[0], 'x'), { avail: 1, reserved: 0 }, '不成立的方向貨不動');
+  // 下架後還能改選：已下架的自動拿掉，不丟錯誤
+  var s2 = base(), slot2 = C.addSlot(s2, J1, T0 + DAY + 60e6, 5, null, T0); C.book(s2, J2, slot2.id, T0);
+  C.setWants(s2, slot2.id, J2, J1, ['y']); C.removeResource(s2, J1, 'y', T0);
+  assert.deepStrictEqual(C.wantsValid(s2, slot2, J2, J1), [], '畫面上看不到已下架的');
+  assert.deepStrictEqual(C.setWants(s2, slot2.id, J2, J1, ['y', 'x']), ['x'], '再選：下架的自動拿掉、留下圖');
+  // judge 一對出錯不影響其他對：把一個時段的 wants 弄壞
+  var s3 = base(), slot3 = C.addSlot(s3, J1, T0 + 60e6, 5, null, T0); [J2, J3].forEach(function (v) { C.book(s3, v, slot3.id, T0); C.setPresent(s3, v, slot3.id, true); });
+  C.setWants(s3, slot3.id, J3, J1, ['y']); slot3.wants[J2] = {}; Object.defineProperty(slot3.wants[J2], J1, { get: function () { throw new Error('壞資料'); } });   // 這一對一讀就爆
+  var out3 = C.judge(s3, T0 + 60e6, {});
+  assert.ok(out3.length >= 2 && s3.records.some(function (r) { return r.kind === 'error'; }), '壞的那一對留「判定出錯」紀錄，其他對照判');
+});
+ok('2c. 「對方可換的貨」只算當天版本裡有的：明天起才上架的補 50 份今天不算；下架後從生效那天起不算', function () {
+  var s = base(), r = s.roles[0];
+  assert.strictEqual(C.availTotal(r, T0), 11);
+  var z = C.addResource(s, J1, { name: '新東西', price: 5 }, T0); C.restock(s, J1, z.id, 50);
+  assert.strictEqual(C.availTotal(r, T0), 11, '明天起才上架的不算'); assert.strictEqual(C.availTotal(r, T0 + DAY), 61, '明天就算');
+  C.removeResource(s, J1, 'y', T0);
+  assert.strictEqual(C.availTotal(r, T0), 11, '今天還在'); assert.strictEqual(C.availTotal(r, T0 + DAY), 51, '下架後從生效那天起不算');
+  assert.strictEqual(C.COND_FIELDS.avail.get(s, r, T0 + DAY), 51, '條件判定用同一個數');
+});
 ok('沒有轉手的路：點只在保留裡，保留只能由持有人向發點的人換；沒有 transfer', function () {
   var s = base(), slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['y']); C.judge(s, T0 + 60e6, {});
   assert.strictEqual(C.transfer, undefined); assert.strictEqual(C.spend, undefined); assert.strictEqual(s.points, undefined);
