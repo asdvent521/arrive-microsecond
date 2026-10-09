@@ -69,6 +69,19 @@ var J1 = '00000000001', J2 = '00000000002';
   await H.ev("GAME.teleportTo(CORE.roleOf(APP.state(),'" + J1 + "'))"); await H.goNear('resource'); await H.pick('看商店');
   assert((await H.dlgBody()).indexOf('早餐一頓　100 點') >= 0 && (await H.dlgBody()).indexOf('【明天起 120 點】') >= 0, '裡世界商店：今天 100 點，標「明天起 120 點」');
 
+  // 選的東西有一部分那天已經下架：表世界「我要的」「他要我的」加一行小字；那一微秒剩下的照成交
+  // 模擬「換日了」：先選改履歷＋諮詢，再讓阿澄今天生效的版本沒有改履歷
+  await H.fresh(); await H.toSheet();
+  await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+12e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2a','r2b']);CORE.setWants(S,s.id,'" + J2 + "','" + J1 + "',['r1a','r1b']);var p=CORE.tomorrow(S,'" + J2 + "',t);p.resources=p.resources.filter(function(x){return x.id!=='r2a';});p.fromDay=CORE.dayNum(t);var q=CORE.tomorrow(S,'" + J1 + "',t);q.resources=q.resources.filter(function(x){return x.id!=='r1a';});q.fromDay=CORE.dayNum(t);APP.changed();})()");
+  await H.sheet('booked'); var bm = await H.main();
+  assert(bm.indexOf('選的「改履歷」那天已經下架，不算') >= 0 && bm.indexOf('合計 90 阿澄點') >= 0, '「我要的」：小字寫改履歷不算，合計只剩諮詢 90');
+  assert(bm.indexOf('早餐一頓（100 點）') >= 0 && bm.indexOf('選的「陪跑一小時」那天已經下架，不算') >= 0, '「他要我的」：早餐照算、陪跑小字不算');
+  await H.edit('input[data-ed="present"]', null, true);
+  await pg.waitForFunction("APP.state().dockings.length === 1", null, { timeout: 20000 }); await pg.waitForTimeout(300);
+  var dk2 = await H.ev("APP.state().dockings[0]");
+  assert(dk2.gaveA === 90 && dk2.gaveB === 100 && dk2.noteA === '選的「改履歷」那天已經下架，沒換到' && dk2.noteB === '選的「陪跑一小時」那天已經下架，沒換到', '那一微秒：剩下的照成交（阿澄給 90、我給 100），紀錄寫沒換到');
+  await H.sheet('dockings'); assert((await H.main()).indexOf('那天已經下架，沒換到') >= 0, '對接紀錄表寫沒換到');
+
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');
 })().catch(function (e) { console.error(e); process.exit(1); });

@@ -392,6 +392,9 @@ var CORE = (function () {
   function wantsOf(slot, me, other) { return (slot.wants[me] && slot.wants[me][other]) || []; }
   // 畫面用：只留那天資源表上還有的
   function wantsValid(state, slot, me, other) { var o = roleOf(state, other); if (!o) return []; var v = version(o, slot.atUs); return wantsOf(slot, me, other).filter(function (id) { return !!resourceOf(v, id); }); }
+  // 存著的選擇裡那天已經下架的（畫面加一行小字）
+  function wantsGone(state, slot, me, other) { var o = roleOf(state, other); if (!o) return []; var v = version(o, slot.atUs); return wantsOf(slot, me, other).filter(function (id) { return !resourceOf(v, id); }).map(function (id) { return resourceName(o, id); }); }
+  function goneText(state, slot, me, other) { var g = wantsGone(state, slot, me, other); return g.length ? '選的「' + g.join('」「') + '」那天已經下架，不算' : ''; }
   function wantTotal(state, slot, me, other) { var v = version(need(state, other), slot.atUs); return wantsOf(slot, me, other).reduce(function (s, id) { var x = resourceOf(v, id); return s + (x ? x.price : 0); }, 0); }
   function setMaxGive(state, slot, me, n) { if (slot.judged) bad('那一微秒已經過了'); if (n == null || n === '') { delete slot.maxGive[me]; return null; } var v = Math.floor(+n); if (!(v >= 0)) bad('每人最多給多少要是 0 以上'); slot.maxGive[me] = v; return v; }
   function maxGiveOf(state, slot, me, atUs) { return slot.maxGive[me] != null ? slot.maxGive[me] : remainingToday(state, need(state, me), atUs); }
@@ -408,26 +411,29 @@ var CORE = (function () {
   function isPresent(state, visitorSerial, slotId) { return !!(state.presence && state.presence[slotId + ':' + visitorSerial]); }
   // 一個方向：giver 給 taker 點，換 taker 選好的 giver 的東西
   function settleDirection(state, slot, giver, taker, atUs) {
-    var g = need(state, giver), v = version(g, atUs), ids = wantsOf(slot, taker, giver);
-    if (!ids.length) return { ok: true, points: 0, items: [], reason: null };
-    var gone = ids.filter(function (id) { return !resourceOf(v, id); });
-    if (gone.length) return { ok: false, points: 0, items: [], reason: need(state, taker).name + ' 選的「' + gone.map(function (id) { return resourceName(g, id); }).join('」「') + '」那天已經下架' };
+    var g = need(state, giver), v = version(g, atUs), all = wantsOf(slot, taker, giver);
+    if (!all.length) return { ok: true, points: 0, items: [], reason: null, note: null };
+    // 那天已經下架的那幾樣不算（跟畫面一致），剩下的照原本的規則成交
+    var gone = all.filter(function (id) { return !resourceOf(v, id); }), ids = all.filter(function (id) { return !!resourceOf(v, id); });
+    var note = gone.length ? '選的「' + gone.map(function (id) { return resourceName(g, id); }).join('」「') + '」那天已經下架，沒換到' : null;
+    if (!ids.length) return { ok: false, points: 0, items: [], reason: note, note: note };
     var total = 0, count = {};
     ids.forEach(function (id) { var x = resourceOf(v, id); total += x.price; count[id] = (count[id] || 0) + 1; });
     var left = remainingToday(state, g, atUs);
-    if (slot.maxGive[giver] != null && total > slot.maxGive[giver]) return { ok: false, points: 0, items: [], reason: g.name + ' 每人最多給 ' + slot.maxGive[giver] + ' 點，' + need(state, taker).name + ' 選的要 ' + total + ' 點' };
-    if (total > left) return { ok: false, points: 0, items: [], reason: g.name + ' 今天只剩 ' + left + ' 點，不能預支（要 ' + total + ' 點）' };
+    if (slot.maxGive[giver] != null && total > slot.maxGive[giver]) return { ok: false, points: 0, items: [], reason: g.name + ' 每人最多給 ' + slot.maxGive[giver] + ' 點，' + need(state, taker).name + ' 選的要 ' + total + ' 點', note: note };
+    if (total > left) return { ok: false, points: 0, items: [], reason: g.name + ' 今天只剩 ' + left + ' 點，不能預支（要 ' + total + ' 點）', note: note };
     var short = Object.keys(count).filter(function (id) { return stockOf(g, id).avail < count[id]; });
-    if (short.length) return { ok: false, points: 0, items: [], reason: g.name + ' 的貨不夠：' + short.map(function (id) { var x = resourceOf(v, id); return '「' + (x ? x.name : id) + '」可換 ' + stockOf(g, id).avail + ' 份，要 ' + count[id]; }).join('、') };
-    return { ok: true, points: total, items: ids.map(function (id) { var x = resourceOf(v, id); return { id: id, name: x.name, price: x.price, keepDays: x.keepDays }; }), reason: null };
+    if (short.length) return { ok: false, points: 0, items: [], reason: g.name + ' 的貨不夠：' + short.map(function (id) { var x = resourceOf(v, id); return '「' + (x ? x.name : id) + '」可換 ' + stockOf(g, id).avail + ' 份，要 ' + count[id]; }).join('、'), note: note };
+    return { ok: true, points: total, items: ids.map(function (id) { var x = resourceOf(v, id); return { id: id, name: x.name, price: x.price, keepDays: x.keepDays }; }), reason: null, note: note };
   }
   function dockPair(state, slot, a, b, atUs) {
     var ra = need(state, a), rb = need(state, b), e = eligible(state, ra, rb, atUs);
-    var d = { id: newId('dk'), slot: slot.id, atUs: atUs, a: a, b: b, how: e.ok ? e.how : null, ok: e.ok, reason: e.ok ? null : e.reason, gaveA: 0, gaveB: 0, itemsA: [], itemsB: [], failA: null, failB: null, verA: version(ra, atUs).id, verB: version(rb, atUs).id };
+    var d = { id: newId('dk'), slot: slot.id, atUs: atUs, a: a, b: b, how: e.ok ? e.how : null, ok: e.ok, reason: e.ok ? null : e.reason, gaveA: 0, gaveB: 0, itemsA: [], itemsB: [], failA: null, failB: null, noteA: null, noteB: null, verA: version(ra, atUs).id, verB: version(rb, atUs).id };
     if (e.ok) {
       var ab = settleDirection(state, slot, a, b, atUs), ba = settleDirection(state, slot, b, a, atUs);
       if (ab.ok) { d.gaveA = ab.points; d.itemsA = ab.items; } else d.failA = ab.reason;
       if (ba.ok) { d.gaveB = ba.points; d.itemsB = ba.items; } else d.failB = ba.reason;
+      d.noteA = ab.note; d.noteB = ba.note;   // 下架沒換到的，另外寫
       // 先寫對接，再寫保留；當天給出去的點用保留算
       state.dockings.push(d);
       ab.items.forEach(function (it) { hold(state, a, b, it, d, atUs); });
@@ -450,7 +456,7 @@ var CORE = (function () {
       for (var i = 0; i < present.length; i++) for (var j = i + 1; j < present.length; j++) {
         try {
           var d = dockPair(state, s, present[i], present[j], atUs);
-          state.records.push({ kind: d.ok ? 'dock' : 'nodock', at: atUs, text: abbrev(d.a) + ' 與 ' + abbrev(d.b) + ' 在 ' + fmtUs(atUs) + (d.ok ? ' 對接：' + need(state, d.a).name + ' 給 ' + d.gaveA + ' 點' + (d.failA ? '（不成立：' + d.failA + '）' : '') + '，' + need(state, d.b).name + ' 給 ' + d.gaveB + ' 點' + (d.failB ? '（不成立：' + d.failB + '）' : '') + '（' + d.how + '）' : ' 對接不成立：' + d.reason) });
+          state.records.push({ kind: d.ok ? 'dock' : 'nodock', at: atUs, text: abbrev(d.a) + ' 與 ' + abbrev(d.b) + ' 在 ' + fmtUs(atUs) + (d.ok ? ' 對接：' + need(state, d.a).name + ' 給 ' + d.gaveA + ' 點' + (d.failA ? '（不成立：' + d.failA + '）' : d.noteA ? '（' + d.noteA + '）' : '') + '，' + need(state, d.b).name + ' 給 ' + d.gaveB + ' 點' + (d.failB ? '（不成立：' + d.failB + '）' : d.noteB ? '（' + d.noteB + '）' : '') + '（' + d.how + '）' : ' 對接不成立：' + d.reason) });
           out.push({ slot: s, owner: owner, docking: d });
         } catch (e) {   // 一對出錯不影響其他對，出錯也留紀錄
           state.records.push({ kind: 'error', at: atUs, text: abbrev(present[i]) + ' 與 ' + abbrev(present[j]) + ' 在 ' + fmtUs(atUs) + ' 判定出錯：' + e.message });
@@ -608,7 +614,7 @@ var CORE = (function () {
     COND_FIELDS: COND_FIELDS, OPS: OPS, condText: condText, passes: passes, eligible: eligible, accepted: accepted, accept: accept,
     createRole: createRole, quit: quit, quitBlockers: quitBlockers,
     canVisit: canVisit, canCome: canCome, searchResources: searchResources, nextSlot: nextSlot, dockCount: dockCount, ratio: ratio,
-    addSlot: addSlot, slotOf: slotOf, participants: participants, book: book, cancelBooking: cancelBooking, setWants: setWants, wantsOf: wantsOf, wantsValid: wantsValid, wantTotal: wantTotal, setMaxGive: setMaxGive, maxGiveOf: maxGiveOf, contactVisible: contactVisible,
+    addSlot: addSlot, slotOf: slotOf, participants: participants, book: book, cancelBooking: cancelBooking, setWants: setWants, wantsOf: wantsOf, wantsValid: wantsValid, wantsGone: wantsGone, goneText: goneText, wantTotal: wantTotal, setMaxGive: setMaxGive, maxGiveOf: maxGiveOf, contactVisible: contactVisible,
     DOCK_WINDOW_US: DOCK_WINDOW_US, missed: missed, setPresent: setPresent, isPresent: isPresent, judge: judge, expire: expire, myBookings: myBookings, settleDirection: settleDirection,
     holdStatus: holdStatus, expireHolds: expireHolds, holdsOf: holdsOf, heldPoints: heldPoints, holdings: holdings, redeem: redeem,
     defaultWorld: defaultWorld, fresh: fresh, load: load, save: save, findRole: findRole, roleOf: roleOf

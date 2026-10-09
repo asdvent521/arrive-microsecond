@@ -189,10 +189,18 @@ ok('5g. 時段在明天以後，來的人選了主人的東西，主人把它明
   var out = C.judge(s, at, {});
   assert.strictEqual(out.length, 1, '不丟錯誤，照樣判');
   var d = out[0].docking;
-  assert.strictEqual(d.ok, true); assert.strictEqual(d.gaveA, 0); assert.ok(/選的「一杯茶」那天已經下架/.test(d.failA), d.failA);
+  assert.strictEqual(d.ok, true); assert.strictEqual(d.gaveA, 300, '下架的茶不算，圖照成交：乙拿到圖 300'); assert.strictEqual(d.failA, null);
+  assert.strictEqual(d.noteA, '選的「一杯茶」那天已經下架，沒換到'); assert.deepStrictEqual(d.itemsA.map(function (i) { return i.name; }), ['畫一張圖']);
+  assert.ok(s.records.some(function (r) { return /選的「一杯茶」那天已經下架，沒換到/.test(r.text); }), '紀錄寫茶沒換到');
   assert.strictEqual(d.gaveB, 200, '另一個方向照成交');
   assert.strictEqual(s.dockings.length, 1); assert.ok(slot.judged && slot.docked.indexOf(J2) >= 0);
-  assert.deepStrictEqual(C.stockOf(s.roles[0], 'x'), { avail: 1, reserved: 0 }, '不成立的方向貨不動');
+  assert.deepStrictEqual(C.stockOf(s.roles[0], 'x'), { avail: 0, reserved: 1 }, '圖留起來了');
+  assert.deepStrictEqual(C.wantsGone(s, slot, J2, J1), ['一杯茶']); assert.strictEqual(C.goneText(s, slot, J2, J1), '選的「一杯茶」那天已經下架，不算');
+  // 全部都下架：這個方向 0 點，一樣寫原因
+  var s0 = base(), slot0 = C.addSlot(s0, J1, at, 5, null, T0); C.book(s0, J2, slot0.id, T0); C.setPresent(s0, J2, slot0.id, true);
+  C.setWants(s0, slot0.id, J2, J1, ['y']); C.removeResource(s0, J1, 'y', T0);
+  var d0 = C.judge(s0, at, {})[0].docking;
+  assert.strictEqual(d0.gaveA, 0); assert.strictEqual(d0.failA, '選的「一杯茶」那天已經下架，沒換到'); assert.strictEqual(s0.holds.length, 0);
   // 下架後還能改選：已下架的自動拿掉，不丟錯誤
   var s2 = base(), slot2 = C.addSlot(s2, J1, T0 + DAY + 60e6, 5, null, T0); C.book(s2, J2, slot2.id, T0);
   C.setWants(s2, slot2.id, J2, J1, ['y']); C.removeResource(s2, J1, 'y', T0);

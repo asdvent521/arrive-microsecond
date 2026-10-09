@@ -103,6 +103,18 @@ var J1 = '00000000001', J2 = '00000000002';
   assert((await pg.textContent('#toast')).indexOf('錯過了那一微秒') >= 0, '沒站在終點上 → 顯示錯過');
   assert((await H.ev("APP.state().dockings.length")) === 1, '錯過的不算對接');
 
+  // 選的東西有一部分那天已經下架：交換對話框加一行小字；結果對話框寫沒換到
+  await H.fresh();
+  await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+20e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2a','r2b']);var p=CORE.tomorrow(S,'" + J2 + "',t);p.resources=p.resources.filter(function(x){return x.id!=='r2a';});p.fromDay=CORE.dayNum(t);APP.changed();})()");
+  await H.ev("GAME.teleportTo(CORE.roleOf(APP.state(),'" + J2 + "'))"); await H.goNear('goal');
+  await pg.waitForFunction("document.getElementById('dlgTitle').textContent.indexOf('交換') === 0", null, { timeout: 12000 });
+  var xb2 = await H.dlgBody();
+  assert(xb2.indexOf('我要他的：90 點') >= 0 && xb2.indexOf('選的「改履歷」那天已經下架，不算') >= 0, '交換對話框：只算諮詢 90，小字寫改履歷不算');
+  await H.pick('確定');
+  await pg.waitForFunction("APP.state().dockings.length === 1", null, { timeout: 30000 }); await pg.waitForTimeout(400);
+  assert((await H.dlgTitle()) === '到達那微秒' && (await H.dlgBody()).indexOf('拿到 90 阿澄點') >= 0 && (await H.dlgBody()).indexOf('選的「改履歷」那天已經下架，沒換到') >= 0, '結果對話框：拿到 90、寫改履歷沒換到');
+  await H.pick('好');
+
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');
 })().catch(function (e) { console.error(e); process.exit(1); });
