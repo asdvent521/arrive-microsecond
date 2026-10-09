@@ -153,6 +153,23 @@ var J1 = '00000000001';
   await pg.click('#swapToSheet'); await pg.waitForTimeout(400); await pg.click('#swapToGame'); await pg.waitForTimeout(600);
   assert((await H.dlgOpen()) && (await H.dlgTitle()).indexOf('這裡是規則') === 0, '切過去再切回：對話框還在');
 
+  // (f) 市集開著「補貨」，切到表世界按「補 1 份」，切回來對話框寫「剩 2」
+  await H.fresh(); await H.tapAndWatch('res_' + J1); await H.pick('補貨');
+  assert((await H.opts())[0].indexOf('陪跑一小時（剩 1）') === 0, '補貨對話框：陪跑一小時剩 1');
+  await pg.click('#swapToSheet'); await pg.waitForTimeout(300);
+  assert((await H.sheetName()) === 'resources', '切過去是資源表');
+  await H.click('[data-act="restock"][data-id="r1a"]');
+  await pg.click('#swapToGame'); await pg.waitForTimeout(500);
+  assert((await H.dlgOpen()) && (await H.dlgTitle()) === '補貨' && (await H.opts())[0].indexOf('陪跑一小時（剩 2）') === 0, '切回來：留著的補貨對話框用最新資料重畫，寫「剩 2」');
+  // 提示上的按鈕用手指按得到：看看、繞一圈、進去
+  await H.fresh();
+  await H.tapAndWatch('rule_' + J1); await H.pick('繞一圈（J）'); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone();
+  await H.tapAndWatch('role_' + J1);
+  await H.click('#hintLook'); assert((await H.dlgTitle()).indexOf('這裡是角色') === 0 && !(await H.ev("WORLD.isMoving()")), '手指按「看看」：對話框打開、人沒往後走');
+  await H.ev("GAME.dialog(null)"); await H.click('#codeClear');
+  await H.tapAndWatch('rule_' + J1); await H.pick('繞一圈（J）'); await pg.waitForTimeout(500); assert((await H.ev("WORLD.isMoving()")), '手指按對話框的「繞一圈（J）」：開始繞');
+  await H.walkDone();
+
   // 9. 暫停時取消已排好的下一格：同一格內連切 4 次，不會疊出多個迴圈
   await H.fresh();
   var fa = await H.ev("WORLD.frameCount()"); await pg.waitForTimeout(1000); var fb = await H.ev("WORLD.frameCount()");

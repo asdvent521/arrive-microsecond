@@ -46,7 +46,14 @@ async function open(pagePath, opts) {
       throw new Error('轉了鏡頭還是看不到 ' + JSON.stringify(target));
     },
     tapAndWatch: async function (target) {
-      var s = await H.onScreen(target);
+      var s;
+      try { s = await H.onScreen(target); }
+      catch (e) {   // 建築被上方的提示、按鈕擋住：先點地面走近一點（像手指會做的），再試一次
+        if (typeof target !== 'string') throw e;
+        var mid = await pg.evaluate(function (id) { var o = WORLD.objectAt(id), p = WORLD.playerPos(); if (!o) return null; var dx = o.x - p.x, dz = o.z - p.z, d = Math.hypot(dx, dz); return { x: o.x - dx / d * Math.min(d - 0.5, 4.5), z: o.z - dz / d * Math.min(d - 0.5, 4.5) }; }, target);
+        var sm = await H.onScreen(mid); await pg.mouse.click(sm.x, sm.y); await H.walkDone();
+        s = await H.onScreen(target);
+      }
       await pg.mouse.click(s.x, s.y);
       var opened = false, t0 = Date.now();
       while (Date.now() - t0 < 20000) {
@@ -62,10 +69,32 @@ async function open(pagePath, opts) {
     dlgBody: function () { return pg.textContent('#dlgBody'); },
     dlgOpen: function () { return pg.evaluate("document.getElementById('dlg').classList.contains('open')"); },
     opts: function () { return pg.evaluate("[...document.querySelectorAll('#dlgOpts button')].map(b=>b.textContent)"); },
+    // 用手指按一個元素：捲到看得見、算出中心、確認 elementFromPoint 打到的就是它，再點那個座標
+    finger: async function (finder, what) {
+      var r = await pg.evaluate(function (f) {
+        var el = (new Function('return (' + f + ')()'))(); if (!el) return { err: '找不到' };
+        el.scrollIntoView({ block: 'center', inline: 'center' });
+        var b = el.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
+        var hit = document.elementFromPoint(x, y);
+        // 表世界：被凍結的第一欄蓋住就把表往左捲，讓它露在凍結欄右邊
+        var main = el.closest('#smain');
+        if (main && !(hit === el || el.contains(hit))) {
+          var fz = main.querySelector('td.fz, th.fz'); var fw = fz ? fz.getBoundingClientRect().right : main.getBoundingClientRect().left;
+          main.scrollLeft += b.left - fw - 12;
+          b = el.getBoundingClientRect(); x = b.left + b.width / 2; y = b.top + b.height / 2; hit = document.elementFromPoint(x, y);
+        }
+        // 太寬的按鈕：中心超出畫面就按它露在畫面裡的那一段
+        if (x > innerWidth - 8) { x = Math.max(b.left + 8, Math.min(innerWidth - 8, b.right - 8)); hit = document.elementFromPoint(x, y); }
+        if (!hit || !(hit === el || el.contains(hit))) return { err: '被蓋住：那個位置是 ' + (hit ? hit.tagName + (hit.id ? '#' + hit.id : '') + (hit.className ? '.' + String(hit.className).split(' ')[0] : '') : '空的') };
+        return { x: x, y: y };
+      }, finder);
+      if (r.err) throw new Error('手指按不到 ' + what + '：' + r.err);
+      await pg.mouse.click(r.x, r.y); await pg.waitForTimeout(200);
+    },
     pick: async function (label) {                       // 按對話框裡以 label 開頭的選項
-      var ok = await pg.evaluate(function (l) { var b = [...document.querySelectorAll('#dlgOpts button')].find(function (x) { return x.textContent.indexOf(l) === 0; }); if (!b) return false; b.click(); return true; }, label);
-      if (!ok) throw new Error('對話框沒有選項「' + label + '」，現有：' + (await H.opts()).join('/'));
-      await pg.waitForTimeout(200);
+      var has = await pg.evaluate(function (l) { return [...document.querySelectorAll('#dlgOpts button')].some(function (x) { return x.textContent.indexOf(l) === 0; }); }, label);
+      if (!has) throw new Error('對話框沒有選項「' + label + '」，現有：' + (await H.opts()).join('/'));
+      await H.finger("function(){ return [...document.querySelectorAll('#dlgOpts button')].find(function (x) { return x.textContent.indexOf(" + JSON.stringify(label) + ") === 0; }); }", '選項「' + label + '」');
     },
     setIn: async function (id, value) { await pg.evaluate(function (a) { var el = document.getElementById(a[0]); el.value = a[1]; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, [id, String(value)]); },
     tapScreen: async function (target) {                 // 真的點畫面：target 是物件 id 或 {x,z}（會避開 HUD、轉鏡頭）
@@ -79,8 +108,8 @@ async function open(pagePath, opts) {
     sheetName: function () { return pg.evaluate("SHEET.ui.sheet"); },
     main: function () { return pg.textContent('#smain'); },
     rows: function () { return pg.evaluate("document.querySelectorAll('#smain tr[data-row]').length"); },
-    click: async function (sel) { var ok = await pg.evaluate(function (q) { var el = document.querySelector(q); if (!el) return false; el.click(); return true; }, sel); if (!ok) throw new Error('找不到 ' + sel); await pg.waitForTimeout(200); },
-    clickText: async function (text) { var ok = await pg.evaluate(function (t) { var el = [...document.querySelectorAll('#view-sheet button, #view-sheet a')].find(function (b) { return b.textContent.trim().indexOf(t) === 0; }); if (!el) return false; el.click(); return true; }, text); if (!ok) throw new Error('表世界找不到「' + text + '」'); await pg.waitForTimeout(200); },
+    click: async function (sel) { await H.finger("function(){ return document.querySelector(" + JSON.stringify(sel) + "); }", sel); },
+    clickText: async function (text) { await H.finger("function(){ return [...document.querySelectorAll('#view-sheet button, #view-sheet a')].find(function (b) { return b.textContent.trim().indexOf(" + JSON.stringify(text) + ") === 0; }); }", '「' + text + '」'); },
     edit: async function (sel, value, checked) {         // 改格子（input/select/checkbox）並觸發 change
       var ok = await pg.evaluate(function (a) { var el = document.querySelector(a[0]); if (!el) return false; if (a[2] != null) el.checked = !!a[2]; else el.value = a[1]; el.dispatchEvent(new Event('change', { bubbles: true })); return true; }, [sel, value == null ? '' : String(value), checked == null ? null : checked]);
       if (!ok) throw new Error('找不到格子 ' + sel); await pg.waitForTimeout(200);

@@ -13,8 +13,10 @@ var GAME = (function () {
   var STATUS = APP.STATUS;
 
   /* ---------- 小工具 ---------- */
+  // 吐司要放在對話框上面，不能蓋住對話框的按鈕
+  function placeToast() { var dlg = $('dlg'); $('toast').style.bottom = dlg.classList.contains('open') ? (dlg.offsetHeight + 8) + 'px' : ''; }
   function toast(text, keep) {
-    var el = $('toast'); el.textContent = text; el.hidden = !text;
+    var el = $('toast'); el.textContent = text; el.hidden = !text; placeToast();
     clearTimeout(toastTimer); if (!keep && text) toastTimer = setTimeout(function () { el.hidden = true; }, 3200);
   }
   function fmtLife(r) { return CORE.fmtUs(r.life.startUs).slice(0, 10) + ' → ' + CORE.fmtUs(r.life.endUs).slice(0, 10); }
@@ -23,12 +25,12 @@ var GAME = (function () {
   /* ---------- 對話框：標題、內容、選項（像 RPG） ---------- */
   var dlgStack = [];
   function dialog(d) {
-    if (!d) { $('dlg').classList.remove('open'); dlgStack = []; return; }
+    if (!d) { $('dlg').classList.remove('open'); dlgStack = []; placeToast(); return; }
     dlgStack.push(d);
     $('dlgTitle').textContent = d.title || '';
     $('dlgBody').innerHTML = d.body || '';
     $('dlgOpts').innerHTML = (d.opts || []).map(function (o, i) { return '<button type="button" class="btn' + (o.pri ? ' pri' : '') + (o.warn ? ' warn' : '') + '" data-opt="' + i + '">' + esc(o.label) + '</button>'; }).join('') + (dlgStack.length > 1 ? '<button type="button" class="btn" data-opt="back">返回</button>' : '');
-    $('dlg').classList.add('open');
+    $('dlg').classList.add('open'); placeToast();
     if (d.after) d.after();
   }
   $('dlgOpts').addEventListener('click', function (e) {
@@ -398,7 +400,7 @@ var GAME = (function () {
   /* ---------- 進出裡世界：切換時停在同一件事上 ---------- */
   function show() {
     var f = APP.focus(), m = me();
-    if (!APP.focusChanged()) { drawPlate(); return; }   // 表世界沒換看別的東西：一切照舊，走到一半繼續走、開著的對話框還在
+    if (!APP.focusChanged()) { refreshDialog(); drawPlate(); return; }   // 表世界沒換看別的東西：一切照舊，走到一半繼續走、開著的對話框用最新資料重畫
     dialog(null);
     if (f.role && f.role !== m.serial) {
       var r = APP.roleOf(f.role);
@@ -424,5 +426,17 @@ var GAME = (function () {
   if (!WORLD.available) { $('stage').innerHTML = '<div class="nothree">3D 引擎沒載入，裡世界暫時不能用。按右上角「表 ⇄ 裡」用表世界，功能完全一樣。</div>'; }
   else { WORLD.init($('stage')); WORLD.loadWorld(me().world); }
   drawPlate();
+  // 切回來時留著的對話框要用最新資料重畫：記住每個對話框是哪個函式、什麼參數做出來的
+  function R(fn) {
+    return function () {
+      var args = arguments, out = fn.apply(null, args), top = dlgStack[dlgStack.length - 1];
+      if (top && !top.again) top.again = function () { dlgStack.pop(); fn.apply(null, args); };
+      return out;
+    };
+  }
+  openNear = R(openNear); readRules = R(readRules); shop = R(shop); timetable = R(timetable); mySlots = R(mySlots);
+  restockDialog = R(restockDialog); history = R(history); switchRole = R(switchRole); buildDialog = R(buildDialog);
+  function refreshDialog() { var top = dlgStack[dlgStack.length - 1]; if (top && top.again && $('dlg').classList.contains('open')) top.again(); }
+
   return { show: show, dialog: dialog, cur: function () { return cur; }, dec: function () { return dec; }, guideTo: guideTo, openPortal: openPortal, enterPortal: function () { if (portalRole) teleport(portalRole); }, teleportTo: teleport, goHome: goHome, setBuild: setBuild, nearObj: function () { return nearObj; }, stack: function () { return dlgStack; } };
 })();
