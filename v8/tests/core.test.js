@@ -256,6 +256,66 @@ ok('9. 換點比例：最近 10 次的給出：收到', function () {
   assert.strictEqual(C.ratio(s, J3).text, '100：500（最近 10 次）');
   assert.strictEqual(C.ratio(s, J2).text, '還沒對接過');
 });
+ok('改規則不溯及既往 (a)：預約後主人才打開兩方都通、加條件，那一微秒照預約時的規則；改版後的新預約照新規則', function () {
+  var s = base(), at = T0 + 2 * DAY, slot = C.addSlot(s, J1, at, 5, null, T0);
+  C.book(s, J2, slot.id, T0); C.setPresent(s, J2, slot.id, true);
+  assert.strictEqual(slot.bookedAt[J2], T0, '預約時記下那一刻');
+  C.setRules(s, J1, { bothMustPass: true, conditions: [{ field: 'dockCount', op: '>=', value: 5 }] }, T0);   // 明天起
+  C.setWants(s, slot.id, J2, J1, ['y']);
+  var d = C.judge(s, at, {})[0].docking;
+  assert.strictEqual(d.ok, true, '照預約時的規則：成立'); assert.strictEqual(d.gaveA, 50);
+  assert.strictEqual(d.ruleUs, T0); assert.strictEqual(d.verA, s.roles[0].versions[0].id, 'verA 記判定用的那一版（預約時的）');
+  throws(function () { var s2 = C.addSlot(s, J1, at + 60e6, 5, null, T0 + DAY); C.book(s, J3, s2.id, T0 + DAY); }, /條件不通/);   // 改版後的新預約照新規則
+});
+ok('改規則不溯及既往 (b)：預約後主人才打開「要接受我的村規」：那一微秒照樣成立', function () {
+  var s = base(), at = T0 + 2 * DAY, slot = C.addSlot(s, J1, at, 5, null, T0);
+  C.book(s, J2, slot.id, T0); C.setPresent(s, J2, slot.id, true); C.setWants(s, slot.id, J2, J1, ['y']);
+  C.setRules(s, J1, { mustAcceptVillage: true, village: '甲的村規' }, T0);
+  var d = C.judge(s, at, {})[0].docking;
+  assert.strictEqual(d.ok, true); assert.strictEqual(d.gaveA, 50);
+  assert.strictEqual(C.eligible(s, s.roles[0], s.roles[1], T0 + DAY).ok, false, '明天起新的對接要先接受');
+});
+ok('改規則不溯及既往 (c)：接受村規記版本。村規 v1→v2，換日後舊的接受不算、要重新接受；用 v1 預約的照樣成立', function () {
+  var s = base(), A = s.roles[0], B = s.roles[1];
+  C.setRules(s, J1, { mustAcceptVillage: true, village: 'v1' }, T0 - DAY);
+  throws(function () { var sx = C.addSlot(s, J1, T0 + 2 * DAY, 5, null, T0); C.book(s, J2, sx.id, T0); }, /還沒接受/);
+  C.accept(s, J2, J1, T0);
+  assert.strictEqual(s.acceptances[0].village, 'v1', '記下接受的是 v1'); assert.strictEqual(C.acceptState(s, J2, A, T0), 'current');
+  var slot = C.addSlot(s, J1, T0 + 2 * DAY, 5, null, T0); C.book(s, J2, slot.id, T0); C.setPresent(s, J2, slot.id, true); C.setWants(s, slot.id, J2, J1, ['y']);
+  C.setRules(s, J1, { mustAcceptVillage: true, village: 'v2' }, T0);   // 明天起改成 v2
+  assert.strictEqual(C.villageChanges(A, T0), true); assert.strictEqual(C.acceptState(s, J2, A, T0), 'current', '今天還是 v1');
+  assert.strictEqual(C.acceptState(s, J2, A, T0 + DAY), 'old', '換日後接受的是舊版');
+  assert.strictEqual(C.accepted(s, J2, J1, 'v2'), false);
+  var slot2 = C.addSlot(s, J1, T0 + 3 * DAY, 5, null, T0 + DAY);
+  throws(function () { C.book(s, J2, slot2.id, T0 + DAY); }, /接受的是舊版/);
+  C.accept(s, J2, J1, T0 + DAY); assert.strictEqual(C.acceptState(s, J2, A, T0 + DAY), 'current');
+  C.book(s, J2, slot2.id, T0 + DAY);
+  var d = C.judge(s, T0 + 2 * DAY, {})[0].docking;
+  assert.strictEqual(d.ok, true, '用 v1 預約的照樣成立'); assert.strictEqual(d.gaveA, 50);
+});
+ok('改規則不溯及既往 (d)：事實照那一微秒。預約時可換 6 份，那一微秒前減到 3；要求兩方都通、條件 ≥ 5：不成立', function () {
+  var s = base();
+  C.setRules(s, J1, { bothMustPass: true, conditions: [{ field: 'avail', op: '>=', value: 5 }] }, T0 - DAY);
+  C.restock(s, J2, 'p', 4);   // 乙可換 6 份
+  var slot = C.addSlot(s, J1, T0 + 60e6, 5, null, T0); C.book(s, J2, slot.id, T0); C.setPresent(s, J2, slot.id, true); C.setWants(s, slot.id, J2, J1, ['y']);
+  C.restock(s, J2, 'p', -3);  // 剩 3
+  var d = C.judge(s, T0 + 60e6, {})[0].docking;
+  assert.strictEqual(d.ok, false); assert.ok(/至少 5/.test(d.reason), d.reason); assert.strictEqual(s.holds.length, 0);
+});
+ok('改規則不溯及既往 (e)：兩個預約的人之間，照比較晚預約的那一刻', function () {
+  var s = base(), at = T0 + 3 * DAY, slot = C.addSlot(s, J1, at, 5, null, T0);
+  C.book(s, J2, slot.id, T0);                                                 // 乙在今天預約
+  C.setRules(s, J3, { bothMustPass: true, conditions: [{ field: 'avail', op: '>=', value: 5 }] }, T0);   // 丙明天起要兩方都通、可換的貨 ≥ 5（甲 11 份通，乙 2 份不通）
+  C.book(s, J3, slot.id, T0 + DAY);                                           // 丙在明天預約
+  [J2, J3].forEach(function (v) { C.setPresent(s, v, slot.id, true); C.setWants(s, slot.id, v, J1, ['y']); });
+  C.judge(s, at, {});
+  var pair = function (a, b) { return s.dockings.find(function (d) { return (d.a === a && d.b === b) || (d.a === b && d.b === a); }); };
+  assert.strictEqual(pair(J1, J2).ok, true); assert.strictEqual(pair(J1, J2).ruleUs, T0);
+  assert.strictEqual(pair(J1, J3).ok, true); assert.strictEqual(pair(J1, J3).ruleUs, T0 + DAY);
+  var d23 = pair(J2, J3);
+  assert.strictEqual(d23.ruleUs, T0 + DAY, '乙丙之間照丙預約的那一刻'); assert.strictEqual(d23.ok, false, '丙那時已經要求兩方都通，乙只有 2 份不通'); assert.ok(/兩方都通/.test(d23.reason));
+  assert.strictEqual(d23.a === J3 ? d23.verA : d23.verB, s.roles[2].versions[1].id, '記判定用的那一版');
+});
 ok('純資料檢查與存檔格式：角色洗過還是同一份資料', function () {
   var s = fresh(); var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['r1a']); C.judge(s, T0 + 60e6, {});
   s.roles.forEach(function (r) { var c = C.tryClean(r); assert.ok(c.role, c.error); assert.deepStrictEqual(c.role, JSON.parse(JSON.stringify(r))); });

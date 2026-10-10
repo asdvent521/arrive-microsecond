@@ -82,6 +82,27 @@ var J1 = '00000000001', J2 = '00000000002';
   assert(dk2.gaveA === 90 && dk2.gaveB === 100 && dk2.noteA === '選的「改履歷」那天已經下架，沒換到' && dk2.noteB === '選的「陪跑一小時」那天已經下架，沒換到', '那一微秒：剩下的照成交（阿澄給 90、我給 100），紀錄寫沒換到');
   await H.sheet('dockings'); assert((await H.main()).indexOf('那天已經下架，沒換到') >= 0, '對接紀錄表寫沒換到');
 
+  // 村規改了：規則屋第 3 頁和表世界都看得到「要重新接受」，按了接受就好
+  await H.fresh(); await H.toSheet();
+  await H.sheet('switches', J2 + ':'); await H.click('[data-act="accept"][data-id="' + J2 + '"]');
+  assert((await H.main()).indexOf('你已接受') >= 0, 'J1 先接受 J2 的村規（v1）');
+  await H.sheet('roles'); await H.edit('input[data-ed="me"][data-id="' + J2 + '"]', null, true);
+  await H.sheet('switches'); await H.edit('textarea[data-ed="village"]', '東恆村規第二版：先喝茶。');
+  await H.sheet('roles'); await H.edit('input[data-ed="me"][data-id="' + J1 + '"]', null, true);
+  await H.sheet('switches', J2 + ':'); var vm = await H.main();
+  assert(vm.indexOf('你已接受') >= 0 && vm.indexOf('明天起村規改了，到時候要重新接受') >= 0, '今天還是 v1：已接受，但寫明天起村規改了');
+  // 模擬換日：讓 J2 明天起的版本今天就生效
+  await H.ev("(function(){var S=APP.state(),t=APP.now(),p=CORE.pending(CORE.roleOf(S,'" + J2 + "'),t);p.fromDay=CORE.dayNum(t);APP.changed();})()");
+  await H.sheet('switches', J2 + ':'); vm = await H.main();
+  assert(vm.indexOf('你接受的是舊版村規，要重新接受') >= 0 && (await H.ev("document.querySelector('[data-act=\"accept\"]') !== null")), '表世界：接受的是舊版，「接受村規」按鈕照樣出現');
+  await pg.click('#swapToGame'); await pg.waitForTimeout(400);
+  await H.ev("GAME.teleportTo(CORE.roleOf(APP.state(),'" + J2 + "'))"); await H.goNear('rule'); await H.pick('閱讀規則'); await H.pick('下一頁'); await H.pick('下一頁');
+  assert((await H.dlgBody()).indexOf('你接受的是舊版村規，要重新接受') >= 0 && (await H.opts()).indexOf('接受村規') >= 0, '規則屋第 3 頁：接受的是舊版，有「接受村規」');
+  await H.pick('接受村規');
+  assert((await H.dlgBody()).indexOf('你已接受') >= 0 && (await H.ev("APP.state().acceptances.length")) === 2 && (await H.ev("APP.state().acceptances[1].village")) === '東恆村規第二版：先喝茶。', '按了接受：記下新版村規');
+  await pg.click('#swapToSheet'); await pg.waitForTimeout(300); await H.sheet('switches', J2 + ':');
+  assert((await H.main()).indexOf('你已接受') >= 0 && (await H.main()).indexOf('舊版') < 0, '表世界也變成你已接受');
+
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');
 })().catch(function (e) { console.error(e); process.exit(1); });

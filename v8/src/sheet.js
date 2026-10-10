@@ -93,7 +93,7 @@ var SHEET = (function () {
         { k: 'name', h: '項目', v: function (x) { return esc(x.name); } },
         { k: 'v', h: '設定', v: function (x) { if (x.k === 'village') return isMine() ? '<textarea data-ed="village" data-id="v">' + esc(x.v) + '</textarea>' : (x.v ? esc(x.v) : dash); return isMine() ? '<input type="checkbox" data-ed="switch" data-id="' + x.k + '"' + (x.v ? ' checked' : '') + '>' : (x.v ? tag('wait', '開') : tag('off', '關')); }, wrap: true },
         { k: 'st', h: '狀態', v: function (x) { return isMine() ? stateTag(ver(me()).rules[x.k], x.v) : ''; } },
-        { k: 'act', h: '動作', v: function (x) { if (x.k !== 'village' || isMine() || !x.r || !x.v) return ''; return CORE.accepted(S(), me().serial, x.r.serial) ? tag('', '你已接受') : btn('accept', '接受他的村規', ' data-id="' + x.r.serial + '"', 'pri'); } }
+        { k: 'act', h: '動作', v: function (x) { if (x.k !== 'village' || isMine() || !x.r || !x.v) return ''; var st = CORE.acceptState(S(), me().serial, x.r, now()), ch = CORE.villageChanges(x.r, now()) ? '<br><span class="small muted">明天起村規改了，到時候要重新接受</span>' : ''; return (st === 'current' ? tag('', '你已接受') : (st === 'old' ? '<span class="small">你接受的是舊版村規，要重新接受</span> ' : '') + btn('accept', '接受他的村規', ' data-id="' + x.r.serial + '"', 'pri')) + ch; }, wrap: true }
       ], foot: otherPendingFoot },
     resources: { name: '資源', who: true, rowId: function (x) { return whoRole().serial + ':' + x.id; }, rows: function () { if (isMine()) return editing().resources; var r = whoRole(), v = ver(r), p = pend(r), out = v.resources.slice(); if (p) p.resources.forEach(function (y) { if (!CORE.resourceOf(v, y.id)) out.push(Object.assign({}, y, { _new: true })); }); return out; },
       cols: [
@@ -277,7 +277,7 @@ var SHEET = (function () {
     resetAll: function () { APP.resetAll(); },
     search: function () { UI.kw = v('kwIn'); render(); },
     quit: function (b) { var bl = CORE.quitBlockers(S(), b.dataset.id, now()); if (!confirm('刪掉這個角色？' + (bl.length ? '還有 ' + bl.length + ' 筆你的點沒換，會作廢（單機版持有人視為同意）。' : '沒有人拿著你的點。'))) return; run(function () { APP.quit(b.dataset.id); }, '角色刪掉了'); },
-    accept: function (b) { run(function () { CORE.accept(S(), me().serial, b.dataset.id); }, '接受了'); },
+    accept: function (b) { run(function () { CORE.accept(S(), me().serial, b.dataset.id, now()); }, '接受了'); },
     addUse: function () { run(function () { var t = v('addUse').trim(); if (!t) throw new Error('先寫內容'); tmr().rules.uses.push(t); }, '加了，明天起'); },
     delUse: function (b) { run(function () { tmr().rules.uses.splice(+b.dataset.id, 1); }, '刪了，明天起'); },
     addCond: function () { run(function () { var f = v('addCondField'); tmr().rules.conditions.push({ field: f, op: v('addCondOp'), value: +v('addCondValue') || 0 }); }, '加了，明天起'); },
