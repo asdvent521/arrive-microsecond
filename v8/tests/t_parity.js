@@ -3,7 +3,7 @@
 var lib = require('./lib'), assert = lib.assert;
 var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
 // 先對接一次：J1 保留了 J2 的改履歷（100 阿澄點）
-var DOCK_SETUP = "(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+2e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2a']);CORE.setPresent(S,'" + J1 + "',s.id,true);CORE.judge(S,t+2e6,{});APP.changed();})()";
+var DOCK_SETUP = "(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+2e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2a']);CORE.setWants(S,s.id,'" + J2 + "','" + J1 + "',['r1b']);CORE.setPresent(S,'" + J1 + "',s.id,true);CORE.judge(S,t+2e6,{});APP.changed();})()";
 var ROWS = [
   { name: '下一步：任務提示 ↔ 待辦',
     game: async function (H) { var hint = await H.pg.textContent('#task'); assert(hint.indexOf('下一步：') === 0, '裡世界任務提示：' + hint); },
@@ -16,7 +16,7 @@ var ROWS = [
     pick: "JSON.stringify({today: CORE.dailyPoints(APP.me(), APP.now()), tmr: CORE.pending(APP.me(), APP.now()).dailyPoints, from: CORE.pending(APP.me(), APP.now()).fromDay - CORE.dayNum(APP.now())})" },
 
   { name: '不玩了：角色碑 ↔ 角色', setup: DOCK_SETUP,
-    game: async function (H) { await H.goNear('role'); await H.pick('不玩了'); assert((await H.dlgBody()).indexOf('沒有人拿著你的點') >= 0, '確認框寫清楚'); await H.pick('確定不玩了'); },
+    game: async function (H) { await H.goNear('role'); await H.pick('不玩了'); assert((await H.dlgBody()).indexOf('還有 1 筆你的點沒換') >= 0 && (await H.dlgBody()).indexOf('會作廢') >= 0, '確認框寫清楚會作廢幾筆'); await H.pick('確定不玩了'); },
     sheet: async function (H) { await H.toSheet(); await H.sheet('roles'); await H.click('[data-act="quit"][data-id="' + J1 + '"]'); },
     pick: "JSON.stringify({n: APP.state().roles.length, me: APP.me().serial, holds: APP.state().holds.map(function (h) { return h.status; }), rec: APP.state().records.filter(function (r) { return r.kind === 'quit'; }).length})" },
 
@@ -51,8 +51,8 @@ var ROWS = [
     pick: "JSON.stringify({today: CORE.resourceOf(CORE.version(APP.me(), APP.now()), 'r1a').price, tmr: CORE.resourceOf(CORE.pending(APP.me(), APP.now()), 'r1a')})" },
 
   { name: '補貨和減貨（馬上）：自己的市集 ↔ 資源',
-    game: async function (H) { await H.goNear('resource'); await H.pick('補貨、減貨'); await H.pick('陪跑一小時（可換 1，已保留 0）＋1'); await H.pick('早餐一頓 −1'); },
-    sheet: async function (H) { await H.toSheet(); await H.sheet('resources'); await H.click('[data-act="stock"][data-id="r1a"][data-n="1"]'); await H.click('[data-act="stock"][data-id="r1b"][data-n="-1"]'); },
+    game: async function (H) { await H.goNear('resource'); await H.pick('補貨、減貨'); await H.click('[data-stock-add="r1a"]'); await H.edit('[data-stock-n="r1b"]', 3); await H.click('[data-stock-sub="r1b"]'); },
+    sheet: async function (H) { await H.toSheet(); await H.sheet('resources'); await H.click('[data-act="stock"][data-id="r1a"][data-n="1"]'); await H.setIn('stockN_r1b', 3); await H.click('[data-act="stock"][data-id="r1b"][data-n="-1"]'); },
     pick: "JSON.stringify(APP.me().stock)" },
 
   { name: '外觀、顏色、門、位置：建造模式 ↔ 世界',
@@ -110,7 +110,7 @@ var ROWS = [
       var before = await H.ev("parseFloat(document.getElementById('energyBar').style.width)");
       await H.pg.waitForFunction("APP.state().dockings.length === 1", null, { timeout: 30000 }); await H.pg.waitForTimeout(300);
       assert((await H.ev("parseFloat(document.getElementById('energyBar').style.width)")) < before, '能量條往下降');
-      assert((await H.dlgTitle()) === '到達那微秒', '對接成立的對話框');
+      assert((await H.dlgTitle()) === '到達那微秒' && (await H.dlgBody()).indexOf('我拿出：陪跑一小時（60 點）；拿到：阿澄的改履歷（100 點）') >= 0, '互換成立的對話框以東西為主');
     },
     sheet: async function (H) {
       await H.toSheet(); await H.sheet('booked'); await H.click('[data-act="wantAdd"][data-res="r2a"]'); await H.edit('input[data-ed="maxGive"]', 500); await H.edit('input[data-ed="present"]', null, true);
@@ -122,7 +122,7 @@ var ROWS = [
   { name: '點數：帳房 ↔ 點數', setup: DOCK_SETUP,
     game: async function (H) { await H.goNear('points'); var b = await H.dlgBody(); assert(b.indexOf('阿澄點 100') >= 0 && b.indexOf('改履歷') >= 0 && b.indexOf('保留到') >= 0, '帳房顯示保留的那一筆：誰的點、什麼東西、保留到哪天'); },
     sheet: async function (H) { await H.toSheet(); await H.sheet('points'); var m = await H.main(); assert(m.indexOf('阿澄') >= 0 && m.indexOf('改履歷') >= 0 && m.indexOf('100') >= 0 && (await H.rows()) === 1, '點數表一列保留'); },
-    pick: "JSON.stringify(CORE.holdings(APP.state(),APP.me().serial,APP.now()).map(function(g){return [g.issuer.serial,g.hold.name,g.hold.price,g.until];}))" },
+    pick: "JSON.stringify(CORE.holdings(APP.state(),APP.me().serial,APP.now()).map(function(g){return [g.issuer.serial,g.hold.name,g.hold.price,g.until];}))" },   // J2 拿到的早餐在 J2 的帳上，不在這裡
 
   { name: '兌現：對方的市集 ↔ 兌現', setup: DOCK_SETUP,
     game: async function (H) { await H.ev("GAME.teleportTo(CORE.roleOf(APP.state(),'" + J2 + "'))"); await H.goNear('resource'); await H.pick('看商店'); await H.pick('兌現「改履歷」'); assert((await H.dlgBody()).indexOf('你保留著 0 筆') >= 0, '換完沒有保留了'); },
@@ -130,8 +130,8 @@ var ROWS = [
     pick: "JSON.stringify({h:APP.state().holds.map(function(h){return h.status;}),stock:APP.state().roles[1].stock,n:APP.state().redeems.length})" },
 
   { name: '紀錄、換點比例：角色碑的歷史 ↔ 對接紀錄、紀錄', setup: DOCK_SETUP,
-    game: async function (H) { await H.goNear('role'); var b = await H.dlgBody(); assert(b.indexOf('換點比例') >= 0 && b.indexOf('0：100') >= 0, '角色碑顯示換點比例'); await H.pick('歷史紀錄'); assert((await H.dlgBody()).indexOf('對接 1 次') >= 0, '歷史：對接 1 次'); },
-    sheet: async function (H) { await H.toSheet(); await H.sheet('dockings'); assert((await H.rows()) === 1 && (await H.main()).indexOf('改履歷') >= 0, '對接紀錄一列，寫了選了什麼'); await H.sheet('roles'); assert((await H.main()).indexOf('0：100') >= 0, '角色表的換點比例'); await H.sheet('records'); assert((await H.rows()) === (await H.ev("APP.state().records.length + APP.state().redeems.length")), '紀錄列數＝紀錄＋兌現'); },
+    game: async function (H) { await H.goNear('role'); var b = await H.dlgBody(); assert(b.indexOf('換點比例') >= 0 && b.indexOf('100：100') >= 0, '角色碑顯示換點比例'); await H.pick('歷史紀錄'); assert((await H.dlgBody()).indexOf('對接 1 次') >= 0, '歷史：對接 1 次'); },
+    sheet: async function (H) { await H.toSheet(); await H.sheet('dockings'); assert((await H.rows()) === 1 && (await H.main()).indexOf('改履歷') >= 0, '對接紀錄一列，寫了選了什麼'); await H.sheet('roles'); assert((await H.main()).indexOf('100：100') >= 0, '角色表的換點比例'); await H.sheet('records'); assert((await H.rows()) === (await H.ev("APP.state().records.length + APP.state().redeems.length")), '紀錄列數＝紀錄＋兌現'); },
     pick: "JSON.stringify({d:APP.state().dockings.length,r:APP.state().records.length,ratio:CORE.ratio(APP.state(),APP.me().serial).text})" }
 ];
 

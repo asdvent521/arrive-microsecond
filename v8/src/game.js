@@ -227,9 +227,12 @@ var GAME = (function () {
   // 補貨、減貨（馬上）
   function stockDialog() {
     var m = me(), v = ver(m);
-    dialog({ title: '補貨、減貨', body: v.resources.length ? '可換的隨時加減；已保留的不能減。' : '沒有資源。先上架（明天起）。', opts: [].concat.apply([], v.resources.map(function (x) { var st = CORE.stockOf(m, x.id); return [
-      { label: x.name + '（可換 ' + st.avail + '，已保留 ' + st.reserved + '）＋1', fn: function () { act(function () { CORE.restock(S(), m.serial, x.id, 1); }, '補了 1 份'); dlgStack.pop(); stockDialog(); } },
-      { label: x.name + ' −1', fn: function () { act(function () { CORE.restock(S(), m.serial, x.id, -1); }, '減了 1 份'); dlgStack.pop(); stockDialog(); } }]; })) });
+    var body = v.resources.length ? '可換的隨時加減；已保留的不能減。<div class="list">' + v.resources.map(function (x) { var st = CORE.stockOf(m, x.id); return '<div class="item"><span>' + esc(x.name) + '（可換 ' + st.avail + '，已保留 ' + st.reserved + '）</span><span><input type="number" class="kc" data-stock-n="' + x.id + '" value="1" min="1" style="width:5em" aria-label="數量"> <button type="button" class="btn sm" data-stock-add="' + x.id + '">補</button> <button type="button" class="btn sm" data-stock-sub="' + x.id + '">減</button></span></div>'; }).join('') + '</div>' : '沒有資源。先上架（明天起）。';
+    dialog({ title: '補貨、減貨', body: body, opts: [], after: function () {
+      var n = function (id) { return Math.floor(+$('dlgBody').querySelector('[data-stock-n="' + id + '"]').value) || 0; };
+      $('dlgBody').querySelectorAll('[data-stock-add]').forEach(function (b) { b.onclick = function () { var k = n(b.dataset.stockAdd); act(function () { CORE.restock(S(), m.serial, b.dataset.stockAdd, k); }, '補了 ' + k + ' 份'); dlgStack.pop(); stockDialog(); }; });
+      $('dlgBody').querySelectorAll('[data-stock-sub]').forEach(function (b) { b.onclick = function () { var k = n(b.dataset.stockSub); act(function () { CORE.restock(S(), m.serial, b.dataset.stockSub, -k); }, '減了 ' + k + ' 份'); dlgStack.pop(); stockDialog(); }; });
+    } });
   }
   // 上架、改價格和保留天數、下架：改的是明天起的版本
   function editResources() {
@@ -419,9 +422,10 @@ var GAME = (function () {
     var m = me(), ps = CORE.participants(S(), slot).filter(function (p) { return p !== m.serial; });
     var body = ps.map(function (p) { var o = APP.roleOf(p); if (!o) return ''; var theirs = CORE.wantsValid(S(), slot, p, m.serial).map(function (id) { var x = CORE.resourceOf(ver(m), id); return x ? x.name : id; });
       var gMine = CORE.goneText(S(), slot, m.serial, p), gTheirs = CORE.goneText(S(), slot, p, m.serial);
-      return '<b>' + esc(o.name) + '</b><br>我要他的：' + (CORE.wantsValid(S(), slot, m.serial, p).length ? CORE.wantTotal(S(), slot, m.serial, p) + ' 點 <button type="button" class="lk" data-pick="' + p + '">改</button>' : '<button type="button" class="lk" data-pick="' + p + '">還沒選</button>') + (gMine ? '<br><span class="small muted">' + esc(gMine) + '</span>' : '') + '<br>他要我的：' + (theirs.length ? theirs.join('、') + '（' + CORE.wantTotal(S(), slot, p, m.serial) + ' 點）' : '（沒選）') + (gTheirs ? '<br><span class="small muted">' + esc(gTheirs) + '</span>' : '') + '<br>'; }).join('');
+      var mineSel = CORE.wantsValid(S(), slot, m.serial, p), myNames = mineSel.map(function (id) { var x = CORE.resourceOf(CORE.version(o, slot.atUs), id); return x ? x.name : id; });
+      return '<b>' + esc(o.name) + '</b><br>我要他的：' + (mineSel.length ? esc(myNames.join('、')) + '（' + CORE.wantTotal(S(), slot, m.serial, p) + ' 點） <button type="button" class="lk" data-pick="' + p + '">改</button>' : '<button type="button" class="lk" data-pick="' + p + '">還沒選</button><br><span class="small muted">你還沒選他的東西：一換一，兩邊都選了才成交</span>') + (gMine ? '<br><span class="small muted">' + esc(gMine) + '</span>' : '') + '<br>他要我的：' + (theirs.length ? esc(theirs.join('、')) + '（' + CORE.wantTotal(S(), slot, p, m.serial) + ' 點）' : '（沒選）<br><span class="small muted">他還沒選你的東西：一換一，兩邊都選了才成交</span>') + (gTheirs ? '<br><span class="small muted">' + esc(gTheirs) + '</span>' : '') + '<br>'; }).join('');
     var mg = slot.maxGive[m.serial], left = CORE.remainingToday(S(), m, now());
-    body += '<div class="field">每人最多給 <input type="number" id="maxGive" value="' + (mg != null ? mg : '') + '" placeholder="' + left + '（當天剩下的）" min="0" max="' + left + '"> 點</div>站著等那一微秒，照選好的成交。';
+    body += '<div class="field">每人最多給 <input type="number" id="maxGive" value="' + (mg != null ? mg : '') + '" placeholder="' + left + '（當天剩下的）" min="0" max="' + left + '"> 點</div>站著等那一微秒，照選好的互換東西。';
     dialog({ title: '交換：' + CORE.fmtUs(slot.atUs).slice(11, 19), body: body, opts: [{ label: '確定', pri: true, fn: function () { dialog(null); toast('站著等那一微秒。', true); } }],
       after: function () {
         $('maxGive').onchange = function () { act(function () { CORE.setMaxGive(S(), slot, m.serial, $('maxGive').value); }, ''); };
@@ -435,8 +439,10 @@ var GAME = (function () {
     if (!mine.length) return;
     WORLD.flash(); WORLD.showPartner(true); drawPlate();
     var lines = mine.map(function (x) { var d = x.docking, other = APP.roleOf(d.a === m ? d.b : d.a), gave = d.a === m ? d.gaveA : d.gaveB, got = d.a === m ? d.gaveB : d.gaveA, myItems = d.a === m ? d.itemsB : d.itemsA, failMe = d.a === m ? d.failA : d.failB, failHim = d.a === m ? d.failB : d.failA, noteMe = d.a === m ? d.noteB : d.noteA, noteHim = d.a === m ? d.noteA : d.noteB;
-      if (!d.ok) return '和 ' + (other ? other.name : '？') + ' 不成立：' + d.reason;
-      return '和 ' + (other ? other.name : '？') + '（' + d.how + '）\n我給 ' + gave + ' 點' + (failMe ? '（不成立：' + failMe + '）' : '') + '，拿到 ' + got + ' ' + (other ? other.name : '') + '點' + (myItems.length ? '，保留了 ' + myItems.map(function (i) { return i.name; }).join('、') : '') + (noteMe && !failHim ? '\n' + noteMe : '') + (failHim ? '\n他給不出：' + failHim : '') + (noteHim && !failMe ? '\n他' + noteHim : '') + (other && other.contact ? '\n聯絡方式：' + other.contact : ''); });
+      var on = other ? other.name : '？', myOut = d.a === m ? d.itemsA : d.itemsB;
+      if (!d.ok) return '和 ' + on + ' 不成立：' + d.reason;
+      if (!d.traded) return '和 ' + on + ' 不成交：' + d.reason;
+      return '和 ' + on + '（' + d.how + '）\n我拿出：' + CORE.itemsText(myOut) + '（' + gave + ' 點）；拿到：' + on + '的' + CORE.itemsText(myItems) + '（' + got + ' 點）' + (noteHim ? '\n' + noteHim : '') + (noteMe ? '\n他' + noteMe : '') + (other && other.contact ? '\n聯絡方式：' + other.contact : ''); });
     dialog({ title: '到達那微秒', body: lines.join('\n\n'), opts: [{ label: '好', pri: true, fn: function () { dialog(null); WORLD.showPartner(false); } }] });
   });
   APP.on('miss', function () { exchangeOpen = null; if (APP.view() === 'game' && cur.visiting) toast('錯過了那一微秒，這個時段不能再對接。', true); });
