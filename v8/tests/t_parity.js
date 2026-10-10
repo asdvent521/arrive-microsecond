@@ -134,6 +134,11 @@ var ROWS = [
     sheet: async function (H) { await H.toSheet(); await H.sheet('dockings'); assert((await H.rows()) === 1 && (await H.main()).indexOf('改履歷') >= 0, '對接紀錄一列，寫了選了什麼'); await H.sheet('roles'); assert((await H.main()).indexOf('100：100') >= 0, '角色表的換點比例'); await H.sheet('records'); assert((await H.rows()) === (await H.ev("APP.state().records.length + APP.state().redeems.length")), '紀錄列數＝紀錄＋兌現'); },
     pick: "JSON.stringify({d:APP.state().dockings.length,r:APP.state().records.length,ratio:CORE.ratio(APP.state(),APP.me().serial).text})" },
 
+  { name: '一起成交：終點台開時段勾「一起成交」、刪沒人預約的時段 ↔ 我開的時段',
+    game: async function (H) { await H.goNear('goal'); await H.pick('開時段'); await H.setIn('gSlotMin', 4); await H.setIn('gSlotCap', 3); await H.edit('#gSlotTogether', null, true); await H.pick('開'); await H.goNear('goal'); await H.pick('看預約、選我要的'); assert((await H.dlgBody()).indexOf('【一起成交】') >= 0, '裡世界標【一起成交】'); await H.finger("function(){ return [...document.querySelectorAll('#dlgOpts button')].find(function (b) { return b.textContent.indexOf('刪 ') === 0; }); }", '刪時段'); },
+    sheet: async function (H) { await H.toSheet(); await H.sheet('myslots'); await H.setIn('addSlotMin', 4); await H.setIn('addSlotCap', 3); await H.edit('#addSlotTogether', null, true); await H.click('[data-act="addSlot"]'); assert((await H.main()).indexOf('一起成交') >= 0, '表世界標「一起成交」'); await H.click('tbody tr[data-row]:first-child [data-act="delSlot"]'); },
+    pick: "JSON.stringify(APP.me().slots.map(function(s){return [s.capacity,s.together,Math.round((s.atUs-APP.now())/60e6)];}))" },
+
   { name: '新手教學：創角色 → 找引路人 → 預約選空的 → 那一微秒 → 帳房／點數 → 兌現 → 不要 → 對照', raw: true,
     game: async function (H) { await T.G.full(H, '小明'); await T.G.ask(H, false); await T.Sh.compare(H); },
     sheet: async function (H) { await T.Sh.full(H, '小明'); await T.Sh.ask(H, false); await T.G.compare(H); },
