@@ -88,7 +88,7 @@ var ROWS = [
       await H.tapAndWatch('rule_' + J1); await H.pick('繞一圈（J）'); await H.pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone();
       await H.tapAndWatch('role_' + J1); await H.tapAndWatch('res_' + J1); await H.pg.waitForFunction("GAME.dec().done === 'J2'", null, { timeout: 15000 });
       assert((await H.pg.textContent('#toast')).indexOf('傳送門') >= 0, '走出 J2，傳送門打開');
-      await H.ev("GAME.enterPortal()"); await H.pg.waitForTimeout(300);
+      await H.click('#hintEnter'); await H.pg.waitForTimeout(300);
       assert((await H.pg.textContent('#plateName')).indexOf('阿澄') >= 0, '名牌顯示在阿澄的世界');
       H.found = await H.ev("GAME.cur().role.serial");
     },

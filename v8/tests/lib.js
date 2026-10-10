@@ -9,6 +9,7 @@ async function open(pagePath, opts) {
   var pg = await browser.newPage({ viewport: { width: opts.width || 360, height: opts.height || 740 }, deviceScaleFactor: 2 });
   var errs = [];
   pg.on('pageerror', function (e) { errs.push(String(e)); });
+  pg.on('dialog', function (d) { d.accept(); });   // confirm()：按確定
   pg.on('console', function (m) { if (m.type() === 'error' && m.text().indexOf('ERR_CERT') < 0 && m.text().indexOf('ERR_FAILED') < 0) errs.push(m.text()); });
   await pg.goto('file://' + path.resolve(pagePath));
   await pg.waitForTimeout(600);

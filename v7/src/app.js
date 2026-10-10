@@ -99,9 +99,10 @@ var APP = (function () {
   function countMissed() { var n = 0; state.roles.forEach(function (r) { r.slots.forEach(function (s) { n += (s.missed || []).length; }); }); return n; }
 
   /* ---------- 切換：停在同一件事上 ---------- */
+  var focusAtSwitch = '';     // 切到表世界那一刻的焦點；切回來時比對焦點真的有沒有變
   function setFocus(f) { focus = Object.assign({}, focus, f || {}); }
   function getFocus() { return focus; }
-  function switchTo(v) { view = v; emit('view', v); }
+  function switchTo(v) { view = v; if (v === 'sheet') focusAtSwitch = JSON.stringify(focus); emit('view', v); }
   function currentView() { return view; }
 
   return {
@@ -110,6 +111,6 @@ var APP = (function () {
     becomeMe: becomeMe, resetAll: resetAll,
     draft: draft, startDraft: startDraft, draftFrom: draftFrom, dropDraft: dropDraft, createFromDraft: createFromDraft, endEarly: endEarly,
     steps: steps, setStanding: setStanding, standingAt: function () { return standingAt; }, setGive: setGive, giveFor: giveFor,
-    setFocus: setFocus, focus: getFocus, switchTo: switchTo, view: currentView
+    setFocus: setFocus, focus: getFocus, focusChanged: function () { return JSON.stringify(focus) !== focusAtSwitch; }, switchTo: switchTo, view: currentView
   };
 })();
