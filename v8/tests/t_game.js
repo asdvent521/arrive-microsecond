@@ -41,7 +41,7 @@ var J1 = '00000000001', J2 = '00000000002';
   await pg.click('#btnMap');
   assert(!(await pg.isHidden('#map')), '地圖打開');
   var nodes = await H.ev("[...document.querySelectorAll('#map .node[data-go]')].map(b=>b.dataset.go+(b.classList.contains('dim')?'-暗':'-亮'))");
-  assert(nodes.join(',') === 'J2-亮,J3-暗', '一方通的亮、不通的暗：' + nodes.join(','));
+  assert(nodes.join(',') === 'J2-亮,J3-暗,J4-亮', '一方通的亮、不通的暗：' + nodes.join(','));
   await H.click('#map .node[data-go="J2"]');
   assert((await pg.isHidden('#map')) && (await H.ev("WORLD.guideCount()")) > 1, '點 J2 → 地上亮出指引光點 ' + (await H.ev("WORLD.guideCount()")) + ' 個');
   await pg.screenshot({ path: OUT + '/v8_game_3_guide.png' });
@@ -83,7 +83,7 @@ var J1 = '00000000001', J2 = '00000000002';
   // 站在終點上、距那一微秒不到 60 秒 → 交換對話框蓋過時刻表升起
   await pg.waitForFunction("document.getElementById('dlgTitle').textContent.indexOf('交換') === 0", null, { timeout: 12000 });
   var xb = await H.dlgBody();
-  assert(!(await pg.isHidden('#countdown')) && xb.indexOf('我要他的：100 點') >= 0 && xb.indexOf('他要我的：早餐一頓（100 點）') >= 0 && (await H.ev("document.getElementById('maxGive') !== null")), '倒數出現、交換對話框列出我要他的、他要我的、每人最多給：' + JSON.stringify({ cd: await pg.isHidden('#countdown'), body: xb }));
+  assert(!(await pg.isHidden('#countdown')) && xb.indexOf('我要他的：改履歷（100 點）') >= 0 && xb.indexOf('他要我的：早餐一頓（100 點）') >= 0 && (await H.ev("document.getElementById('maxGive') !== null")), '倒數出現、交換對話框列出我要他的、他要我的、每人最多給：' + JSON.stringify({ cd: await pg.isHidden('#countdown'), body: xb }));
   await H.edit('#maxGive', 500); await H.pick('確定');
   var before = await H.ev("parseFloat(document.getElementById('energyBar').style.width)");
   await pg.screenshot({ path: OUT + '/v8_game_4_countdown.png' });
@@ -105,14 +105,14 @@ var J1 = '00000000001', J2 = '00000000002';
 
   // 選的東西有一部分那天已經下架：交換對話框加一行小字；結果對話框寫沒換到
   await H.fresh();
-  await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+20e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2a','r2b']);var p=CORE.tomorrow(S,'" + J2 + "',t);p.resources=p.resources.filter(function(x){return x.id!=='r2a';});p.fromDay=CORE.dayNum(t);APP.changed();})()");
+  await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+20e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2a','r2b']);CORE.setWants(S,s.id,'" + J2 + "','" + J1 + "',['r1b']);var p=CORE.tomorrow(S,'" + J2 + "',t);p.resources=p.resources.filter(function(x){return x.id!=='r2a';});p.fromDay=CORE.dayNum(t);APP.changed();})()");
   await H.ev("GAME.teleportTo(CORE.roleOf(APP.state(),'" + J2 + "'))"); await H.goNear('goal');
   await pg.waitForFunction("document.getElementById('dlgTitle').textContent.indexOf('交換') === 0", null, { timeout: 12000 });
   var xb2 = await H.dlgBody();
-  assert(xb2.indexOf('我要他的：90 點') >= 0 && xb2.indexOf('選的「改履歷」那天已經下架，不算') >= 0, '交換對話框：只算諮詢 90，小字寫改履歷不算');
+  assert(xb2.indexOf('我要他的：一小時諮詢（90 點）') >= 0 && xb2.indexOf('選的「改履歷」那天已經下架，不算') >= 0, '交換對話框：只算諮詢 90，小字寫改履歷不算');
   await H.pick('確定');
   await pg.waitForFunction("APP.state().dockings.length === 1", null, { timeout: 30000 }); await pg.waitForTimeout(400);
-  assert((await H.dlgTitle()) === '到達那微秒' && (await H.dlgBody()).indexOf('拿到 90 阿澄點') >= 0 && (await H.dlgBody()).indexOf('選的「改履歷」那天已經下架，沒換到') >= 0, '結果對話框：拿到 90、寫改履歷沒換到');
+  assert((await H.dlgTitle()) === '到達那微秒' && (await H.dlgBody()).indexOf('拿到：阿澄的一小時諮詢（90 點）') >= 0 && (await H.dlgBody()).indexOf('我拿出：早餐一頓（100 點）') >= 0 && (await H.dlgBody()).indexOf('選的「改履歷」那天已經下架，沒換到') >= 0, '結果對話框以東西為主：我拿出早餐、拿到諮詢（90 點）、寫改履歷沒換到');
   await H.pick('好');
 
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));

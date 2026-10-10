@@ -86,7 +86,7 @@ var J1 = '00000000001';
   await H.fresh(); await H.ev(listen);
   await pg.click('#swapToSheet'); await pg.waitForTimeout(300); await H.sheet('moves');
   await H.setIn('addMoveFrom', 'rule_' + J1); await H.setIn('addMoveTo', 'res_' + J1); await H.setIn('addMoveDigit', '2'); await H.click('[data-act="addMove"]');
-  assert((await H.rows()) === 4, '表世界加了一條走法：規則屋→市集＝2');
+  assert((await H.rows()) === 5, '表世界加了一條走法：規則屋→市集＝2');
   await pg.click('#swapToGame'); await pg.waitForTimeout(500);
   assert(JSON.stringify(await H.ev("CORE.route(APP.me().world.walk, APP.allObjs(APP.me()), 'J2').steps")) === JSON.stringify(['繞規則屋一圈（J）', '再走到市集（2）']), '路線說明從繞的那棟算起，沒有多一步「走到規則屋」');
   await pg.click('#btnMap'); await H.click('#map .node[data-go="J2"]');
@@ -155,15 +155,15 @@ var J1 = '00000000001';
 
   // (f) 市集開著「補貨」，切到表世界補 1 份 → 切回寫「可換 2」→ 再補 1 份 → 切回寫「可換 3」
   await H.fresh(); await H.tapAndWatch('res_' + J1); await H.pick('補貨、減貨');
-  assert((await H.opts())[0].indexOf('陪跑一小時（可換 1，已保留 0）') === 0, '補貨對話框：陪跑一小時可換 1');
+  assert((await H.dlgBody()).indexOf('陪跑一小時（可換 1，已保留 0）') >= 0, '補貨對話框：陪跑一小時可換 1');
   await pg.click('#swapToSheet'); await pg.waitForTimeout(300);
   assert((await H.sheetName()) === 'resources', '切過去是資源表');
   await H.click('[data-act="stock"][data-id="r1a"][data-n="1"]');
   await pg.click('#swapToGame'); await pg.waitForTimeout(500);
-  assert((await H.dlgOpen()) && (await H.dlgTitle()) === '補貨、減貨' && (await H.opts())[0].indexOf('陪跑一小時（可換 2，') === 0, '切回來：留著的補貨對話框用最新資料重畫，寫「可換 2」');
+  assert((await H.dlgOpen()) && (await H.dlgTitle()) === '補貨、減貨' && (await H.dlgBody()).indexOf('陪跑一小時（可換 2，') >= 0, '切回來：留著的補貨對話框用最新資料重畫，寫「可換 2」');
   await pg.click('#swapToSheet'); await pg.waitForTimeout(300); await H.click('[data-act="stock"][data-id="r1a"][data-n="1"]');
   await pg.click('#swapToGame'); await pg.waitForTimeout(500);
-  assert((await H.dlgOpen()) && (await H.opts())[0].indexOf('陪跑一小時（可換 3，') === 0, '第二次切回也重畫：寫「可換 3」');
+  assert((await H.dlgOpen()) && (await H.dlgBody()).indexOf('陪跑一小時（可換 3，') >= 0, '第二次切回也重畫：寫「可換 3」');
   // 提示上的按鈕用手指按得到：看看、繞一圈、進去
   await H.fresh();
   await H.tapAndWatch('rule_' + J1); await H.pick('繞一圈（J）'); await pg.waitForFunction("GAME.dec().letter === 'J'", null, { timeout: 20000 }); await H.walkDone();

@@ -41,11 +41,17 @@ var J1 = '00000000001', J2 = '00000000002';
   await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+9e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);APP.changed();})()");
   await H.sheet('booked'); await pg.screenshot({ path: OUT + '/v8_sheet_2_booked.png' });
   assert((await H.rows()) === 1 && (await H.ev("document.querySelector('input[data-ed=\"present\"]') !== null")) && (await H.ev("document.querySelector('input[data-ed=\"maxGive\"]') !== null")) && (await H.main()).indexOf('改履歷 100點') >= 0, '我預約的：到場勾、我要的（點東西選）、最多給');
-  await H.click('[data-act="wantAdd"][data-res="r2a"]'); assert((await H.main()).indexOf('合計 100 阿澄點') >= 0, '選了改履歷，合計 100');
+  assert((await H.main()).indexOf('你還沒選他的東西：一換一，兩邊都選了才成交') >= 0 && (await H.main()).indexOf('他還沒選你的東西：一換一，兩邊都選了才成交') >= 0, '兩邊都還沒選：看得到一換一的提醒');
+  await H.click('[data-act="wantAdd"][data-res="r2a"]'); assert((await H.main()).indexOf('合計 100 阿澄點') >= 0 && (await H.main()).indexOf('你還沒選他的東西') < 0, '選了改履歷，合計 100，我這邊的提醒消失');
+  // 主人（阿澄）選我的早餐：單機版用換人成主人去選
+  await H.sheet('roles'); await H.edit('input[data-ed="me"][data-id="' + J2 + '"]', null, true);
+  await H.sheet('myslots'); await H.click('[data-act="wantAdd"][data-res="r1b"]');
+  await H.sheet('roles'); await H.edit('input[data-ed="me"][data-id="' + J1 + '"]', null, true); await H.sheet('booked');
+  assert((await H.main()).indexOf('早餐一頓（100 點）') >= 0 && (await H.main()).indexOf('他還沒選你的東西') < 0, '換人成阿澄選了早餐，回來看得到他要我的');
   await H.edit('input[data-ed="maxGive"]', 500); await H.edit('input[data-ed="present"]', null, true);
   await pg.waitForFunction("APP.state().dockings.length === 1", null, { timeout: 20000 }); await pg.waitForTimeout(300);
   var dk = await H.ev("APP.state().dockings[0]");
-  assert(dk.gaveA === 100 && dk.gaveB === 0 && dk.itemsA[0].name === '改履歷' && (await H.main()).indexOf('已對接') >= 0 && (await pg.textContent('#smsg')).indexOf('對接') >= 0, '勾到場 → 那一微秒照選好的成交：阿澄給 100（改履歷）、我沒被選所以給 0');
+  assert(dk.traded && dk.gaveA === 100 && dk.gaveB === 100 && dk.itemsA[0].name === '改履歷' && dk.itemsB[0].name === '早餐一頓' && (await H.main()).indexOf('已對接') >= 0 && (await pg.textContent('#smsg')).indexOf('我拿出 早餐一頓（100 點）；拿到 阿澄的 改履歷（100 點）') >= 0, '勾到場 → 那一微秒一換一成交，訊息以東西為主');
   await H.sheet('points'); assert((await H.rows()) === 1 && (await H.main()).indexOf('改履歷') >= 0 && (await H.main()).indexOf('100') >= 0, '點數表多了一筆保留：改履歷 100 阿澄點');
   await H.sheet('dockings'); assert((await H.rows()) === 1, '對接紀錄一列');
 
@@ -79,7 +85,7 @@ var J1 = '00000000001', J2 = '00000000002';
   await H.edit('input[data-ed="present"]', null, true);
   await pg.waitForFunction("APP.state().dockings.length === 1", null, { timeout: 20000 }); await pg.waitForTimeout(300);
   var dk2 = await H.ev("APP.state().dockings[0]");
-  assert(dk2.gaveA === 90 && dk2.gaveB === 100 && dk2.noteA === '選的「改履歷」那天已經下架，沒換到' && dk2.noteB === '選的「陪跑一小時」那天已經下架，沒換到', '那一微秒：剩下的照成交（阿澄給 90、我給 100），紀錄寫沒換到');
+  assert(dk2.traded && dk2.gaveA === 90 && dk2.gaveB === 100 && dk2.noteA === '選的「改履歷」那天已經下架，沒換到' && dk2.noteB === '選的「陪跑一小時」那天已經下架，沒換到', '那一微秒：剩下的照成交（阿澄給 90、我給 100），紀錄寫沒換到');
   await H.sheet('dockings'); assert((await H.main()).indexOf('那天已經下架，沒換到') >= 0, '對接紀錄表寫沒換到');
 
   // 村規改了：規則屋第 3 頁和表世界都看得到「要重新接受」，按了接受就好
@@ -102,6 +108,35 @@ var J1 = '00000000001', J2 = '00000000002';
   assert((await H.dlgBody()).indexOf('你已接受') >= 0 && (await H.ev("APP.state().acceptances.length")) === 2 && (await H.ev("APP.state().acceptances[1].village")) === '東恆村規第二版：先喝茶。', '按了接受：記下新版村規');
   await pg.click('#swapToSheet'); await pg.waitForTimeout(300); await H.sheet('switches', J2 + ':');
   assert((await H.main()).indexOf('你已接受') >= 0 && (await H.main()).indexOf('舊版') < 0, '表世界也變成你已接受');
+
+  // 一換一、價格可以是 0、空物件的提醒
+  await H.fresh(); await H.toSheet(); await H.sheet('todo');
+  assert((await H.main()).indexOf('想只收不給，要先建一個 0 點的空物件') >= 0, '沒建空物件：待辦看得到提醒');
+  await H.sheet('resources'); await H.setIn('addResName', '空的：什麼都不給'); await H.setIn('addResPrice', 0); await H.click('[data-act="addRes"]');
+  var eid = await H.ev("CORE.pending(APP.me(), APP.now()).resources.find(function (x) { return x.price === 0; }).id");
+  assert(eid && (await H.main()).indexOf('明天起新增') >= 0, '建了 0 點的空物件（明天起）');
+  await H.ev("(function(){var S=APP.state(),t=APP.now(),p=CORE.pending(APP.me(),t);p.fromDay=CORE.dayNum(t);APP.changed();})()");   // 模擬換日
+  await H.sheet('todo'); assert((await H.main()).indexOf('可換 0 份，先補貨') >= 0, '空物件可換 0 份：待辦提醒補貨');
+  await H.sheet('resources'); await H.setIn('stockN_' + eid, 500); await H.click('[data-act="stock"][data-id="' + eid + '"][data-n="1"]');
+  assert((await H.ev("CORE.stockOf(APP.me(),'" + eid + "').avail")) === 500, '一次補 500 份');
+  await H.sheet('todo'); assert((await H.main()).indexOf('空物件') < 0, '有空物件、有貨：提醒消失');
+  // 選阿澄的試聽（0 點），換人成阿澄去選我的空物件，那一微秒成交，帳房多一筆 0 點的試聽
+  await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+14e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);APP.changed();})()");
+  await H.sheet('booked'); await H.click('[data-act="wantAdd"][data-res="r2c"]');
+  assert((await H.main()).indexOf('合計 0 阿澄點') >= 0, '選了試聽 5 分鐘，合計 0');
+  await H.sheet('roles'); await H.edit('input[data-ed="me"][data-id="' + J2 + '"]', null, true);
+  await H.sheet('myslots'); await H.click('[data-act="wantAdd"][data-res="' + eid + '"]');
+  await H.sheet('roles'); await H.edit('input[data-ed="me"][data-id="' + J1 + '"]', null, true); await H.sheet('booked'); await H.edit('input[data-ed="present"]', null, true);
+  await pg.waitForFunction("APP.state().dockings.length === 1", null, { timeout: 25000 }); await pg.waitForTimeout(300);
+  var dk3 = await H.ev("APP.state().dockings[0]"), left3 = await H.ev("CORE.remainingToday(APP.state(), APP.me(), APP.now())");
+  assert(dk3.traded && dk3.gaveA === 0 && dk3.gaveB === 0 && dk3.itemsA[0].name === '試聽 5 分鐘' && dk3.itemsB[0].name === '空的：什麼都不給' && left3 === 1800, '空的換試聽：成交、兩邊都 0 點、每天的點沒扣');
+  await H.sheet('points'); assert((await H.rows()) === 1 && (await H.main()).indexOf('試聽 5 分鐘') >= 0, '帳房多一筆 0 點的試聽');
+  // 只有一邊選：看得到提醒，那一微秒不成交
+  await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+5e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2c']);APP.changed();})()");
+  await H.sheet('booked'); assert((await H.main()).indexOf('他還沒選你的東西：一換一，兩邊都選了才成交') >= 0, '只有我選：看得到一換一的提醒');
+  await H.edit('input[data-ed="present"]', null, true);   // 只有還沒判的那一列有到場勾
+  await pg.waitForFunction("APP.state().dockings.length === 2", null, { timeout: 15000 }); await pg.waitForTimeout(300);
+  assert((await H.ev("APP.state().dockings[1].traded")) === false && (await H.ev("APP.state().dockings[1].reason")) === '一換一：阿澄 沒選 我 的東西' && (await pg.textContent('#smsg')).indexOf('不成交：一換一') >= 0, '只有一邊選：那一微秒不成交，寫原因');
 
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');

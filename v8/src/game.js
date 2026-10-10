@@ -46,7 +46,7 @@ var GAME = (function () {
   /* ---------- HUD ---------- */
   function drawPlate() {
     var m = me(), t = now();
-    $('plateCode').textContent = CORE.abbrev(m.serial); $('plateName').textContent = m.name + (cur.visiting ? '　在 ' + cur.role.name + ' 的世界' : '') + (WORLD.depth() ? '　內部第 ' + WORLD.depth() + ' 層' : '');
+    $('plateCode').textContent = m.blank ? '—' : CORE.abbrev(m.serial); $('plateName').textContent = m.name + (cur.visiting ? '　在 ' + cur.role.name + ' 的世界' : '') + (WORLD.depth() ? '　內部第 ' + WORLD.depth() + ' 層' : '');
     var left = CORE.remainingToday(S(), m, t), daily = CORE.dailyPoints(m, t);
     $('energyBar').style.width = (daily ? left / daily * 100 : 0) + '%';
     $('energyText').textContent = '今天還能給 ' + left + ' / ' + daily + ' 點';
@@ -140,6 +140,7 @@ var GAME = (function () {
     } else if (o.func === 'points') {
       if (!mine) { dialog({ title: title, body: '帳房只有主人看得到。', opts: [] }); return; }
       var hs = CORE.holdings(S(), me().serial, now());
+      APP.tutEvent('sawPoints');
       dialog({ title: '背包：' + o.name, body: (hs.length ? hs.map(function (g) { return '・' + (g.issuer ? g.issuer.name : '？') + '點 ' + g.hold.price + '　「' + g.hold.name + '」　保留到 ' + g.until; }).join('\n') : '手上沒有別人的點。') + '\n今天還能給 ' + CORE.remainingToday(S(), me(), now()) + ' 點', opts: uniqIssuers(hs).map(function (iss) { return { label: '去 ' + iss.name + ' 的市集兌現', fn: function () { shop(iss); } }; }) });
     } else dialog({ title: title, body: '純地標，用來走代號。', opts: [] });
     if (o.door) { var open = o.door.visible !== 'self' || mine; var cur0 = dlgStack[dlgStack.length - 1]; cur0.body += '\n' + (open ? '有一扇門。' : '有一扇門，關著。'); if (open && WORLD.depth() < 3) cur0.opts.push({ label: '進門', fn: function () { dialog(null); if (WORLD.enter(o.id)) { WORLD.flash(); drawPlate(); } } }); dialog(cur0); dlgStack.pop(); }
@@ -227,9 +228,12 @@ var GAME = (function () {
   // 補貨、減貨（馬上）
   function stockDialog() {
     var m = me(), v = ver(m);
-    dialog({ title: '補貨、減貨', body: v.resources.length ? '可換的隨時加減；已保留的不能減。' : '沒有資源。先上架（明天起）。', opts: [].concat.apply([], v.resources.map(function (x) { var st = CORE.stockOf(m, x.id); return [
-      { label: x.name + '（可換 ' + st.avail + '，已保留 ' + st.reserved + '）＋1', fn: function () { act(function () { CORE.restock(S(), m.serial, x.id, 1); }, '補了 1 份'); dlgStack.pop(); stockDialog(); } },
-      { label: x.name + ' −1', fn: function () { act(function () { CORE.restock(S(), m.serial, x.id, -1); }, '減了 1 份'); dlgStack.pop(); stockDialog(); } }]; })) });
+    var body = v.resources.length ? '可換的隨時加減；已保留的不能減。<div class="list">' + v.resources.map(function (x) { var st = CORE.stockOf(m, x.id); return '<div class="item"><span>' + esc(x.name) + '（可換 ' + st.avail + '，已保留 ' + st.reserved + '）</span><span><input type="number" class="kc" data-stock-n="' + x.id + '" value="1" min="1" style="width:5em" aria-label="數量"> <button type="button" class="btn sm" data-stock-add="' + x.id + '">補</button> <button type="button" class="btn sm" data-stock-sub="' + x.id + '">減</button></span></div>'; }).join('') + '</div>' : '沒有資源。先上架（明天起）。';
+    dialog({ title: '補貨、減貨', body: body, opts: [], after: function () {
+      var n = function (id) { return Math.floor(+$('dlgBody').querySelector('[data-stock-n="' + id + '"]').value) || 0; };
+      $('dlgBody').querySelectorAll('[data-stock-add]').forEach(function (b) { b.onclick = function () { var k = n(b.dataset.stockAdd); act(function () { CORE.restock(S(), m.serial, b.dataset.stockAdd, k); }, '補了 ' + k + ' 份'); dlgStack.pop(); stockDialog(); }; });
+      $('dlgBody').querySelectorAll('[data-stock-sub]').forEach(function (b) { b.onclick = function () { var k = n(b.dataset.stockSub); act(function () { CORE.restock(S(), m.serial, b.dataset.stockSub, -k); }, '減了 ' + k + ' 份'); dlgStack.pop(); stockDialog(); }; });
+    } });
   }
   // 上架、改價格和保留天數、下架：改的是明天起的版本
   function editResources() {
@@ -339,6 +343,7 @@ var GAME = (function () {
     if (chk.error) { toast(role.name + ' 的資料不是純資料（' + chk.error + '），不載入。', true); WORLD.hidePortal(); portalRole = null; return; }
     cur = { role: role, visiting: true }; portalRole = null; dialog(null); hint('');
     WORLD.flash(); WORLD.loadWorld(chk.role.world, { visiting: true });
+    if (CORE.isGuide(role.serial)) APP.tutEvent('foundGuide');
     APP.setFocus({ role: role.serial, func: null });
     drawPlate(); toast('到了 ' + role.name + ' 的世界。走到建築旁邊看看。', false);
   }
@@ -392,13 +397,50 @@ var GAME = (function () {
   $('btnLeave').addEventListener('click', function () { if (WORLD.leave()) { WORLD.flash(); drawPlate(); } });
   $('btnBuild').addEventListener('click', function () { if (build) setBuild(false); else { setBuild(true); dialog({ title: '建造模式', body: '點一個物件改它的外觀、顏色、位置、門、走法。', opts: [{ label: '新增地標', pri: true, fn: addLandmark }] }); } });
   $('btnMap').addEventListener('click', showMap);
-  $('task').addEventListener('click', function () { var st = APP.steps(); dialog({ title: '任務清單', body: st.rows.map(function (x) { return (x.ok ? '✓ ' : st.next && st.next.id === x.id ? '→ ' : '　 ') + x.no + ' ' + x.name + '：' + x.status; }).join('\n'), opts: st.next ? [{ label: '去做：' + st.next.name, pri: true, fn: function () { dialog(null); goTask(st.next.func); } }] : [] }); });
-  function goTask(func) {
+  $('task').addEventListener('click', function () {
+    if (APP.isBlank()) return createDialog();
+    var st = APP.steps();
+    if (st.tutorial === 'ask') return askDialog();
+    if (st.tutorial === 'compare') return cmpDialog();
+    var opts = st.next ? [{ label: '去做：' + st.next.name, pri: true, fn: function () { dialog(null); goTask(st.next.func, st.next.who); } }] : [];
+    if (st.tutorial) opts.push({ label: '跳過教學', warn: true, fn: function () { dialog(null); APP.tutSkip(); toast('跳過了教學。想只收不給，記得要有 0 點的空物件。', false); } });
+    dialog({ title: st.tutorial ? '新手教學' : '任務清單', body: st.rows.map(function (x) { return (x.ok ? '✓ ' : st.next && st.next.id === x.id ? '→ ' : '　 ') + x.no + ' ' + x.name + '：' + x.status; }).join('\n'), opts: opts });
+  });
+  // 去做：功能點在別人的世界（教學：引路人）就先走他的代號；已經在那裡就走過去
+  function goTask(func, who) {
+    if (!WORLD.available) return;
     if (func === 'map') return showMap();
     if (func === 'build') return $('btnBuild').click();
+    if (who && who !== me().serial) { var r = APP.roleOf(who); if (!r) return; if (cur.visiting && cur.role === r) return goFunc(r, func); if (cur.visiting) goHome(); return guideTo(CORE.abbrev(who)); }
+    if (cur.visiting) goHome();
     var o = allObjs(me()).find(function (x) { return x.func === func; });
     if (o) { var p = WORLD.objectAt(o.id); if (p) WORLD.walkTo({ x: p.x, z: p.z + p.radius + 0.6 }); }
   }
+
+  /* ---------- 新手教學：創角色、走完問要不要再走一次、帶看對照 ---------- */
+  function createDialog() {
+    dialog({ title: '創角色', body: '<div class="field">名字 <input type="text" id="cName" value="我" style="width:7em"></div><div class="field">每天的點 <input type="number" id="cDaily" value="' + CORE.DEFAULT_DAILY + '" min="1" style="width:5em"></div><div class="field">第一樣東西 <input type="text" id="cItem" value="空的" style="width:5em"> 價格 <input type="number" id="cPrice" value="0" min="0" style="width:3.5em"> 點，補 <input type="number" id="cQty" value="1" min="0" style="width:3.5em"> 份</div><div class="small muted">0 點的「空的」什麼都不給：一換一時想只收不給就拿它。創角色當下就生效。</div>',
+      opts: [{ label: '建立', pri: true, fn: function () { createMe(false); } }, { label: '建立，跳過教學', fn: function () { createMe(true); } }] });
+  }
+  function createMe(skip) {
+    var r = act(function () { APP.createPlayer({ name: val('cName').trim(), dailyPoints: val('cDaily'), firstItem: { name: val('cItem').trim(), price: +val('cPrice') || 0, qty: Math.max(0, Math.floor(+val('cQty') || 0)) } }, skip); }, skip ? '角色建好了。跳過教學' : '角色建好了。教學開始：找引路人');
+    if (r.ok) dialog(null);
+  }
+  function askDialog() {
+    var other = '表世界';
+    dialog({ title: '教學走完了', body: '要不要用另一種介面再走一次？\n要：切到' + other + '，從「補 1 份空的」開始，用同一套步驟再跟引路人換一次。\n不要：切到' + other + '帶看對照，一步一步指出剛才那筆交換在那邊的哪裡，看完切回來。', opts: [{ label: '要', pri: true, fn: function () { dialog(null); APP.tutAnswer(true); } }, { label: '不要', fn: function () { dialog(null); APP.tutAnswer(false); } }] });
+  }
+  function cmpDialog() {
+    var st = APP.steps(), c = st.next; if (!c) return;
+    dialog({ title: '對照 ' + c.no + ' ' + c.name, body: c.status, opts: [{ label: c.last ? '看完，切回表世界' : '下一個', pri: true, fn: function () { dialog(null); APP.tutNext(); } }, { label: '去看', fn: function () { dialog(null); goTask(c.func, c.who); } }] });
+  }
+  APP.on('tut', function (st) {
+    if (APP.view() !== 'game') return;
+    if (st === 7) { dialog(null); askDialog(); }
+    else if (st === 'compare') { dialog(null); cmpDialog(); }
+    else if (st === 'done' && !APP.tut().skipped) toast('教學完成！接下來照任務提示準備自己的規則、資源、時段。', false);
+    drawPlate();
+  });
   $('swapToSheet').addEventListener('click', function () { var going = WORLD.walkingTo(); APP.setFocus({ role: cur.role ? cur.role.serial : me().serial, func: going ? going.func : nearObj ? nearObj.func : APP.focus().func }); APP.switchTo('sheet'); });   // 走路途中：以要去的那棟為準
 
   /* ---------- 那一微秒：站在終點上，倒數、交換對話框、白光 ---------- */
@@ -419,9 +461,10 @@ var GAME = (function () {
     var m = me(), ps = CORE.participants(S(), slot).filter(function (p) { return p !== m.serial; });
     var body = ps.map(function (p) { var o = APP.roleOf(p); if (!o) return ''; var theirs = CORE.wantsValid(S(), slot, p, m.serial).map(function (id) { var x = CORE.resourceOf(ver(m), id); return x ? x.name : id; });
       var gMine = CORE.goneText(S(), slot, m.serial, p), gTheirs = CORE.goneText(S(), slot, p, m.serial);
-      return '<b>' + esc(o.name) + '</b><br>我要他的：' + (CORE.wantsValid(S(), slot, m.serial, p).length ? CORE.wantTotal(S(), slot, m.serial, p) + ' 點 <button type="button" class="lk" data-pick="' + p + '">改</button>' : '<button type="button" class="lk" data-pick="' + p + '">還沒選</button>') + (gMine ? '<br><span class="small muted">' + esc(gMine) + '</span>' : '') + '<br>他要我的：' + (theirs.length ? theirs.join('、') + '（' + CORE.wantTotal(S(), slot, p, m.serial) + ' 點）' : '（沒選）') + (gTheirs ? '<br><span class="small muted">' + esc(gTheirs) + '</span>' : '') + '<br>'; }).join('');
+      var mineSel = CORE.wantsValid(S(), slot, m.serial, p), myNames = mineSel.map(function (id) { var x = CORE.resourceOf(CORE.version(o, slot.atUs), id); return x ? x.name : id; });
+      return '<b>' + esc(o.name) + '</b><br>我要他的：' + (mineSel.length ? esc(myNames.join('、')) + '（' + CORE.wantTotal(S(), slot, m.serial, p) + ' 點） <button type="button" class="lk" data-pick="' + p + '">改</button>' : '<button type="button" class="lk" data-pick="' + p + '">還沒選</button><br><span class="small muted">你還沒選他的東西：一換一，兩邊都選了才成交</span>') + (gMine ? '<br><span class="small muted">' + esc(gMine) + '</span>' : '') + '<br>他要我的：' + (theirs.length ? esc(theirs.join('、')) + '（' + CORE.wantTotal(S(), slot, p, m.serial) + ' 點）' : '（沒選）<br><span class="small muted">他還沒選你的東西：一換一，兩邊都選了才成交</span>') + (gTheirs ? '<br><span class="small muted">' + esc(gTheirs) + '</span>' : '') + '<br>'; }).join('');
     var mg = slot.maxGive[m.serial], left = CORE.remainingToday(S(), m, now());
-    body += '<div class="field">每人最多給 <input type="number" id="maxGive" value="' + (mg != null ? mg : '') + '" placeholder="' + left + '（當天剩下的）" min="0" max="' + left + '"> 點</div>站著等那一微秒，照選好的成交。';
+    body += '<div class="field">每人最多給 <input type="number" id="maxGive" value="' + (mg != null ? mg : '') + '" placeholder="' + left + '（當天剩下的）" min="0" max="' + left + '"> 點</div>站著等那一微秒，照選好的互換東西。';
     dialog({ title: '交換：' + CORE.fmtUs(slot.atUs).slice(11, 19), body: body, opts: [{ label: '確定', pri: true, fn: function () { dialog(null); toast('站著等那一微秒。', true); } }],
       after: function () {
         $('maxGive').onchange = function () { act(function () { CORE.setMaxGive(S(), slot, m.serial, $('maxGive').value); }, ''); };
@@ -435,8 +478,10 @@ var GAME = (function () {
     if (!mine.length) return;
     WORLD.flash(); WORLD.showPartner(true); drawPlate();
     var lines = mine.map(function (x) { var d = x.docking, other = APP.roleOf(d.a === m ? d.b : d.a), gave = d.a === m ? d.gaveA : d.gaveB, got = d.a === m ? d.gaveB : d.gaveA, myItems = d.a === m ? d.itemsB : d.itemsA, failMe = d.a === m ? d.failA : d.failB, failHim = d.a === m ? d.failB : d.failA, noteMe = d.a === m ? d.noteB : d.noteA, noteHim = d.a === m ? d.noteA : d.noteB;
-      if (!d.ok) return '和 ' + (other ? other.name : '？') + ' 不成立：' + d.reason;
-      return '和 ' + (other ? other.name : '？') + '（' + d.how + '）\n我給 ' + gave + ' 點' + (failMe ? '（不成立：' + failMe + '）' : '') + '，拿到 ' + got + ' ' + (other ? other.name : '') + '點' + (myItems.length ? '，保留了 ' + myItems.map(function (i) { return i.name; }).join('、') : '') + (noteMe && !failHim ? '\n' + noteMe : '') + (failHim ? '\n他給不出：' + failHim : '') + (noteHim && !failMe ? '\n他' + noteHim : '') + (other && other.contact ? '\n聯絡方式：' + other.contact : ''); });
+      var on = other ? other.name : '？', myOut = d.a === m ? d.itemsA : d.itemsB;
+      if (!d.ok) return '和 ' + on + ' 不成立：' + d.reason;
+      if (!d.traded) return '和 ' + on + ' 不成交：' + d.reason;
+      return '和 ' + on + '（' + d.how + '）\n我拿出：' + CORE.itemsText(myOut) + '（' + gave + ' 點）；拿到：' + on + '的' + CORE.itemsText(myItems) + '（' + got + ' 點）' + (noteHim ? '\n' + noteHim : '') + (noteMe ? '\n他' + noteMe : '') + (other && other.contact ? '\n聯絡方式：' + other.contact : ''); });
     dialog({ title: '到達那微秒', body: lines.join('\n\n'), opts: [{ label: '好', pri: true, fn: function () { dialog(null); WORLD.showPartner(false); } }] });
   });
   APP.on('miss', function () { exchangeOpen = null; if (APP.view() === 'game' && cur.visiting) toast('錯過了那一微秒，這個時段不能再對接。', true); });
@@ -461,7 +506,7 @@ var GAME = (function () {
     if (o) WORLD.walkToObject(o.id);
   }
   APP.on('view', function (v) { $('view-game').hidden = v !== 'game'; if (v === 'game') { WORLD.resume(); WORLD.resize(); show(); } else WORLD.pause(); });   // 切走時對話框留著，切回來照樣開   // 表世界蓋著時 3D 暫停
-  APP.on('me', function () { dec = new CORE.Decoder(me().world.walk); goHome(); });
+  APP.on('me', function () { dec = new CORE.Decoder(me().world.walk); goHome(); if (APP.isBlank() && WORLD.available) createDialog(); });
   APP.on('change', function () { if (APP.view() === 'game') drawPlate(); });
 
   /* ---------- 開始 ---------- */
@@ -470,6 +515,7 @@ var GAME = (function () {
   if (!WORLD.available) { $('stage').innerHTML = '<div class="nothree">3D 引擎沒載入，裡世界暫時不能用。按右上角「表 ⇄ 裡」用表世界，功能完全一樣。</div>'; }
   else { WORLD.init($('stage')); WORLD.loadWorld(me().world); }
   drawPlate();
+  if (APP.isBlank() && WORLD.available) createDialog();
   // 切回來時留著的對話框要用最新資料重畫：記住每個對話框是哪個函式、什麼參數做出來的
   function R(fn) {
     var w = function () {
@@ -480,7 +526,7 @@ var GAME = (function () {
     return w;
   }
   openNear = R(openNear); readRules = R(readRules); shop = R(shop); timetable = R(timetable); mySlots = R(mySlots);
-  stockDialog = R(stockDialog); history = R(history); switchRole = R(switchRole); buildDialog = R(buildDialog); exchangeDialog = R(exchangeDialog);
+  stockDialog = R(stockDialog); history = R(history); switchRole = R(switchRole); buildDialog = R(buildDialog); exchangeDialog = R(exchangeDialog); askDialog = R(askDialog); cmpDialog = R(cmpDialog);
   function refreshDialog() { var top = dlgStack[dlgStack.length - 1]; if (top && top.again && $('dlg').classList.contains('open')) top.again(); }
 
   return { show: show, dialog: dialog, cur: function () { return cur; }, dec: function () { return dec; }, guideTo: guideTo, openPortal: openPortal, enterPortal: function () { if (portalRole) teleport(portalRole); }, teleportTo: teleport, goHome: goHome, setBuild: setBuild, nearObj: function () { return nearObj; }, stack: function () { return dlgStack; } };
