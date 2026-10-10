@@ -41,7 +41,7 @@ var J1 = '00000000001', J2 = '00000000002';
   await pg.click('#btnMap');
   assert(!(await pg.isHidden('#map')), '地圖打開');
   var nodes = await H.ev("[...document.querySelectorAll('#map .node[data-go]')].map(b=>b.dataset.go+(b.classList.contains('dim')?'-暗':'-亮'))");
-  assert(nodes.join(',') === 'J2-亮,J3-暗', '一方通的亮、不通的暗：' + nodes.join(','));
+  assert(nodes.join(',') === 'J2-亮,J3-暗,J4-亮', '一方通的亮、不通的暗：' + nodes.join(','));
   await H.click('#map .node[data-go="J2"]');
   assert((await pg.isHidden('#map')) && (await H.ev("WORLD.guideCount()")) > 1, '點 J2 → 地上亮出指引光點 ' + (await H.ev("WORLD.guideCount()")) + ' 個');
   await pg.screenshot({ path: OUT + '/v8_game_3_guide.png' });

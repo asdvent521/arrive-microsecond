@@ -86,7 +86,7 @@ var J1 = '00000000001';
   await H.fresh(); await H.ev(listen);
   await pg.click('#swapToSheet'); await pg.waitForTimeout(300); await H.sheet('moves');
   await H.setIn('addMoveFrom', 'rule_' + J1); await H.setIn('addMoveTo', 'res_' + J1); await H.setIn('addMoveDigit', '2'); await H.click('[data-act="addMove"]');
-  assert((await H.rows()) === 4, '表世界加了一條走法：規則屋→市集＝2');
+  assert((await H.rows()) === 5, '表世界加了一條走法：規則屋→市集＝2');
   await pg.click('#swapToGame'); await pg.waitForTimeout(500);
   assert(JSON.stringify(await H.ev("CORE.route(APP.me().world.walk, APP.allObjs(APP.me()), 'J2').steps")) === JSON.stringify(['繞規則屋一圈（J）', '再走到市集（2）']), '路線說明從繞的那棟算起，沒有多一步「走到規則屋」');
   await pg.click('#btnMap'); await H.click('#map .node[data-go="J2"]');

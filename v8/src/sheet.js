@@ -56,9 +56,13 @@ var SHEET = (function () {
       cols: [
         { k: 'no', h: '步驟', v: function (x) { return x.no + ' ' + esc(x.name); } },
         { k: 'ok', h: '狀態', v: function (x) { var n = APP.steps().next; return x.ok ? tag('', '完成') : n && n.id === x.id ? tag('wait', '下一步') : tag('off', '還沒'); } },
-        { k: 'go', h: '動作', v: function (x) { var to = { role: 'roles', rule: 'uses', resource: 'resources', build: 'world', goal: 'myslots', map: 'visit' }[x.func]; return btn('jump', (x.name.charAt(0) === '去' ? x.name : '去' + x.name), ' data-s="' + to + '"', (APP.steps().next || {}).id === x.id ? 'pri' : ''); } },
+        { k: 'go', h: '動作', v: function (x) { var isNext = (APP.steps().next || {}).id === x.id;
+          if (x.tut === 'ask') return btn('tutYes', '要', '', 'pri') + ' ' + btn('tutNo', '不要');
+          if (x.tut === 'cmp') return btn('jump', '去看', ' data-s="' + x.func + '"' + (x.who ? ' data-id="' + x.who + ':"' : '')) + (isNext ? ' ' + btn('tutNext', x.last ? '看完，切回裡世界' : '下一個', '', 'pri') : '');
+          if (x.tut === 'step') return btn('jump', '去做', ' data-s="' + x.func + '"' + (x.who && x.func !== 'open' ? ' data-id="' + x.who + ':"' : ''), isNext ? 'pri' : '');
+          var to = { role: 'roles', rule: 'uses', resource: 'resources', build: 'world', goal: 'myslots', map: 'visit' }[x.func]; return btn('jump', (x.name.charAt(0) === '去' ? x.name : '去' + x.name), ' data-s="' + to + '"', isNext ? 'pri' : ''); } },
         { k: 'st', h: '目前', v: function (x) { return '<span class="small">' + esc(x.status) + '</span>'; }, wrap: true }
-      ] },
+      ], foot: function () { var st = APP.steps(); return st.tutorial === 'step' ? '<div class="empty">新手教學：跟引路人用「空的」換「空的」，兩邊都不損失，把流程走一遍。在哪個世界，就講那個世界的做法；切換過去也從同一步接著走。 ' + btn('tutSkip', '跳過教學', '', 'warn') + '</div>' : st.tutorial === 'ask' ? '<div class="empty">教學走完了！要不要用另一種介面再走一次？</div>' : st.tutorial === 'compare' ? '<div class="empty">帶看對照：剛才那筆交換在這邊的哪裡。看完切回裡世界。</div>' : ''; } },
     roles: { name: '角色', rowId: function (r) { return r.serial; }, rows: function () { return S().roles; }, mine: function (r) { return r === me(); },
       cols: [
         { k: 'me', h: '我是', v: function (r) { return '<input type="radio" name="meIs" data-ed="me" data-id="' + r.serial + '"' + (r === me() ? ' checked' : '') + ' aria-label="我是"> ' + (r === me() ? '我' : ''); } },
@@ -73,7 +77,10 @@ var SHEET = (function () {
         { k: 'res', h: '資源', v: function (r) { return L('resources', r.serial + ':', ver(r).resources.length + ' 項'); } },
         { k: 'contact', h: '聯絡方式', v: function (r) { return CORE.contactVisible(S(), r, me().serial) ? (r.contact ? esc(r.contact) : '<span class="muted">（沒填）</span>') : '<span class="muted">預約成功才看得到</span>'; } },
         { k: 'act', h: '動作', v: function (r) { if (r !== me()) return ''; var bl = CORE.quitBlockers(S(), r.serial, now()); return btn('quit', '不玩了' + (bl.length ? '（' + bl.length + ' 筆會作廢）' : ''), ' data-id="' + r.serial + '"', 'warn'); } }
-      ] },
+      ],
+      // 還沒創角色：最下面一列是創角色（名字、每天的點、第一樣東西「空的」）；按「建立」當下生效
+      add: function () { return APP.isBlank() ? { me: '<span class="small muted">創角色</span>', code: '<input type="text" id="sName" value="我" style="width:6em" aria-label="名字">', daily: '<input type="number" class="kc" id="sDaily" value="' + CORE.DEFAULT_DAILY + '" min="1">', res: '<span class="small">第一樣東西 <input type="text" id="sItem" value="空的" style="width:4em"> 價 <input type="number" class="kc" id="sPrice" value="0" min="0"> 補 <input type="number" class="kc" id="sQty" value="1" min="0"> 份</span>', act: btn('createMe', '建立', '', 'pri') + ' ' + btn('createSkip', '建立，跳過教學') } : null; },
+      foot: function () { return APP.isBlank() ? '<div class="empty">還沒創角色。填最下面一列，按「建立」。0 點的「空的」什麼都不給：一換一時想只收不給就拿它。</div>' : ''; } },
     uses: { name: '規則用途', who: true, rowId: function (x, i) { return 'u' + i; }, rows: function () { return editing().rules.uses; },
       cols: [{ k: 'text', h: '我的點能做什麼', v: function (x, i) { return isMine() ? inp('useText', i, x) : esc(x); }, wrap: true }, { k: 'st', h: '狀態', v: function (x, i) { var t = ver(whoRole()).rules.uses; return isMine() ? stateTag(t[i], x) : ''; } }, { k: 'act', h: '動作', v: function (x, i) { return isMine() ? btn('delUse', '刪', ' data-id="' + i + '"') : ''; } }],
       add: function () { return isMine() ? { text: '<input type="text" id="addUse" placeholder="例如：1 我點 = 陪跑 1 分鐘">', st: '<span class="small muted">加了明天起</span>', act: btn('addUse', '加一條', '', 'pri') } : null; }, foot: otherPendingFoot, empty: '（沒寫）' },
@@ -158,7 +165,7 @@ var SHEET = (function () {
         { k: 'act', h: '動作', v: function (x) { var s = x.slot; return s.atUs > now() && !s.judged ? btn('cancelBook', '取消', ' data-id="' + s.id + '"') : ''; } }
       ], empty: '還沒預約任何時段。到「可預約時段」找。' },
     dockings: { name: '對接紀錄', rowId: function (d) { return d.id; }, rows: function () { return S().dockings.slice().reverse(); }, mine: function (d) { return d.a === me().serial || d.b === me().serial; },
-      cols: [{ k: 'at', h: '時間', v: function (d) { return num(d.atUs); } }, { k: 'a', h: '甲', v: function (d) { return L('roles', d.a, esc(roleName(d.a))); } }, { k: 'b', h: '乙', v: function (d) { return L('roles', d.b, esc(roleName(d.b))); } }, { k: 'ga', h: '甲給', num: true, v: function (d) { return String(d.gaveA); } }, { k: 'ia', h: '乙選了甲的', v: function (d) { return (d.itemsA.length ? esc(d.itemsA.map(function (i) { return i.name; }).join('、')) : (d.failA ? tag('bad', d.failA) : dash)) + (d.noteA && !d.failA ? '<br><span class="small muted">' + esc(d.noteA) + '</span>' : ''); }, wrap: true }, { k: 'gb', h: '乙給', num: true, v: function (d) { return String(d.gaveB); } }, { k: 'ib', h: '甲選了乙的', v: function (d) { return (d.itemsB.length ? esc(d.itemsB.map(function (i) { return i.name; }).join('、')) : (d.failB ? tag('bad', d.failB) : dash)) + (d.noteB && !d.failB ? '<br><span class="small muted">' + esc(d.noteB) + '</span>' : ''); }, wrap: true }, { k: 'how', h: '怎麼通的', v: function (d) { return d.traded ? '<span class="small">' + esc(d.how) + '</span>' : tag('bad', (d.ok ? '不成交：' : '不成立：') + d.reason); }, wrap: true }, { k: 'ver', h: '版本', v: function (d) { return '<span class="small muted">' + esc(d.verA + ' / ' + d.verB) + '</span>'; } }], empty: '還沒有對接。' },
+      cols: [{ k: 'at', h: '時間', v: function (d) { return num(d.atUs) + (d.tutorial ? ' ' + tag('off', '教學') : ''); } }, { k: 'a', h: '甲', v: function (d) { return L('roles', d.a, esc(roleName(d.a))); } }, { k: 'b', h: '乙', v: function (d) { return L('roles', d.b, esc(roleName(d.b))); } }, { k: 'ga', h: '甲給', num: true, v: function (d) { return String(d.gaveA); } }, { k: 'ia', h: '乙選了甲的', v: function (d) { return (d.itemsA.length ? esc(d.itemsA.map(function (i) { return i.name; }).join('、')) : (d.failA ? tag('bad', d.failA) : dash)) + (d.noteA && !d.failA ? '<br><span class="small muted">' + esc(d.noteA) + '</span>' : ''); }, wrap: true }, { k: 'gb', h: '乙給', num: true, v: function (d) { return String(d.gaveB); } }, { k: 'ib', h: '甲選了乙的', v: function (d) { return (d.itemsB.length ? esc(d.itemsB.map(function (i) { return i.name; }).join('、')) : (d.failB ? tag('bad', d.failB) : dash)) + (d.noteB && !d.failB ? '<br><span class="small muted">' + esc(d.noteB) + '</span>' : ''); }, wrap: true }, { k: 'how', h: '怎麼通的', v: function (d) { return d.traded ? '<span class="small">' + esc(d.how) + '</span>' : tag('bad', (d.ok ? '不成交：' : '不成立：') + d.reason); }, wrap: true }, { k: 'ver', h: '版本', v: function (d) { return '<span class="small muted">' + esc(d.verA + ' / ' + d.verB) + '</span>'; } }], empty: '還沒有對接。' },
     points: { name: '點數', rowId: function (g) { return g.hold.id; }, rows: function () { return CORE.holdings(S(), me().serial, now()); },
       cols: [{ k: 'who', h: '發點的人', v: function (g) { return g.issuer ? roleLink(g.issuer) : dash; } }, { k: 'what', h: '選了什麼', v: function (g) { return esc(g.hold.name); } }, { k: 'n', h: '多少點', num: true, v: function (g) { return String(g.hold.price); } }, { k: 'until', h: '保留到', v: function (g) { return '<span class="num">' + esc(g.until) + '</span>'; } }, { k: 'from', h: '哪次對接', v: function (g) { return L('dockings', g.hold.docking, '看'); } }, { k: 'act', h: '動作', v: function (g) { return btn('redeem', '兌現', ' data-id="' + g.hold.id + '"', 'pri'); } }],
       foot: function () { return '<div class="empty">我今天還能給 ' + CORE.remainingToday(S(), me(), now()) + ' / ' + CORE.dailyPoints(me(), now()) + ' 點（隔天歸零）</div>'; }, empty: '手上沒有別人的點。' },
@@ -207,6 +214,7 @@ var SHEET = (function () {
   }
   var HELP = [
     ['待辦', '照目前的狀態列出六步，標出下一步；每列有按鈕跳過去。'],
+    ['新手教學', '第一次打開從創角色開始。跟引路人（J4）用「空的」換「空的」，兩邊都不損失，把預約、那一微秒、看點數、兌現走一遍；在哪個世界就講那個世界的做法，中途切換從同一步接著走。走完問要不要用另一種介面再走一次：要就從「補 1 份空的」再走；不要就到另一邊帶看對照，看完切回來。可以跳過（只做創角色）。教學的對接標「教學」，不算進對接過幾次和換點比例。'],
     ['角色', '一人一個角色。每天的能量點是最重要的屬性，預設 2000，改了明天起生效。「換人」只是單機測試用。「不玩了」要先讓手上有你點的人換完（單機版視為同意，會寫清楚作廢幾筆）。'],
     ['規則用途、對接條件、開關與村規', '規則表三部分。自己的表裡改的是「明天起」的版本，今天整天不變；標「明天起」的是跟今天不一樣的地方。看別人的用上方「看誰」；別人明天起的改動今天就公開。'],
     ['資源', '每樣東西有名字、定義、價格、保留天數（空白＝一直保留），數量分「可換」和「已保留」。種類、定義、價格、保留天數改了明天起生效；可換的隨時加減（不能小於 0）；已保留的不能減。別人只看得到可換的。'],
@@ -262,6 +270,8 @@ var SHEET = (function () {
     UI.hist.push({ sheet: UI.sheet, who: UI.who }); if (UI.hist.length > 60) UI.hist.shift();
     UI.sheet = sheet; UI.focus = id || null;
     if (id && id.indexOf(':') > 0) { var whoS = id.split(':')[0], rest = id.split(':')[1]; UI.who = whoS; if (sheet === 'world') { var r = whoRole() || me(); var hit = rest && CORE.allObjects(r.world).find(function (x) { return x.o.id === rest; }); UI.worldPath = hit ? hit.path : []; } if (!rest) UI.focus = null; }
+    if ((id && id.indexOf(APP.GUIDE) === 0) || (SHEETS[sheet].who && UI.who === APP.GUIDE)) APP.tutEvent('foundGuide');
+    if (sheet === 'points') APP.tutEvent('sawPoints');
     APP.setFocus({ role: SHEETS[sheet].who && whoRole() ? whoRole().serial : me().serial, func: { uses: 'rule', conds: 'rule', switches: 'rule', resources: 'resource', redeem: 'resource', myslots: 'goal', open: 'goal', booked: 'goal', roles: 'role', world: 'build', circles: 'build', moves: 'build', visit: 'map', come: 'map', search: 'map', points: 'points' }[sheet] || null });
     render();
   }
@@ -275,6 +285,9 @@ var SHEET = (function () {
     go: function (b) { navigate(b.dataset.s, null); },
     jump: function (b) { navigate(b.dataset.s, b.dataset.id || null); },
     resetAll: function () { APP.resetAll(); },
+    createMe: function () { createMe(false); }, createSkip: function () { createMe(true); },
+    tutSkip: function () { APP.tutSkip(); smsg('跳過了教學。想只收不給，記得要有 0 點的空物件。'); },
+    tutYes: function () { APP.tutAnswer(true); }, tutNo: function () { APP.tutAnswer(false); }, tutNext: function () { APP.tutNext(); },
     search: function () { UI.kw = v('kwIn'); render(); },
     quit: function (b) { var bl = CORE.quitBlockers(S(), b.dataset.id, now()); if (!confirm('刪掉這個角色？' + (bl.length ? '還有 ' + bl.length + ' 筆你的點沒換，會作廢（單機版持有人視為同意）。' : '沒有人拿著你的點。'))) return; run(function () { APP.quit(b.dataset.id); }, '角色刪掉了'); },
     accept: function (b) { run(function () { CORE.accept(S(), me().serial, b.dataset.id, now()); }, '接受了'); },
@@ -302,7 +315,7 @@ var SHEET = (function () {
   };
   var EDIT = {
     me: function (id) { APP.becomeMe(S().roles.indexOf(roleOf(id))); },
-    who: function (id, val) { UI.who = val; UI.worldPath = []; APP.setFocus({ role: val }); },
+    who: function (id, val) { UI.who = val; UI.worldPath = []; APP.setFocus({ role: val }); if (val === APP.GUIDE) APP.tutEvent('foundGuide'); },
     daily: function (id, val) { CORE.setDailyPoints(S(), me().serial, val, now()); },
     useText: function (id, val) { tmr().rules.uses[+id] = val; },
     condField: function (id, val) { tmr().rules.conditions[+id].field = val; },
@@ -329,6 +342,7 @@ var SHEET = (function () {
     present: function (id, val, el) { CORE.setPresent(S(), me().serial, id, el.checked); },
     maxGive: function (id, val) { var x = CORE.slotOf(S(), id); if (x) CORE.setMaxGive(S(), x.slot, me().serial, val); }
   };
+  function createMe(skip) { var r = run(function () { APP.createPlayer({ name: v('sName').trim(), dailyPoints: v('sDaily'), firstItem: { name: v('sItem').trim(), price: +v('sPrice') || 0, qty: Math.max(0, Math.floor(+v('sQty') || 0)) } }, skip); }, skip ? '角色建好了。跳過教學' : '角色建好了。教學開始：找引路人'); if (r.ok) navigate('todo', null); }
   function objEdit(id, fn) { var o = levelObjects().find(function (x) { return x.id === id; }); if (o) fn(o); }
   var busy = false;
   $('view-sheet').addEventListener('click', function (e) {
@@ -360,6 +374,7 @@ var SHEET = (function () {
   APP.on('me', function () { UI.who = null; UI.hist = []; if (APP.view() === 'sheet') render(); });
   APP.on('dock', function (res) { if (APP.view() !== 'sheet') return; render(); var m = me().serial, mine = res.filter(function (x) { return x.docking.a === m || x.docking.b === m; }); if (mine.length) smsg(mine.map(function (x) { var d = x.docking, o = roleOf(d.a === m ? d.b : d.a), gave = d.a === m ? d.gaveA : d.gaveB, got = d.a === m ? d.gaveB : d.gaveA; var myOut = d.a === m ? d.itemsA : d.itemsB, myIn = d.a === m ? d.itemsB : d.itemsA; return d.traded ? '和 ' + (o ? o.name : '？') + ' 互換：我拿出 ' + CORE.itemsText(myOut) + '（' + gave + ' 點）；拿到 ' + (o ? o.name : '') + '的 ' + CORE.itemsText(myIn) + '（' + got + ' 點）（' + d.how + '）' : '和 ' + (o ? o.name : '？') + (d.ok ? ' 不成交：' : ' 不成立：') + d.reason; }).join('；')); });
   APP.on('miss', function () { if (APP.view() === 'sheet') { render(); smsg('那一微秒過了，沒到場的預約標為錯過。'); } });
+  APP.on('tut', function (st) { if (APP.view() !== 'sheet') return; if (st === 7 || st === 'compare') navigate('todo', null); else render(); if (st === 'done' && !APP.tut().skipped) smsg('教學完成！接下來照待辦準備自己的規則、資源、時段。'); });
   renderTabs();
   return { render: render, navigate: navigate, back: back, ui: UI, ORDER: ORDER, SHEETS: SHEETS, show: show };
 })();

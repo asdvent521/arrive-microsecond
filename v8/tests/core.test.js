@@ -7,7 +7,7 @@ var n = 0; function ok(name, fn) { fn(); n++; console.log('ok: ' + name); }
 function throws(fn, re) { assert.throws(fn, function (e) { return re.test(e.message); }, '應該要擋下：' + re); }
 // 固定一個時間：今天中午
 var T0 = (function () { var d = new Date(); d.setHours(12, 0, 0, 0); return d.getTime() * 1000; })();
-function fresh() { var s = C.fresh(); return s; }
+function fresh() { var s = C.fresh(); C.demoMe(s, T0); return s; }   // 示範資料＋測試用的「我」（J1）
 function base() {   // 乾淨的三個角色，不帶示範時段
   var s = { v: 8, me: 0, roles: [], holds: [], dockings: [], redeems: [], acceptances: [], records: [], presence: {} };
   // 每個人都有一個 0 點的空物件（e1、e2、e3），一換一時「只收不給」就拿它
@@ -33,7 +33,7 @@ ok('10. 預設每天 2000 點', function () {
 });
 ok('1. 一人一個角色：示範資料三個角色，沒有新角色、週期、空窗這些東西', function () {
   var s = fresh();
-  assert.strictEqual(s.roles.length, 3);
+  assert.strictEqual(s.roles.length, 4);
   assert.strictEqual(C.endEarly, undefined); assert.strictEqual(C.enterVacancy, undefined); assert.strictEqual(C.canRefuse, undefined); assert.strictEqual(C.recreate, undefined);
   assert.ok(!s.roles[0].life && !s.roles[0].state);
   assert.strictEqual(C.remainingToday(s, s.roles[0], C.nowUs()), 1800);
@@ -353,6 +353,29 @@ ok('一換一 (多人)：三人時段只成交兩邊都選了的那幾對；補�
   assert.strictEqual(C.dockCount(s, J1), 1, '對接過幾次只算成交的'); assert.strictEqual(C.dockCount(s, J3), 0);
   C.restock(s, J1, 'e1', 99999); assert.strictEqual(C.stockOf(s.roles[0], 'e1').avail, 100009, '補貨一次加很多份');
   C.restock(s, J1, 'e1', -100000); assert.strictEqual(C.stockOf(s.roles[0], 'e1').avail, 9); throws(function () { C.restock(s, J1, 'e1', -10); }, /不能小於 0/);
+});
+ok('新手教學：示範版沒有「我」（me = -1）、引路人 J4 有一堆 0 點的「空的」；創角色放最前面當下生效；教學的對接不算進對接過幾次和換點比例，紀錄標「教學」', function () {
+  var s = C.fresh(), J4 = C.GUIDE;
+  assert.strictEqual(s.me, -1); assert.strictEqual(s.roles.length, 3); assert.strictEqual(s.tutorial.step, 1);
+  assert.ok(C.isGuide(J4) && C.roleOf(s, J4).name === '引路人'); assert.strictEqual(C.stockOf(C.roleOf(s, J4), 'r4e').avail, 99999); assert.strictEqual(C.version(C.roleOf(s, J4), T0).rules.conditions.length, 0);
+  var b = C.blankRole(); assert.ok(b.blank && s.roles.indexOf(b) < 0);
+  var me = C.createPlayer(s, { name: '小明', dailyPoints: '', firstItem: { name: '空的', price: 0, qty: 1 } }, T0);
+  assert.strictEqual(s.me, 0); assert.strictEqual(s.roles[0], me); assert.strictEqual(me.serial, J1); assert.strictEqual(C.dailyPoints(me, T0), 2000);
+  var e = C.version(me, T0).resources[0]; assert.strictEqual(e.price, 0); assert.strictEqual(C.stockOf(me, e.id).avail, 1);
+  assert.strictEqual(C.route(me.world.walk, C.allObjects(me.world).map(function (x) { return x.o; }), 'J4').steps.join('，'), '繞規則屋一圈（J），再走到帳房（4）', '預設走法走得出 J4');
+  // 跟引路人空的換空的
+  var slot = C.addSlot(s, J4, T0 + 60e6, 1, null, T0); C.book(s, J1, slot.id, T0); C.setPresent(s, J1, slot.id, true);
+  C.setWants(s, slot.id, J1, J4, ['r4e']); C.setWants(s, slot.id, J4, J1, [e.id]);
+  C.judge(s, T0 + 60e6, {});
+  var d = s.dockings[0]; assert.ok(d.traded && d.tutorial, '教學的對接成交、標教學'); assert.strictEqual(d.gaveA + d.gaveB, 0);
+  assert.strictEqual(C.dockCount(s, J1), 0, '不算進對接過幾次'); assert.strictEqual(C.ratio(s, J1).text, '還沒對接過', '不算進換點比例');
+  assert.ok(/^（教學）/.test(s.records[0].text) && s.records[0].tutorial, '紀錄標「教學」');
+  assert.strictEqual(s.holds.length, 2); C.redeem(s, J1, s.holds.find(function (h) { return h.holder === J1; }).id, T0 + 61e6); C.redeem(s, J4, s.holds.find(function (h) { return h.holder === J4; }).id, T0 + 61e6);
+  assert.strictEqual(C.stockOf(me, e.id).avail, 0, '空的換掉了，要再補');
+  // 真的對接才算數
+  var s2 = fresh(); assert.strictEqual(s2.me, 0); assert.strictEqual(s2.roles[0].serial, J1); assert.strictEqual(s2.roles.length, 4);
+  var slot2 = meet(s2, J2, [J1]); C.setWants(s2, slot2.id, J1, J2, ['r2a']); C.setWants(s2, slot2.id, J2, J1, ['r1b']); C.judge(s2, T0 + 60e6, {});
+  assert.strictEqual(C.dockCount(s2, J1), 1); assert.ok(!/^（教學）/.test(s2.records[0].text));
 });
 ok('純資料檢查與存檔格式：角色洗過還是同一份資料', function () {
   var s = fresh(); var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['r1a']); C.judge(s, T0 + 60e6, {});

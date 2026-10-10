@@ -15,7 +15,8 @@ async function open(pagePath, opts) {
   await pg.waitForTimeout(600);
   var H = {
     pg: pg, browser: browser, errs: errs,
-    fresh: async function () { await pg.evaluate("localStorage.clear()"); await pg.reload(); await pg.waitForTimeout(800); },
+    // 重置：預設放一個示範的「我」（J1）並跳過教學；raw＝真的第一次打開（從創角色開始）
+    fresh: async function (opts) { await pg.evaluate("localStorage.clear()"); await pg.reload(); await pg.waitForTimeout(800); if (!(opts && opts.raw)) { await pg.evaluate("APP.demo()"); await pg.waitForTimeout(500); } },
     close: function () { return browser.close(); },
     ev: function (js) { return pg.evaluate(js); },
     // 裡世界

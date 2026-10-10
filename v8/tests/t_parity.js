@@ -1,6 +1,6 @@
 // 對照測試：DESIGN.md 7-3（v8）每一列，在裡世界做一次、在表世界做一次，兩邊的結果（state）要一樣。
 // node v8/tests/t_parity.js <test8.html>
-var lib = require('./lib'), assert = lib.assert;
+var lib = require('./lib'), assert = lib.assert, T = require('./tut');
 var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
 // 先對接一次：J1 保留了 J2 的改履歷（100 阿澄點）
 var DOCK_SETUP = "(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+2e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2a']);CORE.setWants(S,s.id,'" + J2 + "','" + J1 + "',['r1b']);CORE.setPresent(S,'" + J1 + "',s.id,true);CORE.judge(S,t+2e6,{});APP.changed();})()";
@@ -132,7 +132,12 @@ var ROWS = [
   { name: '紀錄、換點比例：角色碑的歷史 ↔ 對接紀錄、紀錄', setup: DOCK_SETUP,
     game: async function (H) { await H.goNear('role'); var b = await H.dlgBody(); assert(b.indexOf('換點比例') >= 0 && b.indexOf('100：100') >= 0, '角色碑顯示換點比例'); await H.pick('歷史紀錄'); assert((await H.dlgBody()).indexOf('對接 1 次') >= 0, '歷史：對接 1 次'); },
     sheet: async function (H) { await H.toSheet(); await H.sheet('dockings'); assert((await H.rows()) === 1 && (await H.main()).indexOf('改履歷') >= 0, '對接紀錄一列，寫了選了什麼'); await H.sheet('roles'); assert((await H.main()).indexOf('100：100') >= 0, '角色表的換點比例'); await H.sheet('records'); assert((await H.rows()) === (await H.ev("APP.state().records.length + APP.state().redeems.length")), '紀錄列數＝紀錄＋兌現'); },
-    pick: "JSON.stringify({d:APP.state().dockings.length,r:APP.state().records.length,ratio:CORE.ratio(APP.state(),APP.me().serial).text})" }
+    pick: "JSON.stringify({d:APP.state().dockings.length,r:APP.state().records.length,ratio:CORE.ratio(APP.state(),APP.me().serial).text})" },
+
+  { name: '新手教學：創角色 → 找引路人 → 預約選空的 → 那一微秒 → 帳房／點數 → 兌現 → 不要 → 對照', raw: true,
+    game: async function (H) { await T.G.full(H, '小明'); await T.G.ask(H, false); await T.Sh.compare(H); },
+    sheet: async function (H) { await T.Sh.full(H, '小明'); await T.Sh.ask(H, false); await T.G.compare(H); },
+    pick: "JSON.stringify({me:APP.me().serial,name:APP.me().name,tut:[APP.tut().step,APP.tut().round,APP.tut().choice,APP.tut().skipped],d:APP.state().dockings.map(function(d){return [d.a,d.b,d.traded,d.tutorial,d.gaveA,d.gaveB,d.itemsA.map(function(i){return i.name;}),d.itemsB.map(function(i){return i.name;})];}),h:APP.state().holds.map(function(h){return [h.issuer,h.holder,h.status,h.price];}),n:CORE.dockCount(APP.state(),APP.me().serial),ratio:CORE.ratio(APP.state(),APP.me().serial).text,rec:APP.state().records.map(function(r){return r.text.slice(0,4);}),rd:APP.state().redeems.length,empty:CORE.version(APP.me(),APP.now()).resources.map(function(x){return [x.name,x.price,CORE.stockOf(APP.me(),x.id).avail];})})" }
 ];
 
 (async function () {
@@ -140,7 +145,7 @@ var ROWS = [
   for (var i = 0; i < ROWS.length; i++) {
     var row = ROWS[i], got = {};
     for (var side of ['game', 'sheet']) {
-      await H.fresh(); H.found = null;
+      await H.fresh({ raw: !!row.raw }); H.found = null;
       if (row.setup) await H.ev(row.setup);
       try { await row[side](H); } catch (e) { assert(false, row.name + '（' + side + '）出錯：' + e.message); got[side] = 'ERR'; continue; }
       await H.pg.waitForTimeout(150);
