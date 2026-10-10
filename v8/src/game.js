@@ -112,7 +112,7 @@ var GAME = (function () {
     if (circ) opts.push({ label: '繞一圈（' + circ.letter + '）', fn: function () { dialog(null); WORLD.circleAround(o.id); } });
     if (o.func === 'rule') {
       opts.push({ label: '閱讀規則', pri: true, fn: function () { readRules(r, 0); } });
-      if (!mine && v.rules.village && !CORE.accepted(S(), me().serial, r.serial)) opts.push({ label: '接受村規', fn: function () { act(function () { CORE.accept(S(), me().serial, r.serial); }, '你接受了 ' + r.name + ' 的村規'); openNear(o); } });
+      if (!mine && v.rules.village && CORE.acceptState(S(), me().serial, r, now()) !== 'current') opts.push({ label: '接受村規', fn: function () { act(function () { CORE.accept(S(), me().serial, r.serial, now()); }, '你接受了 ' + r.name + ' 的村規'); openNear(o); } });
       if (mine) opts.push({ label: '改規則（明天起）', fn: function () { editRules(); } });
       dialog({ title: title, body: mine ? '這是你的規則屋。今天的規則整天不變，改的是明天起的版本。' + (p ? '\n明天起的版本已經寫了一份。' : '') : '走進一個人的世界，看得見他的規則。' + (p ? '\n他明天起會改規則，今天就看得到。' : ''), opts: opts });
     } else if (o.func === 'resource') {
@@ -177,11 +177,12 @@ var GAME = (function () {
     if (cur.visiting) { var e = CORE.eligible(S(), r, me(), now()); condBody += '\n\n' + (e.ok ? '可以對接（' + e.how + '）' : '不能對接：' + e.reason); }
     pages.push({ t: '對接條件', b: condBody });
     var sw = function (x) { return '要求兩方都通：' + (x.bothMustPass ? '開' : '關') + '\n對方要先接受我的村規：' + (x.mustAcceptVillage ? '開' : '關') + '\n村規：' + (x.village || '（沒有）'); };
-    pages.push({ t: '開關與村規', b: sw(ru) + (ru.village ? '\n（誰寫的誰解釋）' + (cur.visiting ? (CORE.accepted(S(), me().serial, r.serial) ? '\n你已接受' : '\n你還沒接受') : '') : '') + (pr && sw(pr) !== sw(ru) ? '\n\n明天起：\n' + sw(pr) : '') });
+    var ast = cur.visiting && ru.village ? CORE.acceptState(S(), me().serial, r, now()) : null;
+    pages.push({ t: '開關與村規', b: sw(ru) + (ru.village ? '\n（誰寫的誰解釋）' + (ast ? (ast === 'current' ? '\n你已接受' : ast === 'old' ? '\n你接受的是舊版村規，要重新接受' : '\n你還沒接受') : '') : '') + (pr && sw(pr) !== sw(ru) ? '\n\n明天起：\n' + sw(pr) : '') + (CORE.villageChanges(r, now()) ? '\n明天起村規改了，到時候要重新接受' : '') });
     var pg = pages[page], opts = [];
     if (page > 0) opts.push({ label: '上一頁', fn: function () { dlgStack.pop(); readRules(r, page - 1); } });
     if (page < pages.length - 1) opts.push({ label: '下一頁', pri: true, fn: function () { dlgStack.pop(); readRules(r, page + 1); } });
-    if (page === 2 && cur.visiting && ru.village && !CORE.accepted(S(), me().serial, r.serial)) opts.push({ label: '接受村規', pri: true, fn: function () { act(function () { CORE.accept(S(), me().serial, r.serial); }, '你接受了 ' + r.name + ' 的村規'); dlgStack.pop(); readRules(r, 2); } });
+    if (page === 2 && ast && ast !== 'current') opts.push({ label: '接受村規', pri: true, fn: function () { act(function () { CORE.accept(S(), me().serial, r.serial, now()); }, '你接受了 ' + r.name + ' 的村規'); dlgStack.pop(); readRules(r, 2); } });
     dialog({ title: r.name + ' 的規則 ' + (page + 1) + '/3：' + pg.t, body: pg.b, opts: opts });
   }
   // 商店：看價錢、可換、保留幾天；兌現自己保留著的那幾筆

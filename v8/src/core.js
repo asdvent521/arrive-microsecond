@@ -291,19 +291,27 @@ var CORE = (function () {
   var OPS = { '>=': '至少', '<=': '最多', '=': '等於', '!=': '不是' };
   function cmp(a, op, b) { switch (op) { case '>=': return a >= b; case '<=': return a <= b; case '=': return a == b; case '!=': return a != b; } return false; }
   function condText(c) { var f = COND_FIELDS[c.field]; if (!f) return '？'; return f.label + ' ' + OPS[c.op] + ' ' + c.value + (f.unit || ''); }
-  function passes(state, owner, visitor, atUs) {
-    var failed = version(owner, atUs).rules.conditions.filter(function (c) { return !cmp(COND_FIELDS[c.field].get(state, visitor, atUs, owner), c.op, c.value); }).map(condText);
+  // 條件表用 ruleUs 那一刻生效的版本（改規則不溯及既往），條件裡的事實照 atUs 算
+  function passes(state, owner, visitor, atUs, ruleUs) {
+    var failed = version(owner, ruleUs == null ? atUs : ruleUs).rules.conditions.filter(function (c) { return !cmp(COND_FIELDS[c.field].get(state, visitor, atUs, owner), c.op, c.value); }).map(condText);
     return { ok: !failed.length, failed: failed };
   }
-  function accepted(state, who, of) { return state.acceptances.some(function (a) { return a.who === who && a.of === of; }); }
-  function accept(state, who, of) { if (!accepted(state, who, of)) state.acceptances.push({ who: who, of: of, atUs: nowUs() }); }
+  // 接受村規記下接受的是哪一版（村規內容）；村規改了，舊的接受不算
+  function accepted(state, who, of, village) { return state.acceptances.some(function (a) { return a.who === who && a.of === of && (village == null || a.village === village); }); }
+  function acceptedAny(state, who, of) { return state.acceptances.some(function (a) { return a.who === who && a.of === of; }); }
+  function accept(state, who, of, atUs) { atUs = atUs || nowUs(); var village = version(need(state, of), atUs).rules.village; if (!accepted(state, who, of, village)) state.acceptances.push({ who: who, of: of, village: village, atUs: atUs }); }
+  // 接受的狀態：current＝接受的是現在這一版；old＝接受的是舊版，要重新接受；none＝還沒接受
+  function acceptState(state, who, role, atUs) { var village = version(role, atUs).rules.village; return accepted(state, who, role.serial, village) ? 'current' : acceptedAny(state, who, role.serial) ? 'old' : 'none'; }
+  function villageChanges(role, atUs) { var p = pending(role, atUs); return !!p && p.rules.village !== version(role, atUs).rules.village; }
   // a 和 b 能不能對接：一方通就可以；任一方要求兩方都通就要兩方；要求接受村規而對方沒接受就不行
-  function eligible(state, a, b, atUs) {
+  // ruleUs：用哪一刻生效的規則表（預約那一刻）；事實照 atUs
+  function eligible(state, a, b, atUs, ruleUs) {
+    if (ruleUs == null) ruleUs = atUs;
     if (a.serial === b.serial) return { ok: false, reason: '自己不能和自己對接' };
-    var ra = version(a, atUs).rules, rb = version(b, atUs).rules;
-    if (ra.mustAcceptVillage && !accepted(state, b.serial, a.serial)) return { ok: false, reason: abbrev(b.serial) + ' 還沒接受 ' + abbrev(a.serial) + ' 的村規' };
-    if (rb.mustAcceptVillage && !accepted(state, a.serial, b.serial)) return { ok: false, reason: abbrev(a.serial) + ' 還沒接受 ' + abbrev(b.serial) + ' 的村規' };
-    var pa = passes(state, a, b, atUs), pb = passes(state, b, a, atUs);   // pa：b 通 a 的條件
+    var ra = version(a, ruleUs).rules, rb = version(b, ruleUs).rules;
+    if (ra.mustAcceptVillage && !accepted(state, b.serial, a.serial, ra.village)) return { ok: false, reason: abbrev(b.serial) + ' 還沒接受 ' + abbrev(a.serial) + ' 的村規' + (acceptedAny(state, b.serial, a.serial) ? '（接受的是舊版）' : '') };
+    if (rb.mustAcceptVillage && !accepted(state, a.serial, b.serial, rb.village)) return { ok: false, reason: abbrev(a.serial) + ' 還沒接受 ' + abbrev(b.serial) + ' 的村規' + (acceptedAny(state, a.serial, b.serial) ? '（接受的是舊版）' : '') };
+    var pa = passes(state, a, b, atUs, ruleUs), pb = passes(state, b, a, atUs, ruleUs);   // pa：b 通 a 的條件
     if (ra.bothMustPass || rb.bothMustPass) return pa.ok && pb.ok ? { ok: true, how: '兩方都通' } : { ok: false, reason: '要求兩方都通，' + (!pa.ok ? abbrev(b.serial) + ' 不通 ' + abbrev(a.serial) + ' 的條件（' + pa.failed.join('；') + '）' : abbrev(a.serial) + ' 不通 ' + abbrev(b.serial) + ' 的條件（' + pb.failed.join('；') + '）') };
     if (pa.ok || pb.ok) return { ok: true, how: pa.ok && pb.ok ? '兩方都通' : pa.ok ? abbrev(b.serial) + ' 通 ' + abbrev(a.serial) + ' 的條件' : abbrev(a.serial) + ' 通 ' + abbrev(b.serial) + ' 的條件' };
     return { ok: false, reason: '兩邊都不通：' + pa.failed.concat(pb.failed).join('；') };
@@ -359,7 +367,7 @@ var CORE = (function () {
     var r = need(state, serial);
     if (!(atUs > (now || nowUs()))) bad('對接時段要在未來');
     var cap = Math.floor(+capacity); if (!(cap >= 1)) bad('名額要至少 1');
-    var s = { id: newId('slot'), atUs: atUs, capacity: cap, bookings: [], docked: [], missed: [], wants: {}, maxGive: {}, judged: false };
+    var s = { id: newId('slot'), atUs: atUs, capacity: cap, bookings: [], bookedAt: {}, docked: [], missed: [], wants: {}, maxGive: {}, judged: false };
     if (maxGive != null && maxGive !== '') setMaxGive(state, s, serial, maxGive);
     r.slots.push(s);
     return s;
@@ -375,9 +383,10 @@ var CORE = (function () {
     if (x.slot.bookings.length >= x.slot.capacity) bad('名額滿了');
     var e = eligible(state, x.owner, visitor, atUs); if (!e.ok) bad('條件不通，不能預約：' + e.reason);
     x.slot.bookings.push(visitorSerial);
+    x.slot.bookedAt = x.slot.bookedAt || {}; x.slot.bookedAt[visitorSerial] = atUs;   // 預約那一刻：那一微秒照這時候的規則表判
     return x.slot;
   }
-  function cancelBooking(state, visitorSerial, slotId) { var x = slotOf(state, slotId); if (!x) bad('沒有這個時段'); if (x.slot.judged) bad('那一微秒已經過了'); x.slot.bookings = x.slot.bookings.filter(function (s) { return s !== visitorSerial; }); delete x.slot.wants[visitorSerial]; }
+  function cancelBooking(state, visitorSerial, slotId) { var x = slotOf(state, slotId); if (!x) bad('沒有這個時段'); if (x.slot.judged) bad('那一微秒已經過了'); x.slot.bookings = x.slot.bookings.filter(function (s) { return s !== visitorSerial; }); delete x.slot.wants[visitorSerial]; if (x.slot.bookedAt) delete x.slot.bookedAt[visitorSerial]; }
   // 那一微秒之前：同一個時段的人對其他每個人選「我要他的哪些東西」，可以改到那一微秒；設「每人最多給多少點」
   function setWants(state, slotId, me, other, resourceIds) {
     var x = slotOf(state, slotId); if (!x) bad('沒有這個時段');
@@ -426,9 +435,16 @@ var CORE = (function () {
     if (short.length) return { ok: false, points: 0, items: [], reason: g.name + ' 的貨不夠：' + short.map(function (id) { var x = resourceOf(v, id); return '「' + (x ? x.name : id) + '」可換 ' + stockOf(g, id).avail + ' 份，要 ' + count[id]; }).join('、'), note: note };
     return { ok: true, points: total, items: ids.map(function (id) { var x = resourceOf(v, id); return { id: id, name: x.name, price: x.price, keepDays: x.keepDays }; }), reason: null, note: note };
   }
+  // 這一對用哪一刻的規則表：主人和預約的人之間＝預約那一刻；兩個預約的人之間＝比較晚預約的那一刻
+  function ruleTime(state, slot, a, b, atUs) {
+    var owner = slotOf(state, slot.id).owner.serial, at = slot.bookedAt || {};
+    var ta = a === owner ? null : at[a], tb = b === owner ? null : at[b];
+    var t = Math.max(ta == null ? -Infinity : ta, tb == null ? -Infinity : tb);
+    return isFinite(t) ? t : atUs;
+  }
   function dockPair(state, slot, a, b, atUs) {
-    var ra = need(state, a), rb = need(state, b), e = eligible(state, ra, rb, atUs);
-    var d = { id: newId('dk'), slot: slot.id, atUs: atUs, a: a, b: b, how: e.ok ? e.how : null, ok: e.ok, reason: e.ok ? null : e.reason, gaveA: 0, gaveB: 0, itemsA: [], itemsB: [], failA: null, failB: null, noteA: null, noteB: null, verA: version(ra, atUs).id, verB: version(rb, atUs).id };
+    var ra = need(state, a), rb = need(state, b), ruleUs = ruleTime(state, slot, a, b, atUs), e = eligible(state, ra, rb, atUs, ruleUs);
+    var d = { id: newId('dk'), slot: slot.id, atUs: atUs, a: a, b: b, how: e.ok ? e.how : null, ok: e.ok, reason: e.ok ? null : e.reason, gaveA: 0, gaveB: 0, itemsA: [], itemsB: [], failA: null, failB: null, noteA: null, noteB: null, ruleUs: ruleUs, verA: version(ra, ruleUs).id, verB: version(rb, ruleUs).id };
     if (e.ok) {
       var ab = settleDirection(state, slot, a, b, atUs), ba = settleDirection(state, slot, b, a, atUs);
       if (ab.ok) { d.gaveA = ab.points; d.itemsA = ab.items; } else d.failA = ab.reason;
@@ -567,7 +583,8 @@ var CORE = (function () {
       serial: r.serial, name: str(r.name, LIMITS.name, '名字'), contact: str(r.contact || '', LIMITS.text, '聯絡方式'),
       versions: list(r.versions, 4000, '版本').map(cleanVersion), stock: stock,
       slots: list(r.slots || [], 200, '時段').map(function (s) { obj(s, '時段'); var wants = {}; Object.keys(s.wants || {}).forEach(function (a) { wants[str(a, 11, '選')] = {}; Object.keys(s.wants[a]).forEach(function (b) { wants[a][str(b, 11, '選')] = list(s.wants[a][b], 200, '選').map(function (id) { return ident(id, '選'); }); }); }); var mg = {}; Object.keys(s.maxGive || {}).forEach(function (a) { mg[str(a, 11, '最多給')] = num(s.maxGive[a], '最多給'); });
-        return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), bookings: list(s.bookings || [], 200, '預約').map(ser('預約')), docked: list(s.docked || [], 200, '對接').map(ser('對接')), missed: list(s.missed || [], 200, '錯過').map(ser('錯過')), wants: wants, maxGive: mg, judged: !!s.judged }; }),
+        var ba = {}; Object.keys(s.bookedAt || {}).forEach(function (k) { ba[str(k, 11, '預約時間')] = num(s.bookedAt[k], '預約時間'); });
+        return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), bookings: list(s.bookings || [], 200, '預約').map(ser('預約')), bookedAt: ba, docked: list(s.docked || [], 200, '對接').map(ser('對接')), missed: list(s.missed || [], 200, '錯過').map(ser('錯過')), wants: wants, maxGive: mg, judged: !!s.judged }; }),
       world: cleanWorld(r.world)
     };
   }
@@ -611,7 +628,7 @@ var CORE = (function () {
     fmtUs: fmtUs, nowUs: nowUs, dayOf: dayOf, dayNum: dayNum, dayLabel: dayLabel, DAY_US: DAY_US, newId: newId, DEFAULT_DAILY: DEFAULT_DAILY,
     version: version, pending: pending, tomorrow: tomorrow, dropPending: dropPending, resourceOf: resourceOf, resourceName: resourceName, setDailyPoints: setDailyPoints, setRules: setRules, addResource: addResource, setResource: setResource, removeResource: removeResource, cleanRules: cleanRules,
     dailyPoints: dailyPoints, givenToday: givenToday, remainingToday: remainingToday, stockOf: stockOf, restock: restock, availTotal: availTotal,
-    COND_FIELDS: COND_FIELDS, OPS: OPS, condText: condText, passes: passes, eligible: eligible, accepted: accepted, accept: accept,
+    COND_FIELDS: COND_FIELDS, OPS: OPS, condText: condText, passes: passes, eligible: eligible, accepted: accepted, acceptedAny: acceptedAny, accept: accept, acceptState: acceptState, villageChanges: villageChanges, ruleTime: ruleTime,
     createRole: createRole, quit: quit, quitBlockers: quitBlockers,
     canVisit: canVisit, canCome: canCome, searchResources: searchResources, nextSlot: nextSlot, dockCount: dockCount, ratio: ratio,
     addSlot: addSlot, slotOf: slotOf, participants: participants, book: book, cancelBooking: cancelBooking, setWants: setWants, wantsOf: wantsOf, wantsValid: wantsValid, wantsGone: wantsGone, goneText: goneText, wantTotal: wantTotal, setMaxGive: setMaxGive, maxGiveOf: maxGiveOf, contactVisible: contactVisible,
