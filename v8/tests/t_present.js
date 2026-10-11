@@ -92,6 +92,18 @@ var SLOT = function (sec, wants, res) { return "(function(){var S=APP.state(),t=
   await pg.mouse.move(ob.x, ob.y); await pg.mouse.wheel(0, 2000); await pg.waitForTimeout(300);
   await H.pick('返回'); assert((await H.dlgTitle()).indexOf('這裡是終點') === 0, '「返回」也點得到');
   await H.ev("GAME.dialog(null)");
+  // 8a. 阿澄有 10 樣東西：「我要 阿澄 的什麼？」滑到最後一樣連按兩次＋，第二次不用再滑就打得到，選了 2 份（重畫時捲動位置留在原地）
+  await H.ev("(function(){var S=APP.state(),r=S.roles[1],v=CORE.version(r,APP.now());for(var i=0;i<7;i++){var id='rx'+i;v.resources.push({id:id,name:'東西'+(i+4),def:'',price:5,keepDays:null});r.stock[id]={avail:3,reserved:0};}APP.changed();})()");
+  await H.goNear('goal'); await H.pick('時刻表');
+  await H.finger("function(){ return [...document.querySelectorAll('#dlgOpts button')].find(function (b) { return b.textContent.indexOf('已預約：選我要的') > 0; }); }", '已預約的時段');
+  assert((await H.dlgTitle()).indexOf('我要 阿澄 的什麼') === 0 && (await H.ev("document.querySelectorAll('[data-want-add]').length")) === 10, '阿澄有 10 樣東西');
+  var bb = await H.ev("(function(){var b=document.getElementById('dlgBody').getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2};})()");
+  await pg.mouse.move(bb.x, bb.y); await pg.mouse.wheel(0, 3000); await pg.waitForTimeout(300);
+  var LAST = "function(){ return document.querySelector('[data-want-add=\"rx6\"]'); }";
+  assert(await H.hitNoScroll(LAST), '滑到最後一樣，＋打得到'); await H.finger(LAST, '最後一樣的＋'); await pg.waitForTimeout(250);
+  assert(await H.hitNoScroll(LAST), '按了一次＋，清單沒跳回最上面，第二次不用再滑就打得到'); await H.finger(LAST, '最後一樣的＋'); await pg.waitForTimeout(250);
+  assert((await pg.textContent('#wn_rx6')) === '2', '選了 2 份');
+  await H.pick('存好'); await H.ev("GAME.dialog(null)");
   // 8b. 三個人的時段：交換對話框更高，確定、取消到場一樣不用滑就打得到（先把剛才預約的那兩個取消，讓這個變成最近的）
   await H.ev("(function(){var S=APP.state();S.roles[1].slots.filter(function(s){return !s.judged&&s.bookings.indexOf('" + J1 + "')>=0;}).forEach(function(s){CORE.cancelBooking(S,'" + J1 + "',s.id);});APP.changed();})()");
   await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+30e6,2,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.accept(S,'" + J2 + "','00000000003',t);CORE.book(S,'00000000003',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2b']);APP.changed();})()");
