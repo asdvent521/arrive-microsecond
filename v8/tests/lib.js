@@ -93,6 +93,9 @@ async function open(pagePath, opts) {
       if (r.err) throw new Error('手指按不到 ' + what + '：' + r.err);
       await pg.mouse.click(r.x, r.y); await pg.waitForTimeout(200);
     },
+    // 不用滑就打得到：元素中心在畫面裡，而且 elementFromPoint 打到的就是它（不捲動）
+    hitNoScroll: function (finder) { return pg.evaluate(function (f) { var el = (new Function('return (' + f + ')()'))(); if (!el) return false; var b = el.getBoundingClientRect(); if (b.width === 0 || b.top < 0 || b.bottom > innerHeight) return false; var h = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return !!h && (h === el || el.contains(h)); }, finder); },
+    optNoScroll: function (label) { return H.hitNoScroll("function(){ return [...document.querySelectorAll('#dlgOpts button')].find(function (x) { return x.textContent.indexOf(" + JSON.stringify(label) + ") === 0; }); }"); },
     pick: async function (label) {                       // 按對話框裡以 label 開頭的選項
       var has = await pg.evaluate(function (l) { return [...document.querySelectorAll('#dlgOpts button')].some(function (x) { return x.textContent.indexOf(l) === 0; }); }, label);
       if (!has) throw new Error('對話框沒有選項「' + label + '」，現有：' + (await H.opts()).join('/'));

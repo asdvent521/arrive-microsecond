@@ -65,7 +65,9 @@ var SLOT = function (sec, wants, res) { return "(function(){var S=APP.state(),t=
   // 7. 站著按「取消到場」，一直站著也不會又被確認，時間到記錯過
   var s7 = await H.ev(SLOT(20, true, 'r2b'));
   await pg.waitForFunction("document.getElementById('dlgTitle').textContent.indexOf('交換') === 0", null, { timeout: 12000 });
-  assert((await H.dlgBody()).indexOf('到場：已確認') >= 0, '交換對話框寫已確認'); await H.pick('取消到場'); await pg.waitForTimeout(600);
+  assert((await H.dlgBody()).indexOf('到場：已確認') >= 0, '交換對話框寫已確認');
+  await pg.waitForTimeout(400);   // 等對話框升完
+  assert((await H.optNoScroll('確定')) && (await H.optNoScroll('取消到場')), '交換對話框一打開，確定、取消到場不用滑就打得到 ' + (await H.ev("(function(){var r=function(e){var b=e.getBoundingClientRect();return [Math.round(b.top),Math.round(b.bottom)];};return JSON.stringify({win:innerHeight,dlg:r(document.getElementById('dlg')),opts:r(document.getElementById('dlgOpts')),btns:[...document.querySelectorAll('#dlgOpts button')].map(function(b){var x=b.getBoundingClientRect();var h=document.elementFromPoint(x.left+x.width/2,x.top+x.height/2);return [b.textContent,r(b),h?h.tagName+'#'+h.id+'.'+h.className:null];})});})()"))); await H.pick('取消到場'); await pg.waitForTimeout(600);
   assert((await H.dlgBody()).indexOf('到場：還沒確認') >= 0 && (await H.ev("CORE.isPresent(APP.state(),'" + J1 + "','" + s7 + "')")) === false, '站著按取消到場：還是沒確認');
   await pg.waitForFunction("CORE.slotOf(APP.state(),'" + s7 + "').slot.judged", null, { timeout: 30000 }); await pg.waitForTimeout(300);
   assert((await H.ev("CORE.slotOf(APP.state(),'" + s7 + "').slot.missed.indexOf('" + J1 + "')")) >= 0, '一直站著也不會又被確認，時間到記錯過');
@@ -76,14 +78,26 @@ var SLOT = function (sec, wants, res) { return "(function(){var S=APP.state(),t=
   var nb = await H.ev("document.querySelectorAll('#dlgOpts button').length"); assert(nb >= 8, '時刻表有 ' + nb + ' 顆按鈕');
   var box = await H.ev("(function(){var b=document.getElementById('dlg').getBoundingClientRect();return {top:b.top,bottom:b.bottom,win:innerHeight,h:b.height};})()");
   assert(box.h <= box.win * 0.4 + 1, '對話框還是不超過 40%');
-  await pg.mouse.move(180, box.top + 40); await pg.mouse.wheel(0, 2000); await pg.waitForTimeout(400);
+  var ob = await H.ev("(function(){var b=document.getElementById('dlgOpts').getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2};})()");
+  await pg.mouse.move(ob.x, ob.y); await pg.mouse.wheel(0, 2000); await pg.waitForTimeout(400);
   var lastBook = await H.ev("(function(){var bs=[...document.querySelectorAll('#dlgOpts button')].filter(function(b){return b.textContent.indexOf('　預約')>0;});var b=bs[bs.length-1].getBoundingClientRect();var h=document.elementFromPoint(b.left+b.width/2,b.top+b.height/2);return {inWin:b.bottom<=innerHeight&&b.top>=0,hit:h===bs[bs.length-1]||bs[bs.length-1].contains(h)};})()");
   assert(lastBook.inWin && lastBook.hit, '滑到最下面，最後一個「預約」在畫面裡、手指打得到');
   await H.finger("function(){ return [...document.querySelectorAll('#dlgOpts button')].filter(function (b) { return b.textContent.indexOf('　預約') > 0; }).slice(-1)[0]; }", '最後一個預約');
-  assert((await H.dlgTitle()).indexOf('我要 阿澄 的什麼') === 0, '點了最後一個「預約」'); await H.pick('存好');
-  await pg.mouse.move(180, box.top + 40); await pg.mouse.wheel(0, 2000); await pg.waitForTimeout(300);
+  assert((await H.dlgTitle()).indexOf('我要 阿澄 的什麼') === 0, '點了最後一個「預約」');
+  var top8 = await H.ev("(function(){var d=document.getElementById('dlg'),h=d.querySelector('h3').getBoundingClientRect();return {st:d.scrollTop+document.getElementById('dlgBody').scrollTop+document.getElementById('dlgOpts').scrollTop,titleIn:h.top>=d.getBoundingClientRect().top-1&&h.bottom<=innerHeight};})()");
+  assert(top8.st === 0 && top8.titleIn, '時刻表滑到下面再點時段：新對話框從最上面開始，標題看得到');
+  assert((await H.optNoScroll('存好')) && (await H.optNoScroll('返回')), '「我要 阿澄 的什麼？」一打開，存好、返回不用滑就打得到');
+  await H.pick('存好');
+  ob = await H.ev("(function(){var b=document.getElementById('dlgOpts').getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2};})()");
+  await pg.mouse.move(ob.x, ob.y); await pg.mouse.wheel(0, 2000); await pg.waitForTimeout(300);
   await H.pick('返回'); assert((await H.dlgTitle()).indexOf('這裡是終點') === 0, '「返回」也點得到');
   await H.ev("GAME.dialog(null)");
+  // 8b. 三個人的時段：交換對話框更高，確定、取消到場一樣不用滑就打得到（先把剛才預約的那兩個取消，讓這個變成最近的）
+  await H.ev("(function(){var S=APP.state();S.roles[1].slots.filter(function(s){return !s.judged&&s.bookings.indexOf('" + J1 + "')>=0;}).forEach(function(s){CORE.cancelBooking(S,'" + J1 + "',s.id);});APP.changed();})()");
+  await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+30e6,2,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.accept(S,'" + J2 + "','00000000003',t);CORE.book(S,'00000000003',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2b']);APP.changed();})()");
+  await pg.waitForFunction("document.getElementById('dlgTitle').textContent.indexOf('交換') === 0", null, { timeout: 12000 }); await pg.waitForTimeout(400);
+  assert((await H.dlgBody()).indexOf('小樂') >= 0 && (await H.optNoScroll('確定')) && (await H.optNoScroll('取消到場')), '三個人的交換對話框：確定、取消到場不用滑就打得到');
+  await H.ev("GAME.dialog(null)"); await H.ev("(function(){var S=APP.state();S.roles[1].slots.filter(function(s){return !s.judged&&s.capacity===2;}).forEach(function(s){CORE.cancelBooking(S,'" + J1 + "',s.id);});APP.changed();})()");
   // 9. 表世界：確認了，停住頁面再打開，訊息是「你不在的時候：…」且不被「錯過」那句蓋掉
   await pg.click('#btnHome'); await pg.waitForTimeout(300); await H.toSheet();
   var s9 = await H.ev(SLOT(6, true, 'r2b')); await H.sheet('booked'); await H.edit('input[data-ed="present"][data-id="' + s9 + '"]', null, true);

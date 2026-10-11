@@ -30,6 +30,7 @@ var GAME = (function () {
     $('dlgBody').innerHTML = d.body || '';
     $('dlgOpts').innerHTML = (d.opts || []).map(function (o, i) { return '<button type="button" class="btn' + (o.pri ? ' pri' : '') + (o.warn ? ' warn' : '') + '" data-opt="' + i + '">' + esc(o.label) + '</button>'; }).join('') + (dlgStack.length > 1 ? '<button type="button" class="btn" data-opt="back">返回</button>' : '');
     $('dlg').classList.add('open'); placeToast();
+    $('dlg').scrollTop = 0; $('dlgBody').scrollTop = 0; $('dlgOpts').scrollTop = 0; window.scrollTo(0, 0); $('view-game').scrollTop = 0;   // 新的對話框從最上面開始，不停在上一個捲到的位置
     if (d.after) d.after();
   }
   $('dlgOpts').addEventListener('click', function (e) {

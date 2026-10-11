@@ -71,6 +71,7 @@ var shorten = function (H, id) { return H.ev("(function(){var S=APP.state(),x=CO
   await H.click('[data-want-add="r2a"]'); await H.ev("(function(){var S=APP.state(),s=S.roles[1].slots.find(function(x){return x.together&&!x.judged;});CORE.setWants(S,s.id,'" + J2 + "','" + J1 + "',['r1b']);APP.changed();})()"); await H.pick('存好');
   await pg.waitForFunction("document.getElementById('dlgTitle').textContent.indexOf('交換') === 0", null, { timeout: 12000 });
   assert((await H.dlgTitle()).indexOf('【一起成交】') > 0 && (await H.dlgBody()).indexOf('都選好了') >= 0, '交換對話框標一起成交、都選好了');
+  await pg.waitForTimeout(400); assert((await H.optNoScroll('確定')) && (await H.optNoScroll('取消到場')), '一起成交的交換對話框：確定、取消到場不用滑就打得到');
   await H.pick('確定');
   await pg.waitForFunction("document.getElementById('dlgTitle').textContent === '到達那微秒'", null, { timeout: 30000 });
   assert((await H.dlgBody()).indexOf('我拿出：早餐一頓（100 點）；拿到：阿澄的改履歷（100 點）') >= 0 && (await H.ev("APP.state().holds.length")) === 2, '兩個人的一起成交時段成交'); await H.pick('好');
