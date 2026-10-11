@@ -12,6 +12,12 @@ var shorten = function (H, id) { return H.ev("(function(){var S=APP.state(),x=CO
   // 1. 開一個勾了一起成交的時段；J1、J2 接受 J3 的村規
   var slotId = await openTogether();
   assert((await H.ev("document.querySelector('tr[data-id=\"" + slotId + "\"]').textContent")).indexOf('一起成交') >= 0 && (await H.ev("CORE.slotOf(APP.state(),'" + slotId + "').slot.together")) === true, '表世界開時段勾「一起成交」，我開的時段標出來');
+  assert((await H.ev("document.querySelector('tr[data-id=\"" + slotId + "\"]').textContent")).indexOf('還沒有人選東西') >= 0, '還沒有人選東西時不寫「都選好了」');
+  // 手機寬度、有一起成交的時段時：第一欄不變寬，開時段、一起成交的勾選框、＋ 整顆都按得到
+  var fz = await H.ev("(function(){var td=document.querySelector('#smain td.fz');return {w:td.getBoundingClientRect().width,win:innerWidth};})()");
+  assert(fz.w < fz.win * 0.72, '第一欄沒有因為一起成交變寬：' + Math.round(fz.w) + ' / ' + fz.win);
+  var whole = async function (sel, what) { var r = await H.ev("(function(){var el=document.querySelector(" + JSON.stringify(sel) + ");el.scrollIntoView({block:'center',inline:'center'});var b=el.getBoundingClientRect();var main=el.closest('#smain'),fz=main.querySelector('td.fz, th.fz');var fw=fz?fz.getBoundingClientRect().right:main.getBoundingClientRect().left;if(b.left<fw+4){main.scrollLeft+=b.left-fw-12;b=el.getBoundingClientRect();}var pts=[[b.left+2,b.top+2],[b.right-2,b.top+2],[b.left+2,b.bottom-2],[b.right-2,b.bottom-2],[(b.left+b.right)/2,(b.top+b.bottom)/2]];return pts.every(function(p){var h=document.elementFromPoint(p[0],p[1]);return h&&(h===el||el.contains(h));});})()"); assert(r, what + ' 整顆都按得到'); };
+  await whole('[data-act="addSlot"]', '「開時段」'); await whole('#addSlotTogether', '一起成交的勾選框'); await whole('#smain tr.addrow td.rn', '「＋」');
   await H.sheet('switches', J3 + ':'); await H.click('[data-act="accept"][data-id="' + J3 + '"]');
   // J2：接受村規、預約（預約前看得到標示）、選 J1 的早餐、勾到場
   await becomeMe(J2); await H.sheet('switches', J3 + ':'); await H.click('[data-act="accept"][data-id="' + J3 + '"]');
@@ -52,7 +58,7 @@ var shorten = function (H, id) { return H.ev("(function(){var S=APP.state(),x=CO
   // 4. 在終點台開一個勾了一起成交的時段、我開的時段看得到標示、刪得掉
   await H.goNear('goal'); await H.pick('開時段'); await H.setIn('gSlotMin', 5); await H.edit('#gSlotTogether', null, true); await H.pick('開');
   assert((await H.ev("APP.me().slots.filter(function(s){return s.together;}).length")) === 2 - 1, '裡世界開時段勾「一起成交」');
-  await H.goNear('goal'); await H.pick('看預約、選我要的'); assert((await H.dlgBody()).indexOf('【一起成交】') >= 0, '我開的時段標【一起成交】');
+  await H.goNear('goal'); await H.pick('看預約、選我要的'); assert((await H.dlgBody()).indexOf('【一起成交】') >= 0 && (await H.dlgBody()).indexOf('還沒有人選東西') >= 0, '我開的時段標【一起成交】、還沒有人選東西');
   var ns = await H.ev("APP.me().slots.length");
   await H.finger("function(){ return [...document.querySelectorAll('#dlgOpts button')].filter(function (b) { return b.textContent.indexOf('刪 ') === 0; }).slice(-1)[0]; }", '刪時段');
   assert((await H.ev("APP.me().slots.length")) === ns - 1 && (await H.ev("APP.me().slots.filter(function(s){return s.together;}).length")) === 0, '裡世界刪掉沒人預約的時段');

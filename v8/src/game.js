@@ -220,8 +220,8 @@ var GAME = (function () {
   function mySlots() {
     var m = me(), opts = [], lines = [];
     m.slots.slice().sort(function (a, b) { return a.atUs - b.atUs; }).forEach(function (s) {
-      var miss = s.together && !s.judged ? CORE.togetherMissing(S(), s) : [];
-      lines.push('・' + CORE.fmtUs(s.atUs).slice(5, 19) + '　' + s.bookings.length + '/' + s.capacity + (s.together ? '　【一起成交】' : '') + '　每人最多給 ' + (s.maxGive[m.serial] != null ? s.maxGive[m.serial] : '當天剩下的') + (s.bookings.length ? '　預約：' + s.bookings.map(function (b) { var rb = APP.roleOf(b); return (rb ? rb.name : b) + (s.docked.indexOf(b) >= 0 ? '（已對接）' : CORE.missed(s, b) ? '（錯過）' : '，他要我的 ' + CORE.wantTotal(S(), s, b, m.serial) + ' 點，我要他的 ' + CORE.wantTotal(S(), s, m.serial, b) + ' 點'); }).join('、') : '') + (miss.length ? '\n　一起成交：' + miss.join('；') : ''));
+      var tg = s.together && !s.judged ? CORE.togetherStatus(S(), s) : '';
+      lines.push('・' + CORE.fmtUs(s.atUs).slice(5, 19) + '　' + s.bookings.length + '/' + s.capacity + (s.together ? '　【一起成交】' : '') + '　每人最多給 ' + (s.maxGive[m.serial] != null ? s.maxGive[m.serial] : '當天剩下的') + (s.bookings.length ? '　預約：' + s.bookings.map(function (b) { var rb = APP.roleOf(b); return (rb ? rb.name : b) + (s.docked.indexOf(b) >= 0 ? '（已對接）' : CORE.missed(s, b) ? '（錯過）' : '，他要我的 ' + CORE.wantTotal(S(), s, b, m.serial) + ' 點，我要他的 ' + CORE.wantTotal(S(), s, m.serial, b) + ' 點'); }).join('、') : '') + (tg ? '\n　' + (tg.indexOf('一起成交：') === 0 ? tg : '一起成交：' + tg) : ''));
       if (!s.judged) s.bookings.forEach(function (b) { var rb = APP.roleOf(b); if (rb) opts.push({ label: CORE.fmtUs(s.atUs).slice(11, 16) + ' 我要 ' + rb.name + ' 的什麼', fn: function () { chooseWants(s, b, function () { dlgStack.pop(); mySlots(); }); } }); });
       if (!s.judged && s.atUs > now() && !s.bookings.length) opts.push({ label: '刪 ' + CORE.fmtUs(s.atUs).slice(11, 16) + ' 的時段', warn: true, fn: function () { act(function () { CORE.deleteSlot(S(), m.serial, s.id, now()); }, '刪了時段'); dlgStack.pop(); mySlots(); } });
     });
@@ -466,7 +466,7 @@ var GAME = (function () {
       var mineSel = CORE.wantsValid(S(), slot, m.serial, p), myNames = mineSel.map(function (id) { var x = CORE.resourceOf(CORE.version(o, slot.atUs), id); return x ? x.name : id; });
       return '<b>' + esc(o.name) + '</b><br>我要他的：' + (mineSel.length ? esc(myNames.join('、')) + '（' + CORE.wantTotal(S(), slot, m.serial, p) + ' 點） <button type="button" class="lk" data-pick="' + p + '">改</button>' : '<button type="button" class="lk" data-pick="' + p + '">還沒選</button><br><span class="small muted">你還沒選他的東西：一換一，兩邊都選了才成交</span>') + (gMine ? '<br><span class="small muted">' + esc(gMine) + '</span>' : '') + '<br>他要我的：' + (theirs.length ? esc(theirs.join('、')) + '（' + CORE.wantTotal(S(), slot, p, m.serial) + ' 點）' : '（沒選）<br><span class="small muted">他還沒選你的東西：一換一，兩邊都選了才成交</span>') + (gTheirs ? '<br><span class="small muted">' + esc(gTheirs) + '</span>' : '') + '<br>'; }).join('');
     var mg = slot.maxGive[m.serial], left = CORE.remainingToday(S(), m, now());
-    if (slot.together) { var miss = CORE.togetherMissing(S(), slot); body += '<b>一起成交</b>：有選東西的每一對都成才全部成交。' + (miss.length ? '<br><span class="small">一起成交：' + esc(miss.join('；')) + '</span>' : '<span class="small muted">都選好了</span>') + '<br>'; }
+    if (slot.together) { var tg = CORE.togetherStatus(S(), slot); body += '<b>一起成交</b>：有選東西的每一對都成才全部成交。<br><span class="small' + (tg.indexOf('一起成交：') === 0 ? '' : ' muted') + '">' + esc(tg) + '</span><br>'; }
     body += '<div class="field">每人最多給 <input type="number" id="maxGive" value="' + (mg != null ? mg : '') + '" placeholder="' + left + '（當天剩下的）" min="0" max="' + left + '"> 點</div>站著等那一微秒，照選好的互換東西。';
     dialog({ title: '交換：' + CORE.fmtUs(slot.atUs).slice(11, 19) + (slot.together ? '【一起成交】' : ''), body: body, opts: [{ label: '確定', pri: true, fn: function () { dialog(null); toast('站著等那一微秒。', true); } }],
       after: function () {

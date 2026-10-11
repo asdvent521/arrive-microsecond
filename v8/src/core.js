@@ -476,6 +476,15 @@ var CORE = (function () {
     state.dockings.push(d);
     return d;
   }
+  // 照判好的結果寫帳：對接紀錄（怎麼通的、各給多少、各拿出什麼、下架沒換到的小字、判定用的版本）、給點、保留
+  function writeDocking(state, slot, a, b, atUs, e, ruleUs, ab, ba) {
+    var ra = need(state, a), rb = need(state, b);
+    var d = { id: newId('dk'), slot: slot.id, atUs: atUs, a: a, b: b, tutorial: a === GUIDE || b === GUIDE, how: e.how, ok: true, traded: true, reason: null, gaveA: ab.points, gaveB: ba.points, itemsA: ab.items, itemsB: ba.items, failA: null, failB: null, noteA: ab.note, noteB: ba.note, ruleUs: ruleUs, verA: version(ra, ruleUs).id, verB: version(rb, ruleUs).id };
+    state.dockings.push(d);
+    ab.items.forEach(function (it) { hold(state, a, b, it, d, atUs); });
+    ba.items.forEach(function (it) { hold(state, b, a, it, d, atUs); });
+    return d;
+  }
   function itemsText(items) { return items.length ? items.map(function (i) { return i.name; }).join('、') : '（沒有）'; }
   function hold(state, issuer, holder, it, d, atUs) {
     var st = stockOf(need(state, issuer), it.id); st.avail -= 1; st.reserved += 1;
@@ -520,6 +529,8 @@ var CORE = (function () {
     });
     return out;
   }
+  // 那一微秒之前一起成交的狀態一句話：還沒有人選東西／還差誰／都選好了
+  function togetherStatus(state, slot) { if (!selectedPairs(state, slot).length) return '還沒有人選東西'; var m = togetherMissing(state, slot); return m.length ? '一起成交：' + m.join('；') : '都選好了'; }
   // 一起成交：有選東西的每一對都要兩個人都到場、條件通、兩邊都選了、兩邊都給得出（同一個人給的點、同一樣東西的份數合起來算），才全部一起成交；
   // 只要有一對不成，整個時段不成交，誰的點都不給、貨都不動。兩邊都沒選的那一對照舊記「兩邊都沒選」，不影響
   function judgeTogether(state, owner, s, present, atUs, out) {
@@ -535,7 +546,7 @@ var CORE = (function () {
         var ab = settleDirection(state, s, a, b, atUs), ba = settleDirection(state, s, b, a, atUs);
         if (!ab.selected || !ba.selected) { fails.push(who + ' 不成（' + (!ab.selected ? ab.reason : ba.reason) + '）'); return; }
         if (!ab.ok || !ba.ok) { fails.push(who + ' 不成（' + (!ab.ok ? ab.reason : ba.reason) + '）'); return; }
-        plan.push({ a: a, b: b, ab: ab, ba: ba });
+        plan.push({ a: a, b: b, e: e, ruleUs: ruleUs, ab: ab, ba: ba });
         [[a, ab], [b, ba]].forEach(function (x) { var g = x[0], r = x[1]; give[g] = (give[g] || 0) + r.points; need2[g] = need2[g] || {}; r.items.forEach(function (it) { need2[g][it.id] = (need2[g][it.id] || 0) + 1; }); });
       } catch (err) { fails.push(who + ' 不成（判定出錯：' + err.message + '）'); }
     });
@@ -554,7 +565,10 @@ var CORE = (function () {
         var ra = roleOf(state, p[0]), rb = roleOf(state, p[1]), ruleUs = ruleTime(state, s, p[0], p[1], atUs);
         d = { id: newId('dk'), slot: s.id, atUs: atUs, a: p[0], b: p[1], together: true, tutorial: p[0] === GUIDE || p[1] === GUIDE, how: null, ok: true, traded: false, reason: reason, gaveA: 0, gaveB: 0, itemsA: [], itemsB: [], failA: null, failB: null, noteA: null, noteB: null, ruleUs: ruleUs, verA: ra ? version(ra, ruleUs).id : null, verB: rb ? version(rb, ruleUs).id : null };
         state.dockings.push(d);
-      } else { d = dockPair(state, s, p[0], p[1], atUs); d.together = true; }
+      } else {   // 全部都成：照判好的結果直接寫帳，不再重判（寫完前幾對的帳，事實會變）
+        var q = plan.find(function (x) { return x.a === p[0] && x.b === p[1]; });
+        d = writeDocking(state, s, q.a, q.b, atUs, q.e, q.ruleUs, q.ab, q.ba); d.together = true;
+      }
       state.records.push({ kind: d.traded ? 'dock' : 'nodock', tutorial: d.tutorial, at: atUs, text: dockText(state, d, atUs) });
       out.push({ slot: s, owner: owner, docking: d });
     });
@@ -733,7 +747,7 @@ var CORE = (function () {
   return {
     abbrev: abbrev, expand: expand, digitsAfter: digitsAfter, Decoder: Decoder, route: route,
     FUNCS: FUNCS, SHAPES: SHAPES, LOOKS: LOOKS, look: look, radiusOf: radiusOf, VIS: VIS, allObjects: allObjects, findObject: findObject, cleanWorld: cleanWorld, cleanRole: cleanRole, tryClean: tryClean,
-    fmtUs: fmtUs, nowUs: nowUs, untilText: untilText, deleteSlot: deleteSlot, togetherMissing: togetherMissing, selectedPairs: selectedPairs, BLANK: BLANK, dayOf: dayOf, dayNum: dayNum, dayLabel: dayLabel, DAY_US: DAY_US, newId: newId, DEFAULT_DAILY: DEFAULT_DAILY,
+    fmtUs: fmtUs, nowUs: nowUs, untilText: untilText, deleteSlot: deleteSlot, togetherMissing: togetherMissing, togetherStatus: togetherStatus, selectedPairs: selectedPairs, BLANK: BLANK, dayOf: dayOf, dayNum: dayNum, dayLabel: dayLabel, DAY_US: DAY_US, newId: newId, DEFAULT_DAILY: DEFAULT_DAILY,
     version: version, pending: pending, tomorrow: tomorrow, dropPending: dropPending, resourceOf: resourceOf, resourceName: resourceName, setDailyPoints: setDailyPoints, setRules: setRules, addResource: addResource, setResource: setResource, removeResource: removeResource, cleanRules: cleanRules,
     dailyPoints: dailyPoints, givenToday: givenToday, remainingToday: remainingToday, stockOf: stockOf, restock: restock, availTotal: availTotal,
     COND_FIELDS: COND_FIELDS, OPS: OPS, condText: condText, passes: passes, eligible: eligible, accepted: accepted, acceptedAny: acceptedAny, accept: accept, acceptState: acceptState, villageChanges: villageChanges, ruleTime: ruleTime,

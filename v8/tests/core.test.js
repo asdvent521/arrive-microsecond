@@ -393,6 +393,24 @@ ok('一起成交：三個人湊一圈（三對都兩邊都選了），全部成�
   assert.strictEqual(s.holds.length, 6); assert.strictEqual(C.dockCount(s, J1), 2); assert.strictEqual(C.dockCount(s, J3), 2);
   assert.strictEqual(C.remainingToday(s, s.roles[0], T0 + 61e6), 900, '甲給了兩杯茶 100 點');
 });
+ok('一起成交：判定照那一微秒還沒寫帳時的事實，寫帳不再重判（條件用到可換的貨、對接過幾次時，前一對寫完帳不會害後一對不通）', function () {
+  // 例 1：丙要求兩方都通、對方可換的貨 ≥ 5；乙的貨剛好 5 份（一首歌 2、空的 3）。甲↔乙先寫帳乙的空的少 1 份，不能害乙↔丙不通
+  var s = base(), v3 = C.tomorrow(s, J3, T0 - DAY); v3.rules.conditions.push({ field: 'avail', op: '>=', value: 5 }); v3.rules.bothMustPass = true;
+  s.roles[1].stock.e2.avail = 3;
+  var slot = circle(s, true); C.judge(s, T0 + 60e6, {});
+  assert.ok(s.dockings.length === 3 && s.dockings.every(function (d) { return d.traded; }), s.dockings.map(function (d) { return d.reason; }).join(' | '));
+  assert.strictEqual(s.holds.length, 6); [J1, J2, J3].forEach(function (x) { assert.strictEqual(C.dockCount(s, x), 2); });
+  var d23 = s.dockings.find(function (d) { return d.a === J2 && d.b === J3; });
+  assert.ok(d23.how && d23.gaveA === 200 && d23.gaveB === 10 && d23.itemsA[0].name === '一首歌' && d23.itemsB[0].name === '借書' && d23.verA === s.roles[1].versions[0].id && d23.verB === v3.id, '對接紀錄跟原本一樣：怎麼通的、各給多少、各拿出什麼、判定用的版本');
+  // 例 2：條件換成「對方對接過幾次 ≤ 0」
+  var s2 = base(), w3 = C.tomorrow(s2, J3, T0 - DAY); w3.rules.conditions.push({ field: 'dockCount', op: '<=', value: 0 }); w3.rules.bothMustPass = true;
+  circle(s2, true); C.judge(s2, T0 + 60e6, {});
+  assert.ok(s2.dockings.length === 3 && s2.dockings.every(function (d) { return d.traded; }), s2.dockings.map(function (d) { return d.reason; }).join(' | '));
+  assert.strictEqual(s2.holds.length, 6); [J1, J2, J3].forEach(function (x) { assert.strictEqual(C.dockCount(s2, x), 2); });
+  // 還沒有人選東西／都選好了
+  var s3 = base(), sl = C.addSlot(s3, J1, T0 + 60e6, 5, null, T0, true); C.book(s3, J2, sl.id, T0);
+  assert.strictEqual(C.togetherStatus(s3, sl), '還沒有人選東西'); C.setWants(s3, sl.id, J2, J1, ['y']); assert.strictEqual(C.togetherStatus(s3, sl), '一起成交：還差 甲 選 乙 的東西'); C.setWants(s3, sl.id, J1, J2, ['e2']); assert.strictEqual(C.togetherStatus(s3, sl), '都選好了');
+});
 ok('一起成交：有一對只有一邊選，整個時段不成交，點、貨、保留都沒動，紀錄寫是哪一對', function () {
   var s = base(), slot = circle(s, true); C.setWants(s, slot.id, J3, J2, []); var before = snapshot(s);
   C.judge(s, T0 + 60e6, {});
