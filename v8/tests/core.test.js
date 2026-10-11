@@ -153,9 +153,10 @@ ok('5e. 三個人同一個時段，到場的兩兩成交；沒到場的錯過', 
   // 站在終點上也算到場
   var s3 = base(), slot3 = C.addSlot(s3, J1, T0 + 60e6, 5, null, T0); C.book(s3, J2, slot3.id, T0); C.setWants(s3, slot3.id, J2, J1, ['y']); C.setWants(s3, slot3.id, J1, J2, ['e2']);
   var st = {}; st[J2] = J1; assert.strictEqual(C.judge(s3, T0 + 60e6, st)[0].docking.gaveA, 50);
-  // 判定窗過了沒判：expire 全部算錯過
-  var s4 = base(), slot4 = C.addSlot(s4, J1, T0 + 60e6, 5, null, T0); C.book(s4, J2, slot4.id, T0); C.setPresent(s4, J2, slot4.id, true);
-  C.expire(s4, T0 + 62e6); assert.ok(C.missed(slot4, J2)); assert.strictEqual(C.judge(s4, T0 + 60.5e6, {}).length, 0, '判過就不再判');
+  // 判定窗過了沒判：下次 judge 補判，確認了的照那一微秒成交，沒確認的錯過；expire 只管保留到期
+  var s4 = base(), slot4 = C.addSlot(s4, J1, T0 + 60e6, 5, null, T0); C.book(s4, J2, slot4.id, T0); C.setPresent(s4, J2, slot4.id, true); C.setWants(s4, slot4.id, J2, J1, ['y']); C.setWants(s4, slot4.id, J1, J2, ['e2']);
+  C.expire(s4, T0 + 62e6); assert.ok(!slot4.judged && !C.missed(slot4, J2), 'expire 不再把人算錯過');
+  var late = C.judge(s4, T0 + 3600e6, {}); assert.ok(late.length === 1 && late[0].late && late[0].docking.traded && late[0].docking.atUs === T0 + 60e6, '補判：照那個時段的那一微秒成交'); assert.strictEqual(C.judge(s4, T0 + 3601e6, {}).length, 0, '判過就不再判');
 });
 ok('5f. 判定照原本規則：一方通、兩個開關；不通的一對記下原因', function () {
   var s = base();
@@ -376,6 +377,143 @@ ok('新手教學：示範版沒有「我」（me = -1）、引路人 J4 有一�
   var s2 = fresh(); assert.strictEqual(s2.me, 0); assert.strictEqual(s2.roles[0].serial, J1); assert.strictEqual(s2.roles.length, 4);
   var slot2 = meet(s2, J2, [J1]); C.setWants(s2, slot2.id, J1, J2, ['r2a']); C.setWants(s2, slot2.id, J2, J1, ['r1b']); C.judge(s2, T0 + 60e6, {});
   assert.strictEqual(C.dockCount(s2, J1), 1); assert.ok(!/^（教學）/.test(s2.records[0].text));
+});
+// 一起成交：三個人湊一圈
+function circle(s, together) {
+  var slot = C.addSlot(s, J1, T0 + 60e6, 5, null, T0, together);
+  [J2, J3].forEach(function (v) { C.book(s, v, slot.id, T0); C.setPresent(s, v, slot.id, true); });
+  C.setWants(s, slot.id, J2, J1, ['y']); C.setWants(s, slot.id, J1, J2, ['e2']);   // 甲乙
+  C.setWants(s, slot.id, J3, J1, ['y']); C.setWants(s, slot.id, J1, J3, ['e3']);   // 甲丙
+  C.setWants(s, slot.id, J2, J3, ['q']); C.setWants(s, slot.id, J3, J2, ['p']);    // 乙丙
+  return slot;
+}
+function snapshot(s) { return JSON.stringify({ holds: s.holds.length, stock: s.roles.map(function (r) { return r.stock; }), pts: s.roles.map(function (r) { return C.remainingToday(s, r, T0 + 61e6); }) }); }
+ok('一起成交：三個人湊一圈（三對都兩邊都選了），全部成交；對接過幾次照舊只算成交的', function () {
+  var s = base(), slot = circle(s, true); C.judge(s, T0 + 60e6, {});
+  assert.strictEqual(s.dockings.length, 3); assert.ok(s.dockings.every(function (d) { return d.traded && d.together; }));
+  assert.strictEqual(s.holds.length, 6); assert.strictEqual(C.dockCount(s, J1), 2); assert.strictEqual(C.dockCount(s, J3), 2);
+  assert.strictEqual(C.remainingToday(s, s.roles[0], T0 + 61e6), 900, '甲給了兩杯茶 100 點');
+});
+ok('一起成交：判定照那一微秒還沒寫帳時的事實，寫帳不再重判（條件用到可換的貨、對接過幾次時，前一對寫完帳不會害後一對不通）', function () {
+  // 例 1：丙要求兩方都通、對方可換的貨 ≥ 5；乙的貨剛好 5 份（一首歌 2、空的 3）。甲↔乙先寫帳乙的空的少 1 份，不能害乙↔丙不通
+  var s = base(), v3 = C.tomorrow(s, J3, T0 - DAY); v3.rules.conditions.push({ field: 'avail', op: '>=', value: 5 }); v3.rules.bothMustPass = true;
+  s.roles[1].stock.e2.avail = 3;
+  var slot = circle(s, true); C.judge(s, T0 + 60e6, {});
+  assert.ok(s.dockings.length === 3 && s.dockings.every(function (d) { return d.traded; }), s.dockings.map(function (d) { return d.reason; }).join(' | '));
+  assert.strictEqual(s.holds.length, 6); [J1, J2, J3].forEach(function (x) { assert.strictEqual(C.dockCount(s, x), 2); });
+  var d23 = s.dockings.find(function (d) { return d.a === J2 && d.b === J3; });
+  assert.ok(d23.how && d23.gaveA === 200 && d23.gaveB === 10 && d23.itemsA[0].name === '一首歌' && d23.itemsB[0].name === '借書' && d23.verA === s.roles[1].versions[0].id && d23.verB === v3.id, '對接紀錄跟原本一樣：怎麼通的、各給多少、各拿出什麼、判定用的版本');
+  // 例 2：條件換成「對方對接過幾次 ≤ 0」
+  var s2 = base(), w3 = C.tomorrow(s2, J3, T0 - DAY); w3.rules.conditions.push({ field: 'dockCount', op: '<=', value: 0 }); w3.rules.bothMustPass = true;
+  circle(s2, true); C.judge(s2, T0 + 60e6, {});
+  assert.ok(s2.dockings.length === 3 && s2.dockings.every(function (d) { return d.traded; }), s2.dockings.map(function (d) { return d.reason; }).join(' | '));
+  assert.strictEqual(s2.holds.length, 6); [J1, J2, J3].forEach(function (x) { assert.strictEqual(C.dockCount(s2, x), 2); });
+  // 還沒有人選東西／都選好了
+  var s3 = base(), sl = C.addSlot(s3, J1, T0 + 60e6, 5, null, T0, true); C.book(s3, J2, sl.id, T0);
+  assert.strictEqual(C.togetherStatus(s3, sl), '還沒有人選東西'); C.setWants(s3, sl.id, J2, J1, ['y']); assert.strictEqual(C.togetherStatus(s3, sl), '一起成交：還差 甲 選 乙 的東西'); C.setWants(s3, sl.id, J1, J2, ['e2']); assert.strictEqual(C.togetherStatus(s3, sl), '都選好了');
+});
+ok('一起成交：有一對只有一邊選，整個時段不成交，點、貨、保留都沒動，紀錄寫是哪一對', function () {
+  var s = base(), slot = circle(s, true); C.setWants(s, slot.id, J3, J2, []); var before = snapshot(s);
+  C.judge(s, T0 + 60e6, {});
+  assert.strictEqual(s.dockings.length, 3); assert.ok(s.dockings.every(function (d) { return !d.traded && d.together; }));
+  assert.strictEqual(snapshot(s), before, '誰的點都沒給、貨都不動、沒有保留');
+  assert.strictEqual(s.dockings[0].reason, '一起成交：乙 和 丙 不成（丙 沒選 乙 的東西），整個時段不成交');
+  assert.ok(s.records.filter(function (r) { return r.kind === 'nodock'; }).length === 3 && /乙 和 丙 不成/.test(s.records.find(function (r) { return r.kind === 'nodock'; }).text));
+  assert.strictEqual(C.dockCount(s, J1), 0); assert.strictEqual(C.ratio(s, J1).text, '還沒對接過');
+  assert.ok(slot.judged && slot.docked.length === 2 && slot.missed.length === 0);
+});
+ok('一起成交：有選東西的人沒到場，整個時段不成交；他照舊記錯過', function () {
+  var s = base(), slot = circle(s, true); C.setPresent(s, J3, slot.id, false); var before = snapshot(s);
+  C.judge(s, T0 + 60e6, {});
+  assert.strictEqual(snapshot(s), before); assert.ok(s.dockings.length === 3 && s.dockings.every(function (d) { return !d.traded; }));
+  assert.ok(/甲 和 丙 不成（丙 沒到場）/.test(s.dockings[0].reason) && /乙 和 丙 不成（丙 沒到場）/.test(s.dockings[0].reason), s.dockings[0].reason);
+  assert.deepStrictEqual(slot.missed, [J3]); assert.ok(s.records.some(function (r) { return r.kind === 'miss'; }));
+});
+ok('一起成交：有選東西的一對條件不通，整個時段不成交', function () {
+  var s = base(), v3 = C.tomorrow(s, J3, T0 - DAY); v3.rules.conditions.push({ field: 'avail', op: '>=', value: 20 }); v3.rules.bothMustPass = true;   // 丙要求兩方都通、對方可換 ≥ 20：甲預約時 21 份通
+  var slot = circle(s, true); C.restock(s, J1, 'e1', -5); var before = snapshot(s); C.judge(s, T0 + 60e6, {});   // 那一微秒甲只剩 16 份，不通
+  assert.strictEqual(snapshot(s), before); assert.ok(s.dockings.every(function (d) { return !d.traded; }));
+  assert.ok(/甲 和 丙 不成（/.test(s.dockings[0].reason) && /整個時段不成交$/.test(s.dockings[0].reason), s.dockings[0].reason);
+});
+ok('一起成交：每一對單獨看都給得出、合起來超過當天剩的點或可換的貨，整個時段不成交', function () {
+  var s = base(); s.roles[0].versions[0].dailyPoints = 80;   // 甲一天 80 點：一杯茶 50 給得出，兩杯 100 不行
+  var slot = circle(s, true), before = snapshot(s); C.judge(s, T0 + 60e6, {});
+  assert.strictEqual(snapshot(s), before); assert.ok(/甲 合起來要給 100 點，今天只剩 80 點/.test(s.dockings[0].reason), s.dockings[0].reason);
+  var s2 = base(); s2.roles[0].stock.y.avail = 1;   // 一杯茶只剩 1 份，兩個人都選
+  var slot2 = circle(s2, true), b2 = snapshot(s2); C.judge(s2, T0 + 60e6, {});
+  assert.strictEqual(snapshot(s2), b2); assert.ok(/甲 的「一杯茶」合起來要 2 份，可換 1 份/.test(s2.dockings[0].reason), s2.dockings[0].reason);
+});
+ok('一起成交：有一對兩邊都沒選對方的東西，不影響其他對成交', function () {
+  var s = base(), slot = circle(s, true); C.setWants(s, slot.id, J2, J3, []); C.setWants(s, slot.id, J3, J2, []);
+  C.judge(s, T0 + 60e6, {});
+  var t = s.dockings.filter(function (d) { return d.traded; }), n = s.dockings.filter(function (d) { return !d.traded; });
+  assert.strictEqual(t.length, 2); assert.strictEqual(n.length, 1); assert.strictEqual(n[0].reason, '一換一：兩邊都沒選對方的東西'); assert.strictEqual(s.holds.length, 4);
+  assert.deepStrictEqual(C.togetherMissing(s, slot), []);
+});
+ok('一起成交：那一微秒之前列得出還差誰；同樣的情況沒勾，照舊只成交兩邊都選了的那幾對', function () {
+  var s = base(), slot = circle(s, true); C.setWants(s, slot.id, J3, J2, []);
+  assert.deepStrictEqual(C.togetherMissing(s, slot), ['還差 丙 選 乙 的東西']);
+  var s2 = base(), slot2 = circle(s2, false); C.setWants(s2, slot2.id, J3, J2, []); C.judge(s2, T0 + 60e6, {});
+  assert.strictEqual(s2.dockings.filter(function (d) { return d.traded; }).length, 2); assert.strictEqual(s2.holds.length, 4); assert.ok(!slot2.together);
+});
+ok('刪時段在規則層：只有自己的、沒人預約的未來時段', function () {
+  var s = base(), a = C.addSlot(s, J1, T0 + 60e6, 1, null, T0), b = C.addSlot(s, J1, T0 + 120e6, 1, null, T0); C.book(s, J2, b.id, T0);
+  throws(function () { C.deleteSlot(s, J2, a.id, T0); }, /不是你的/); throws(function () { C.deleteSlot(s, J1, b.id, T0); }, /已經有人預約/); throws(function () { C.deleteSlot(s, J1, a.id, T0 + 61e6); }, /已經過了/);
+  C.deleteSlot(s, J1, a.id, T0); assert.strictEqual(s.roles[0].slots.length, 1);
+});
+ok('存檔：舊存檔的時段都是沒勾；勾了的讀回來還是勾著；一直保留的寫「一直保留」', function () {
+  var s = base(), a = C.addSlot(s, J1, T0 + 60e6, 1, null, T0, true), b = C.addSlot(s, J1, T0 + 120e6, 1, null, T0); delete b.together;
+  var r = C.cleanRole(JSON.parse(JSON.stringify(s.roles[0])));
+  assert.strictEqual(r.slots[0].together, true); assert.strictEqual(r.slots[1].together, false);
+  assert.strictEqual(C.untilText({ untilDay: null }), '一直保留'); assert.ok(/^保留到 \d{4}-/.test(C.untilText({ untilDay: 20000 })));
+});
+ok('序號永遠不重複用：J1 不玩了再創一個拿到的不是 J1；新角色沒有舊紀錄；連續發到 10 號以上；存檔讀回來照樣不重複', function () {
+  var s = C.fresh(); var me = C.createPlayer(s, { name: '小明' }, T0); assert.strictEqual(me.serial, J1);
+  var slot = C.addSlot(s, J2, T0 + 60e6, 1, null, T0); C.book(s, J1, slot.id, T0); C.setPresent(s, J1, slot.id, true); C.setWants(s, J1 === J1 ? slot.id : '', J1, J2, ['r2c']); C.setWants(s, slot.id, J2, J1, []);
+  C.accept(s, J1, J3, T0); C.judge(s, T0 + 60e6, {});
+  C.quit(s, J1, T0 + 61e6, true); assert.strictEqual(s.records.filter(function (r) { return r.kind === 'quit'; })[0].serial, J1);
+  var r2 = C.createPlayer(s, { name: '小華' }, T0 + 62e6);
+  assert.notStrictEqual(r2.serial, J1); assert.strictEqual(C.abbrev(r2.serial), 'J5');
+  assert.strictEqual(C.dockCount(s, r2.serial), 0); assert.strictEqual(C.ratio(s, r2.serial).text, '還沒對接過'); assert.ok(!s.acceptances.some(function (x) { return x.who === r2.serial; }));
+  assert.ok(s.dockings[0].a === J1 || s.dockings[0].b === J1, 'J1 的舊紀錄照舊寫 J1'); assert.ok(/^J1 /.test(s.records.find(function (r) { return r.kind === 'quit'; }).text));
+  assert.ok(s.roles.indexOf(C.blankRole()) < 0 && C.blankRole().serial !== r2.serial && !/^0/.test(C.BLANK), '空殼的序號不會撞號');
+  for (var i = 0; i < 8; i++) C.createRole(s, { name: 'x' + i }, T0);
+  assert.strictEqual(C.abbrev(s.roles[s.roles.length - 1].serial), 'I13'); assert.strictEqual(new Set(s.issued).size, s.issued.length);
+  // 存檔讀回來：issued 留著；舊存檔沒 issued 也從出現過的序號補回來
+  var saved = JSON.parse(JSON.stringify(s)); global.localStorage = { getItem: function () { return JSON.stringify(saved); }, setItem: function () {} };
+  var back = C.load(); assert.deepStrictEqual(back.issued.slice().sort(), s.issued.slice().sort());
+  delete saved.issued; var back2 = C.load(); assert.ok(back2.issued.indexOf(J1) >= 0 && back2.issued.indexOf(r2.serial) >= 0, '舊存檔：不玩了的 J1 從紀錄補回來');
+  var r3 = C.createPlayer(back2, { name: '再來' }, T0); assert.ok(r3.serial !== J1 && back2.roles.filter(function (r) { return r.serial === r3.serial; }).length === 1);
+  delete global.localStorage;
+});
+ok('到場是事先確認：存在時段上、洗過存檔還在、可以取消、取消預約一併拿掉；主人開時段就算到場；沒預約不能確認', function () {
+  var s = base(), slot = C.addSlot(s, J1, T0 + 60e6, 5, null, T0); C.book(s, J2, slot.id, T0);
+  assert.ok(!C.isPresent(s, J2, slot.id) && C.isPresent(s, J1, slot.id), '主人自動算到場');
+  C.setPresent(s, J2, slot.id, true); assert.ok(C.isPresent(s, J2, slot.id));
+  var r = C.cleanRole(JSON.parse(JSON.stringify(s.roles[0]))); assert.deepStrictEqual(r.slots[0].confirmed, [J2], '讀存檔的檢查留著確認');
+  C.setPresent(s, J2, slot.id, false); assert.ok(!C.isPresent(s, J2, slot.id), '可以取消');
+  C.setPresent(s, J2, slot.id, true); C.cancelBooking(s, J2, slot.id); assert.deepStrictEqual(slot.confirmed, [], '取消預約一併拿掉');
+  throws(function () { C.setPresent(s, J3, slot.id, true); }, /先預約/);
+});
+ok('補判：頁面沒開著過了好幾個時段，下次照時間順序一個一個補判，每個都照那個時段的那一微秒；確認了的成交、沒確認的錯過；一起成交的也能補判；保留到期照順序', function () {
+  var s = base();
+  var a = C.addSlot(s, J1, T0 + 60e6, 5, null, T0), b = C.addSlot(s, J2, T0 + 120e6, 5, null, T0), c = C.addSlot(s, J1, T0 + 180e6, 5, null, T0, true);
+  C.book(s, J2, a.id, T0); C.setPresent(s, J2, a.id, true); C.setWants(s, a.id, J2, J1, ['x']); C.setWants(s, a.id, J1, J2, ['e2']);   // 甲畫一張圖（保留 2 天）
+  C.book(s, J1, b.id, T0);   // 沒確認
+  C.book(s, J3, c.id, T0); C.setPresent(s, J3, c.id, true); C.setWants(s, c.id, J3, J1, ['y']); C.setWants(s, c.id, J1, J3, ['e3']);   // 一起成交、確認了
+  var out = C.judge(s, T0 + 5 * DAY, {});
+  assert.ok(out.every(function (o) { return o.late; }), '都是補判');
+  assert.deepStrictEqual(s.records.filter(function (r) { return r.kind !== 'expire'; }).map(function (r) { return r.at; }), [T0 + 60e6, T0 + 120e6, T0 + 180e6], '照時間順序，紀錄時間是各時段的那一微秒');
+  var da = s.dockings.find(function (d) { return d.slot === a.id; }), dc = s.dockings.find(function (d) { return d.slot === c.id; });
+  assert.ok(da.traded && da.atUs === T0 + 60e6 && dc.traded && dc.together && dc.atUs === T0 + 180e6, '確認了的照那一微秒成交，一起成交的也補判');
+  assert.deepStrictEqual(b.missed, [J1]); assert.ok(/沒確認到場/.test(s.records.find(function (r) { return r.kind === 'miss'; }).text), '沒確認的記錯過');
+  assert.ok(out.some(function (o) { return o.missed === J1 && o.slot === b; }), '補判的結果列得出錯過');
+  var hx = s.holds.find(function (h) { return h.resource === 'x'; }); assert.strictEqual(hx.status, 'expired', '第一個時段保留的畫（2 天）到 5 天後已經到期作廢，照順序處理');
+  assert.strictEqual(C.expire(s, T0 + 5 * DAY), 0);
+  // 判定窗內站在終點上也算；補判時站著不算
+  var s2 = base(), d2 = C.addSlot(s2, J1, T0 + 60e6, 5, null, T0); C.book(s2, J2, d2.id, T0); var st = {}; st[J2] = J1;
+  C.judge(s2, T0 + 60.2e6, st); assert.deepStrictEqual(d2.docked, [J2]);
+  var s3 = base(), d3 = C.addSlot(s3, J1, T0 + 60e6, 5, null, T0); C.book(s3, J2, d3.id, T0); C.judge(s3, T0 + 600e6, st); assert.deepStrictEqual(d3.missed, [J2]);
 });
 ok('純資料檢查與存檔格式：角色洗過還是同一份資料', function () {
   var s = fresh(); var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['r1a']); C.judge(s, T0 + 60e6, {});
