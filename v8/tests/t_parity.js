@@ -135,9 +135,9 @@ var ROWS = [
     pick: "JSON.stringify({d:APP.state().dockings.length,r:APP.state().records.length,ratio:CORE.ratio(APP.state(),APP.me().serial).text})" },
 
   { name: '確認到場：對方終點台的時刻表 ↔ 我預約的「到場」', setup: "(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+120e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);APP.changed();})()",
-    game: async function (H) { await H.ev("GAME.teleportTo(CORE.roleOf(APP.state(),'" + J2 + "'))"); await H.goNear('goal'); await H.pick('時刻表'); await H.pick('確認到場'); assert((await H.opts()).some(function (o) { return o.indexOf('取消到場') === 0; }) && (await H.opts()).some(function (o) { return o.indexOf('已確認到場') > 0; }), '時刻表標已確認、可以取消'); },
+    game: async function (H) { await H.ev("GAME.teleportTo(CORE.roleOf(APP.state(),'" + J2 + "'))"); await H.goNear('goal'); await H.pick('時刻表'); assert((await H.opts()).some(function (o) { return o.indexOf('取消到場') === 0; }) && (await H.opts()).some(function (o) { return o.indexOf('已確認到場') > 0; }), '站上終點台自動確認：時刻表標已確認、可以取消'); await H.pick('取消到場'); assert((await H.opts()).some(function (o) { return o.indexOf('還沒確認到場') > 0; }), '取消了'); await H.pick('確認到場'); },
     sheet: async function (H) { await H.toSheet(); await H.sheet('booked'); assert((await H.main()).indexOf('勾了就算，不用守著') >= 0, '表世界寫勾了就算'); await H.edit('input[data-ed="present"]', null, true); },
-    pick: "JSON.stringify(APP.state().roles[1].slots.map(function(s){return [s.bookings,s.confirmed];}))" },
+    pick: "JSON.stringify(APP.state().roles[1].slots.map(function(s){return [s.bookings,s.confirmed,s.declined];}))" },
 
   { name: '一起成交：終點台開時段勾「一起成交」、刪沒人預約的時段 ↔ 我開的時段',
     game: async function (H) { await H.goNear('goal'); await H.pick('開時段'); await H.setIn('gSlotMin', 4); await H.setIn('gSlotCap', 3); await H.edit('#gSlotTogether', null, true); await H.pick('開'); await H.goNear('goal'); await H.pick('看預約、選我要的'); assert((await H.dlgBody()).indexOf('【一起成交】') >= 0, '裡世界標【一起成交】'); await H.finger("function(){ return [...document.querySelectorAll('#dlgOpts button')].find(function (b) { return b.textContent.indexOf('刪 ') === 0; }); }", '刪時段'); },

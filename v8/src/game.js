@@ -455,7 +455,7 @@ var GAME = (function () {
     if (!b || b.slot.atUs - t > 60e6) { $('countdown').hidden = true; return; }
     var standing = APP.standingAt() === cur.role.serial;
     if (t < b.slot.atUs) {
-      $('countdown').hidden = false; $('countdown').textContent = ((b.slot.atUs - t) / 1e6).toFixed(1) + ' 秒' + (standing ? '' : '　先站到終點台上');
+      $('countdown').hidden = false; $('countdown').textContent = ((b.slot.atUs - t) / 1e6).toFixed(1) + ' 秒' + (CORE.isPresent(S(), me().serial, b.slot.id) ? '　已確認' : '　還沒確認到場');
       var top = dlgStack[dlgStack.length - 1];
       if (standing && exchangeOpen !== b.slot.id && !(top && top.choosing && $('dlg').classList.contains('open'))) { exchangeOpen = b.slot.id; dialog(null); exchangeDialog(b.slot); }   // 蓋過其他對話框；只有正在選東西時等存好或關掉
     }
@@ -471,7 +471,7 @@ var GAME = (function () {
     if (slot.together) { var tg = CORE.togetherStatus(S(), slot); body += '<b>一起成交</b>：有選東西的每一對都成才全部成交。<br><span class="small' + (tg.indexOf('一起成交：') === 0 ? '' : ' muted') + '">' + esc(tg) + '</span><br>'; }
     body += '<div class="field">每人最多給 <input type="number" id="maxGive" value="' + (mg != null ? mg : '') + '" placeholder="' + left + '（當天剩下的）" min="0" max="' + left + '"> 點</div>站著等那一微秒，照選好的互換東西。';
     var conf = CORE.isPresent(S(), m.serial, slot.id);
-    body += '<br>到場：' + (conf ? '已確認（不用守著）' : '還沒確認；那一刻站在終點台上也算到場');
+    body += '<br>到場：' + (conf ? '已確認（不用守著）' : '還沒確認（按過取消；站著也不會再自動確認）');
     dialog({ title: '交換：' + CORE.fmtUs(slot.atUs).slice(11, 19) + (slot.together ? '【一起成交】' : ''), body: body, opts: [{ label: '確定', pri: true, fn: function () { dialog(null); toast('站著等那一微秒。', true); } }, { label: conf ? '取消到場' : '確認到場', fn: function () { act(function () { CORE.setPresent(S(), m.serial, slot.id, !conf); }, conf ? '取消了到場' : '確認到場了'); dlgStack.pop(); exchangeDialog(slot); } }],
       after: function () {
         $('maxGive').onchange = function () { act(function () { CORE.setMaxGive(S(), slot, m.serial, $('maxGive').value); }, ''); };
@@ -482,13 +482,14 @@ var GAME = (function () {
     exchangeOpen = null;
     if (APP.view() !== 'game') return;
     var m = me().serial, about = function (x) { return x.docking ? (x.docking.a === m || x.docking.b === m) : x.missed === m; };
-    var late = res.filter(function (x) { return x.late && about(x); });
-    if (late.length) { dialog({ title: '你不在的時候', body: late.map(function (x) { return '・' + CORE.fmtUs(x.slot.atUs).slice(5, 19) + ' ' + x.owner.name + ' 的時段：' + (x.docking ? dockLine(x.docking, m) : '沒確認到場，錯過了'); }).join('\n'), opts: [{ label: '好', pri: true, fn: function () { dialog(null); } }] }); drawPlate(); }
-    var mine = res.filter(function (x) { return !x.late && x.docking && about(x); });
-    if (!mine.length) return;
-    WORLD.flash(); WORLD.showPartner(true); drawPlate();
-    var lines = mine.map(function (x) { return dockLine(x.docking, m); });
-    dialog({ title: '到達那微秒', body: lines.join('\n\n'), opts: [{ label: '好', pri: true, fn: function () { dialog(null); WORLD.showPartner(false); } }] });
+    var late = res.filter(function (x) { return x.late && about(x); }), mine = res.filter(function (x) { return !x.late && x.docking && about(x); });
+    if (!late.length && !mine.length) return;
+    var lateText = late.map(function (x) { return '・' + CORE.fmtUs(x.slot.atUs).slice(5, 19) + ' ' + x.owner.name + ' 的時段：' + (x.docking ? dockLine(x.docking, m) : '沒確認到場，錯過了'); }).join('\n');
+    var nowText = mine.map(function (x) { return dockLine(x.docking, m); }).join('\n\n');
+    if (mine.length) { WORLD.flash(); WORLD.showPartner(true); }
+    drawPlate();
+    // 同一格同時有補判和準時的結果：一個對話框兩段都看得到
+    dialog({ title: late.length && mine.length ? '你不在的時候、到達那微秒' : late.length ? '你不在的時候' : '到達那微秒', body: late.length && mine.length ? '【你不在的時候】\n' + lateText + '\n\n【剛才】\n' + nowText : late.length ? lateText : nowText, opts: [{ label: '好', pri: true, fn: function () { dialog(null); WORLD.showPartner(false); } }] });
   });
   // 一筆對接以我為主體的一句話
   function dockLine(d, m) {
@@ -498,6 +499,7 @@ var GAME = (function () {
     if (!d.traded) return '和 ' + on + ' 不成交：' + d.reason;
     return '和 ' + on + '（' + d.how + '）\n我拿出：' + CORE.itemsText(myOut) + '（' + gave + ' 點）；拿到：' + on + '的' + CORE.itemsText(myItems) + '（' + got + ' 點）' + (noteHim ? '\n' + noteHim : '') + (noteMe ? '\n他' + noteMe : '') + (other && other.contact ? '\n聯絡方式：' + other.contact : '');
   }
+  APP.on('autoconfirm', function (s) { if (APP.view() === 'game') { toast('已自動確認到場 ' + CORE.fmtUs(s.atUs).slice(11, 16) + '（不用守著）', false); refreshDialog(); } });
   APP.on('miss', function () { exchangeOpen = null; if (APP.view() === 'game' && cur.visiting) toast('錯過了那一微秒，這個時段不能再對接。', true); });
 
   /* ---------- 進出裡世界：切換時停在同一件事上 ---------- */

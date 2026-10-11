@@ -81,8 +81,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 .dlg.open{transform:none}
 .dlg h3{font-family:var(--serif);font-size:1rem;margin:0;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .dlg h3 .x{all:unset;cursor:pointer;color:var(--muted);padding:0 6px;font-size:1.1rem}
-.dlg .body{overflow:auto;font-size:.9rem;white-space:pre-line;min-height:0;flex:1}
-.dlg .opts{display:flex;gap:8px;flex-wrap:wrap}
+.dlg{overflow-y:auto;-webkit-overflow-scrolling:touch}
+.dlg h3{flex:none}
+.dlg .body{overflow:visible;font-size:.9rem;white-space:pre-line;flex:none}
+.dlg .opts{display:flex;gap:8px;flex-wrap:wrap;flex:none}
 .dlg .opts .btn{flex:1 1 auto;min-width:7em}
 .dlg input[type=text],.dlg input[type=number],.dlg select,.dlg textarea{min-height:36px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg);max-width:100%}
 .dlg input[type=range]{width:100%}

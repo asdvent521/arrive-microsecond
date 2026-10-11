@@ -96,9 +96,9 @@ var J1 = '00000000001', J2 = '00000000002';
   await pg.screenshot({ path: OUT + '/v8_game_5_docked.png' });
   await H.pick('好');
 
-  // 錯過：預約了但沒站在終點上
-  await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+6e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);APP.changed();})()");
+  // 錯過：預約了但沒站在終點上（站著會自動確認，所以先走開再預約）
   await H.walkTo(-3, 6);
+  await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+6e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);APP.changed();})()");
   await pg.waitForFunction("APP.state().roles[1].slots.some(s=>s.missed.length)", null, { timeout: 15000 }); await pg.waitForTimeout(300);
   assert((await pg.textContent('#toast')).indexOf('錯過了那一微秒') >= 0, '沒站在終點上 → 顯示錯過');
   assert((await H.ev("APP.state().dockings.length")) === 1, '錯過的不算對接');
