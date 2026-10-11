@@ -374,11 +374,12 @@ var SHEET = (function () {
   APP.on('change', function () { if (APP.view() === 'sheet') render(); });
   APP.on('me', function () { UI.who = null; UI.hist = []; if (APP.view() === 'sheet') render(); });
   APP.on('dock', function (res) { if (APP.view() !== 'sheet') return; render(); var m = me().serial, about = function (x) { return x.docking ? (x.docking.a === m || x.docking.b === m) : x.missed === m; };
-    var late = res.filter(function (x) { return x.late && about(x); });
-    if (late.length) { smsg('你不在的時候：' + late.map(function (x) { return CORE.fmtUs(x.slot.atUs).slice(5, 19) + ' ' + x.owner.name + ' 的時段：' + (x.docking ? dockMsg(x.docking, m) : '沒確認到場，錯過了'); }).join('；')); return; }
-    var mine = res.filter(function (x) { return !x.late && x.docking && about(x); }); if (mine.length) smsg(mine.map(function (x) { return dockMsg(x.docking, m); }).join('；')); });
+    var late = res.filter(function (x) { return x.late && about(x); }), mine = res.filter(function (x) { return !x.late && x.docking && about(x); }), parts = [];
+    if (late.length) parts.push('你不在的時候：' + late.map(function (x) { return CORE.fmtUs(x.slot.atUs).slice(5, 19) + ' ' + x.owner.name + ' 的時段：' + (x.docking ? dockMsg(x.docking, m) : '沒確認到場，錯過了'); }).join('；'));
+    if (mine.length) parts.push((late.length ? '剛才：' : '') + mine.map(function (x) { return dockMsg(x.docking, m); }).join('；'));
+    if (parts.length) smsg(parts.join('　')); });   // 補判和準時的都看得到；錯過的已經寫在「你不在的時候」裡
   function dockMsg(d, m) { var o = roleOf(d.a === m ? d.b : d.a), gave = d.a === m ? d.gaveA : d.gaveB, got = d.a === m ? d.gaveB : d.gaveA; var myOut = d.a === m ? d.itemsA : d.itemsB, myIn = d.a === m ? d.itemsB : d.itemsA; return d.traded ? '和 ' + (o ? o.name : '？') + ' 互換：我拿出 ' + CORE.itemsText(myOut) + '（' + gave + ' 點）；拿到 ' + (o ? o.name : '') + '的 ' + CORE.itemsText(myIn) + '（' + got + ' 點）（' + d.how + '）' : '和 ' + (o ? o.name : '？') + (d.ok ? ' 不成交：' : ' 不成立：') + d.reason; }
-  APP.on('miss', function () { if (APP.view() === 'sheet') { render(); smsg('那一微秒過了，沒到場的預約標為錯過。'); } });
+  APP.on('miss', function () { if (APP.view() === 'sheet') { render(); var cur = $('smsg') && !$('smsg').hidden ? $('smsg').textContent : ''; smsg((cur ? cur + '　' : '') + '那一微秒過了，沒到場的預約標為錯過。'); } });   // 不蓋掉「你不在的時候」
   APP.on('tut', function (st) { if (APP.view() !== 'sheet') return; if (st === 7 || st === 'compare') navigate('todo', null); else render(); if (st === 'done' && !APP.tut().skipped) smsg('教學完成！接下來照待辦準備自己的規則、資源、時段。'); });
   renderTabs();
   return { render: render, navigate: navigate, back: back, ui: UI, ORDER: ORDER, SHEETS: SHEETS, show: show };

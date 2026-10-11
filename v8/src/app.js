@@ -168,14 +168,15 @@ var APP = (function () {
   function setStanding(serial) { standingAt = serial || null; }
   function countMissed() { var n = 0; state.roles.forEach(function (r) { r.slots.forEach(function (s) { n += (s.missed || []).length; }); }); return n; }
   setInterval(function () {
-    var t = now(), standing = {}; if (standingAt) standing[me.serial] = standingAt;
+    var t = now();
+    // 站在對方的終點台上：自動確認跟他最近的那一個預約（規則在 CORE）
+    if (standingAt && !me.blank) { var ac = CORE.autoConfirm(state, me.serial, standingAt, t); if (ac) { changed(); emit('autoconfirm', ac); } }
     tutTick();
-    var missedBefore = countMissed();
-    var res = CORE.judge(state, t, standing), dirty = res.length > 0;
+    var res = CORE.judge(state, t), dirty = res.length > 0;
     if (CORE.expire(state, t)) dirty = true;
     if (dirty) changed();
-    if (res.length) { tutTick(); emit('dock', res); }   // res 也含補判（late）和錯過（missed）的項目   // 教學先往下走，成交訊息才不會被蓋掉
-    if (countMissed() > missedBefore) emit('miss');
+    if (res.length) { tutTick(); emit('dock', res); }   // res 也含補判（late）和錯過（missed）的項目；教學先往下走，成交訊息才不會被蓋掉
+    if (res.some(function (x) { return x.missed && !x.late; })) emit('miss');   // 補判的錯過已經在「你不在的時候」裡，不另外提示
   }, 50);
 
   /* ---------- 切換：停在同一件事上 ---------- */

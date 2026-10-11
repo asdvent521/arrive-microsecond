@@ -150,9 +150,9 @@ ok('5e. 三個人同一個時段，到場的兩兩成交；沒到場的錯過', 
   var s2 = base(), slot2 = C.addSlot(s2, J1, T0 + 60e6, 5, null, T0); C.book(s2, J2, slot2.id, T0);
   C.judge(s2, T0 + 60e6, {});
   assert.ok(C.missed(slot2, J2)); assert.strictEqual(s2.dockings.length, 0);
-  // 站在終點上也算到場
+  // 站上終點台：自動確認到場，那一微秒就算到場
   var s3 = base(), slot3 = C.addSlot(s3, J1, T0 + 60e6, 5, null, T0); C.book(s3, J2, slot3.id, T0); C.setWants(s3, slot3.id, J2, J1, ['y']); C.setWants(s3, slot3.id, J1, J2, ['e2']);
-  var st = {}; st[J2] = J1; assert.strictEqual(C.judge(s3, T0 + 60e6, st)[0].docking.gaveA, 50);
+  assert.strictEqual(C.autoConfirm(s3, J2, J1, T0 + 30e6), slot3); assert.strictEqual(C.judge(s3, T0 + 60e6)[0].docking.gaveA, 50);
   // 判定窗過了沒判：下次 judge 補判，確認了的照那一微秒成交，沒確認的錯過；expire 只管保留到期
   var s4 = base(), slot4 = C.addSlot(s4, J1, T0 + 60e6, 5, null, T0); C.book(s4, J2, slot4.id, T0); C.setPresent(s4, J2, slot4.id, true); C.setWants(s4, slot4.id, J2, J1, ['y']); C.setWants(s4, slot4.id, J1, J2, ['e2']);
   C.expire(s4, T0 + 62e6); assert.ok(!slot4.judged && !C.missed(slot4, J2), 'expire 不再把人算錯過');
@@ -510,10 +510,23 @@ ok('補判：頁面沒開著過了好幾個時段，下次照時間順序一個�
   assert.ok(out.some(function (o) { return o.missed === J1 && o.slot === b; }), '補判的結果列得出錯過');
   var hx = s.holds.find(function (h) { return h.resource === 'x'; }); assert.strictEqual(hx.status, 'expired', '第一個時段保留的畫（2 天）到 5 天後已經到期作廢，照順序處理');
   assert.strictEqual(C.expire(s, T0 + 5 * DAY), 0);
-  // 判定窗內站在終點上也算；補判時站著不算
-  var s2 = base(), d2 = C.addSlot(s2, J1, T0 + 60e6, 5, null, T0); C.book(s2, J2, d2.id, T0); var st = {}; st[J2] = J1;
-  C.judge(s2, T0 + 60.2e6, st); assert.deepStrictEqual(d2.docked, [J2]);
-  var s3 = base(), d3 = C.addSlot(s3, J1, T0 + 60e6, 5, null, T0); C.book(s3, J2, d3.id, T0); C.judge(s3, T0 + 600e6, st); assert.deepStrictEqual(d3.missed, [J2]);
+  // 站在終點上本身不算到場：是站上去時自動確認（autoConfirm）才算；沒確認就錯過
+  var s2 = base(), d2 = C.addSlot(s2, J1, T0 + 60e6, 5, null, T0); C.book(s2, J2, d2.id, T0); C.autoConfirm(s2, J2, J1, T0);
+  C.judge(s2, T0 + 60.2e6); assert.deepStrictEqual(d2.docked, [J2]);
+  var s3 = base(), d3 = C.addSlot(s3, J1, T0 + 60e6, 5, null, T0); C.book(s3, J2, d3.id, T0); C.judge(s3, T0 + 60.2e6); assert.deepStrictEqual(d3.missed, [J2]);
+});
+ok('站上對方的終點台自動確認到場（補六）：只確認最近的那一個；按過取消就不自動確認、重新開還記得；判過的、自己的、沒預約的不動；再按確認就恢復', function () {
+  var s = base(), a = C.addSlot(s, J2, T0 + 60e6, 5, null, T0), b = C.addSlot(s, J2, T0 + 120e6, 5, null, T0);
+  assert.strictEqual(C.autoConfirm(s, J1, J2, T0), null, '沒預約不動');
+  C.book(s, J1, a.id, T0); C.book(s, J1, b.id, T0);
+  assert.strictEqual(C.autoConfirm(s, J1, J2, T0), a, '確認最近的那一個'); assert.ok(C.isPresent(s, J1, a.id) && !C.isPresent(s, J1, b.id), '只確認最近的那一個');
+  assert.strictEqual(C.autoConfirm(s, J1, J2, T0), null, '已經確認了就沒事，不跳去確認下一個');
+  C.setPresent(s, J1, a.id, false); assert.strictEqual(C.autoConfirm(s, J1, J2, T0), null, '按過取消就不自動確認'); assert.ok(!C.isPresent(s, J1, a.id) && !C.isPresent(s, J1, b.id), '也不跳去確認下一個');
+  var r = C.cleanRole(JSON.parse(JSON.stringify(s.roles[1]))); assert.deepStrictEqual(r.slots[0].declined, [J1], '按過取消存起來，讀存檔的檢查留著');
+  C.setPresent(s, J1, a.id, true); assert.deepStrictEqual(a.declined, []); assert.ok(C.isPresent(s, J1, a.id), '自己再按確認就恢復');
+  C.judge(s, T0 + 60e6, {}); assert.ok(a.judged); assert.strictEqual(C.autoConfirm(s, J1, J2, T0 + 61e6), b, '前一個判完，下一個變成最近的就確認下一個');
+  assert.strictEqual(C.autoConfirm(s, J1, J2, T0 + 62e6), null, '判過的不動');
+  var own = C.addSlot(s, J1, T0 + 200e6, 5, null, T0); assert.strictEqual(C.autoConfirm(s, J1, J1, T0), null, '站在自己的終點台上不動'); assert.deepStrictEqual(own.confirmed, []);
 });
 ok('純資料檢查與存檔格式：角色洗過還是同一份資料', function () {
   var s = fresh(); var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['r1a']); C.judge(s, T0 + 60e6, {});
