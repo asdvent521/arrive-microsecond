@@ -73,11 +73,12 @@ var APP = (function () {
     out.push({ id: 'slots', no: '⑤', name: '開對接時段', ok: up.length > 0, status: up.length ? up.length + ' 個未來時段，最近 ' + CORE.fmtUs(up.sort(function (a, b) { return a.atUs - b.atUs; })[0].atUs) : '沒有開放的時段', func: 'goal', hint: '別人要預約才能來對接；名額是容量不是條件。單機版主人不在場：主人要的東西，要「換人」成主人去選。' });
     var booked = CORE.myBookings(state, m, t).filter(function (b) { return b.slot.atUs > t; });
     var chosen = booked.filter(function (b) { return CORE.wantsValid(state, b.slot, m.serial, b.owner.serial).length > 0; });
+    var unconfirmed = booked.filter(function (b) { return !CORE.isPresent(state, m.serial, b.slot.id); });
     var cv = CORE.canVisit(state, m, t);
-    out.push({ id: 'query', no: '⑥', name: '預約、選要換的東西', ok: booked.length > 0 && chosen.length === booked.length, status: booked.length ? '預約了 ' + booked.map(function (b) { return b.owner.name + ' ' + CORE.fmtUs(b.slot.atUs).slice(11, 19) + (CORE.wantsValid(state, b.slot, m.serial, b.owner.serial).length ? '（選好了）' : '（還沒選要換什麼）'); }).join('、') : cv.length ? '我可以去找：' + cv.map(function (r) { return r.name; }).join('、') : '目前沒有我符合條件的人', func: 'map', hint: '條件通才能預約；那一微秒之前選好要換他的什麼。一換一：對方也要選了你的東西才成交；單機版對方要的東西，要「換人」成他去選。' });
+    out.push({ id: 'query', no: '⑥', name: '預約、選要換的東西、確認到場', ok: booked.length > 0 && chosen.length === booked.length && !unconfirmed.length, status: booked.length ? '預約了 ' + booked.map(function (b) { return b.owner.name + ' ' + CORE.fmtUs(b.slot.atUs).slice(11, 19) + (CORE.wantsValid(state, b.slot, m.serial, b.owner.serial).length ? '（選好了）' : '（還沒選要換什麼）') + (CORE.isPresent(state, m.serial, b.slot.id) ? '' : '（還沒確認到場：沒確認就算錯過）'); }).join('、') : cv.length ? '我可以去找：' + cv.map(function (r) { return r.name; }).join('、') : '目前沒有我符合條件的人', func: 'map', hint: '條件通才能預約；那一微秒之前選好要換他的什麼、確認到場（勾了就算，不用守著）。一換一：對方也要選了你的東西才成交；單機版對方要的東西，要「換人」成他去選。' });
     var next = out.find(function (x) { return !x.ok; }) || null;
     var place = { role: '走到角色碑', rule: '走到規則屋', resource: '走到市集', build: '按「建造」', goal: '走到終點台', map: '打開地圖' };
-    var hint = next ? '下一步：' + next.name + ' → ' + place[next.func] : booked.length ? '等那一微秒：' + booked[0].owner.name + ' ' + CORE.fmtUs(booked[0].slot.atUs).slice(11, 19) + '，到時候站在他的終點上' : '都準備好了，去找人';
+    var hint = unconfirmed.length ? '還沒確認到場：沒確認就算錯過（' + unconfirmed.map(function (b) { return b.owner.name + ' ' + CORE.fmtUs(b.slot.atUs).slice(11, 19); }).join('、') + '）' : next ? '下一步：' + next.name + ' → ' + place[next.func] : booked.length ? '等那一微秒：' + booked[0].owner.name + ' ' + CORE.fmtUs(booked[0].slot.atUs).slice(11, 19) + '，到時候站在他的終點上' : '都準備好了，去找人';
     return { rows: out, next: next, hint: hint };
   }
 
@@ -97,7 +98,7 @@ var APP = (function () {
     { id: 't2', name: '找引路人', game: '打開地圖，點引路人 J4，照地上的光點走出他的代號，進傳送門', sheet: '在「我可以去找」點引路人的代號 J4', gfunc: 'map', ssheet: 'visit', done: function () { return !!tut().found; } },
     { id: 't3', name: '預約、選他的「空的」', game: '在引路人的終點台看時刻表，預約，選他的「空的」，存好。引路人一定會選你的「空的」', sheet: '在「可預約時段」預約引路人，到「我預約的」選他的「空的」。引路人一定會選你的「空的」', gfunc: 'goal', who: GUIDE, ssheet: 'open',
       done: function () { var s = tutSlot(); if (!s || s.bookings.indexOf(me.serial) < 0) return false; var g = guide(); return CORE.wantsValid(state, s, me.serial, GUIDE).some(function (id) { var x = CORE.resourceOf(CORE.version(g, s.atUs), id); return x && x.price === 0; }); } },
-    { id: 't4', name: '那一微秒', game: '站在引路人的終點台上，等倒數到 0', sheet: '在「我預約的」勾「到場」，等那一微秒', gfunc: 'goal', who: GUIDE, ssheet: 'booked', done: function () { return !!tutDocking(); } },
+    { id: 't4', name: '那一微秒', game: '站在他的終點台上，或在時刻表按「確認到場」，等那一微秒', sheet: '在「我預約的」勾到場（勾了就算，不用守著），等那一微秒', gfunc: 'goal', who: GUIDE, ssheet: 'booked', done: function () { return !!tutDocking(); } },
     { id: 't5', name: '看拿到什麼', game: '回家，走到帳房看看', sheet: '到「點數」看那一筆', gfunc: 'points', ssheet: 'points', done: function () { return !!tut().saw; } },
     { id: 't6', name: '兌現', game: '到引路人的市集，兌現「空的」', sheet: '到「兌現」（看誰：引路人），按「兌現」', gfunc: 'resource', who: GUIDE, ssheet: 'redeem', done: function () { var h = tutHold(GUIDE, me.serial); return !!h && h.status === 'redeemed'; } }
   ];
@@ -173,7 +174,7 @@ var APP = (function () {
     var res = CORE.judge(state, t, standing), dirty = res.length > 0;
     if (CORE.expire(state, t)) dirty = true;
     if (dirty) changed();
-    if (res.length) { tutTick(); emit('dock', res); }   // 教學先往下走，成交訊息才不會被蓋掉
+    if (res.length) { tutTick(); emit('dock', res); }   // res 也含補判（late）和錯過（missed）的項目   // 教學先往下走，成交訊息才不會被蓋掉
     if (countMissed() > missedBefore) emit('miss');
   }, 50);
 

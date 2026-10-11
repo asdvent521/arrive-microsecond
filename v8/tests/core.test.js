@@ -153,9 +153,10 @@ ok('5e. 三個人同一個時段，到場的兩兩成交；沒到場的錯過', 
   // 站在終點上也算到場
   var s3 = base(), slot3 = C.addSlot(s3, J1, T0 + 60e6, 5, null, T0); C.book(s3, J2, slot3.id, T0); C.setWants(s3, slot3.id, J2, J1, ['y']); C.setWants(s3, slot3.id, J1, J2, ['e2']);
   var st = {}; st[J2] = J1; assert.strictEqual(C.judge(s3, T0 + 60e6, st)[0].docking.gaveA, 50);
-  // 判定窗過了沒判：expire 全部算錯過
-  var s4 = base(), slot4 = C.addSlot(s4, J1, T0 + 60e6, 5, null, T0); C.book(s4, J2, slot4.id, T0); C.setPresent(s4, J2, slot4.id, true);
-  C.expire(s4, T0 + 62e6); assert.ok(C.missed(slot4, J2)); assert.strictEqual(C.judge(s4, T0 + 60.5e6, {}).length, 0, '判過就不再判');
+  // 判定窗過了沒判：下次 judge 補判，確認了的照那一微秒成交，沒確認的錯過；expire 只管保留到期
+  var s4 = base(), slot4 = C.addSlot(s4, J1, T0 + 60e6, 5, null, T0); C.book(s4, J2, slot4.id, T0); C.setPresent(s4, J2, slot4.id, true); C.setWants(s4, slot4.id, J2, J1, ['y']); C.setWants(s4, slot4.id, J1, J2, ['e2']);
+  C.expire(s4, T0 + 62e6); assert.ok(!slot4.judged && !C.missed(slot4, J2), 'expire 不再把人算錯過');
+  var late = C.judge(s4, T0 + 3600e6, {}); assert.ok(late.length === 1 && late[0].late && late[0].docking.traded && late[0].docking.atUs === T0 + 60e6, '補判：照那個時段的那一微秒成交'); assert.strictEqual(C.judge(s4, T0 + 3601e6, {}).length, 0, '判過就不再判');
 });
 ok('5f. 判定照原本規則：一方通、兩個開關；不通的一對記下原因', function () {
   var s = base();
@@ -484,6 +485,35 @@ ok('序號永遠不重複用：J1 不玩了再創一個拿到的不是 J1；新�
   delete saved.issued; var back2 = C.load(); assert.ok(back2.issued.indexOf(J1) >= 0 && back2.issued.indexOf(r2.serial) >= 0, '舊存檔：不玩了的 J1 從紀錄補回來');
   var r3 = C.createPlayer(back2, { name: '再來' }, T0); assert.ok(r3.serial !== J1 && back2.roles.filter(function (r) { return r.serial === r3.serial; }).length === 1);
   delete global.localStorage;
+});
+ok('到場是事先確認：存在時段上、洗過存檔還在、可以取消、取消預約一併拿掉；主人開時段就算到場；沒預約不能確認', function () {
+  var s = base(), slot = C.addSlot(s, J1, T0 + 60e6, 5, null, T0); C.book(s, J2, slot.id, T0);
+  assert.ok(!C.isPresent(s, J2, slot.id) && C.isPresent(s, J1, slot.id), '主人自動算到場');
+  C.setPresent(s, J2, slot.id, true); assert.ok(C.isPresent(s, J2, slot.id));
+  var r = C.cleanRole(JSON.parse(JSON.stringify(s.roles[0]))); assert.deepStrictEqual(r.slots[0].confirmed, [J2], '讀存檔的檢查留著確認');
+  C.setPresent(s, J2, slot.id, false); assert.ok(!C.isPresent(s, J2, slot.id), '可以取消');
+  C.setPresent(s, J2, slot.id, true); C.cancelBooking(s, J2, slot.id); assert.deepStrictEqual(slot.confirmed, [], '取消預約一併拿掉');
+  throws(function () { C.setPresent(s, J3, slot.id, true); }, /先預約/);
+});
+ok('補判：頁面沒開著過了好幾個時段，下次照時間順序一個一個補判，每個都照那個時段的那一微秒；確認了的成交、沒確認的錯過；一起成交的也能補判；保留到期照順序', function () {
+  var s = base();
+  var a = C.addSlot(s, J1, T0 + 60e6, 5, null, T0), b = C.addSlot(s, J2, T0 + 120e6, 5, null, T0), c = C.addSlot(s, J1, T0 + 180e6, 5, null, T0, true);
+  C.book(s, J2, a.id, T0); C.setPresent(s, J2, a.id, true); C.setWants(s, a.id, J2, J1, ['x']); C.setWants(s, a.id, J1, J2, ['e2']);   // 甲畫一張圖（保留 2 天）
+  C.book(s, J1, b.id, T0);   // 沒確認
+  C.book(s, J3, c.id, T0); C.setPresent(s, J3, c.id, true); C.setWants(s, c.id, J3, J1, ['y']); C.setWants(s, c.id, J1, J3, ['e3']);   // 一起成交、確認了
+  var out = C.judge(s, T0 + 5 * DAY, {});
+  assert.ok(out.every(function (o) { return o.late; }), '都是補判');
+  assert.deepStrictEqual(s.records.filter(function (r) { return r.kind !== 'expire'; }).map(function (r) { return r.at; }), [T0 + 60e6, T0 + 120e6, T0 + 180e6], '照時間順序，紀錄時間是各時段的那一微秒');
+  var da = s.dockings.find(function (d) { return d.slot === a.id; }), dc = s.dockings.find(function (d) { return d.slot === c.id; });
+  assert.ok(da.traded && da.atUs === T0 + 60e6 && dc.traded && dc.together && dc.atUs === T0 + 180e6, '確認了的照那一微秒成交，一起成交的也補判');
+  assert.deepStrictEqual(b.missed, [J1]); assert.ok(/沒確認到場/.test(s.records.find(function (r) { return r.kind === 'miss'; }).text), '沒確認的記錯過');
+  assert.ok(out.some(function (o) { return o.missed === J1 && o.slot === b; }), '補判的結果列得出錯過');
+  var hx = s.holds.find(function (h) { return h.resource === 'x'; }); assert.strictEqual(hx.status, 'expired', '第一個時段保留的畫（2 天）到 5 天後已經到期作廢，照順序處理');
+  assert.strictEqual(C.expire(s, T0 + 5 * DAY), 0);
+  // 判定窗內站在終點上也算；補判時站著不算
+  var s2 = base(), d2 = C.addSlot(s2, J1, T0 + 60e6, 5, null, T0); C.book(s2, J2, d2.id, T0); var st = {}; st[J2] = J1;
+  C.judge(s2, T0 + 60.2e6, st); assert.deepStrictEqual(d2.docked, [J2]);
+  var s3 = base(), d3 = C.addSlot(s3, J1, T0 + 60e6, 5, null, T0); C.book(s3, J2, d3.id, T0); C.judge(s3, T0 + 600e6, st); assert.deepStrictEqual(d3.missed, [J2]);
 });
 ok('純資料檢查與存檔格式：角色洗過還是同一份資料', function () {
   var s = fresh(); var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['r1a']); C.judge(s, T0 + 60e6, {});
