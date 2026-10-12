@@ -9,11 +9,12 @@ var KIT = (function () {
 
   /* ---------- 彈出框：title、body（文字，或 {html}）、按鈕 ---------- */
   var popOnClose = null;
-  function pop(title, body, buttons, onClose) {
+  function pop(title, body, buttons, onClose, opts) {
     $('popTitle').textContent = title;
     if (body && typeof body === 'object' && body.html != null) $('popBody').innerHTML = body.html; else $('popBody').textContent = body || '';
     $('popBtns').innerHTML = (buttons || [{ label: '好', pri: true }]).map(function (b, i) { return '<button type="button" class="btn' + (b.pri ? ' pri' : '') + (b.warn ? ' warn' : '') + '" data-pop="' + i + '">' + esc(b.label) + '</button>'; }).join('');
     var wasOpen = !$('pop').hidden, keep = wasOpen && $('pop').dataset.title === title ? $('popBody').scrollTop : 0;
+    $('pop').classList.toggle('low', !!(opts && opts.low));   // low：靠下、不罩暗，上面的東西看得到
     $('pop').hidden = false; $('pop').dataset.title = title; $('popBody').scrollTop = keep;
     popOnClose = onClose || null;
     $('popBtns').querySelectorAll('[data-pop]').forEach(function (el) { el.onclick = function () { var b = (buttons || [])[+el.dataset.pop]; if (!(b && b.keep)) close(); if (b && b.fn) b.fn(); }; });
@@ -54,10 +55,10 @@ var KIT = (function () {
     var me = APP.me().serial, viewer = APP.isBlank() ? null : me, d = CORE.dayDetail(APP.state(), ownerSerial, viewer, day, APP.now());
     var owner = APP.roleOf(ownerSerial);
     if (d.closed) { pop('只給鄰居看', '這一間只給鄰居看，點不開。'); return; }
-    var mine = ownerSerial === me;
+    var mine = ownerSerial === me, who = mine ? '我' : d.owner.name;   // 看別人的屋：寫屋主的名字，不寫「我」
     var rows = d.entries.map(function (e) {
       var head = '<div class="ent-h"><b class="num">' + esc(e.time) + '</b> 跟 <button type="button" class="lk" data-goserial="' + esc(e.other.serial) + '"' + (e.other.gone ? ' disabled' : '') + '>' + esc(CORE.abbrev(e.other.serial)) + '</button> ' + esc(e.other.name) + (e.other.gone ? '（不玩了）' : '') + ' ' + tagFor(e) + (e.tutorial ? ' <span class="tag off">教學</span>' : '') + (e.together ? ' <span class="tag wait">一起成交</span>' : '') + '</div>';
-      var body = e.status === 'booked' ? '<div class="small">還沒到那一微秒</div>' : e.status === 'traded' ? '<div class="small">我給了：' + esc(itemsText(e.gave)) + '</div><div class="small">拿到：' + esc(itemsText(e.got)) + '</div>' : '<div class="small">' + esc(e.reason || '') + '</div>';
+      var body = e.status === 'booked' ? '<div class="small">還沒到那一微秒</div>' : e.status === 'traded' ? '<div class="small">' + esc(who) + '給了：' + esc(itemsText(e.gave)) + '</div><div class="small">' + esc(who) + '拿到：' + esc(itemsText(e.got)) + '</div>' : '<div class="small">' + esc(e.reason || '') + '</div>';
       var vis = '';
       if (mine && e.vis) {
         if (e.locked) vis = '<div class="small muted">引路人的教學紀錄固定全藏</div>';

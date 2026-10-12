@@ -672,7 +672,7 @@ ok('看一間屋：對接的兩個人永遠看得到；陌生人只看到蓋布�
   C.setHouse(s, J1, { visibility: 'neighbors', sign: '甲的家' });
   var closed = C.viewHouse(s, J1, null, T0 + 200e6);
   assert.ok(closed.closed && closed.sign === '' && closed.age === null && closed.bricks.every(function (x) { return x.lit === undefined && x.cover === undefined; }), '只給鄰居看：沒有亮暗、門牌沒有字');
-  assert.ok(closed.look && closed.look.shape, '外觀還看得到'); assert.ok(C.dayDetail(s, J1, null, day).closed, '點不開');
+  assert.ok(closed.look.blocks.length > 0 && closed.bricks.every(function (x) { return x.g; }), '外觀（自己蓋的）和門牆上的磚位置還看得到'); assert.ok(C.dayDetail(s, J1, null, day).closed, '點不開');
   assert.ok(!C.viewHouse(s, J1, J1, T0 + 200e6).closed, '自己看得到');
   assert.strictEqual(C.viewHouse(s, J1, J2, T0 + 200e6).closed, true, '對接過的人也不是鄰居，整間屋看不到');
 });
@@ -712,21 +712,101 @@ ok('門牌和磚：幾歲幾天（滿 365 天 1 歲，創角色那天 0 歲 0 �
   assert.deepStrictEqual(old.rules.uses, ['舊用途']); assert.deepStrictEqual(old.resources.map(function (x) { return x.name; }), ['舊東西'], '今天生效的是舊的');
   assert.deepStrictEqual(nxt.rules.uses, ['新用途']); assert.deepStrictEqual(nxt.resources.map(function (x) { return x.name; }), ['舊東西', '新東西'], '明天那一塊是新的');
 });
-ok('外觀只收清單裡的：屋型、色票、樣式；門牌 20 字；擺設 20 個、只能轉 90 度、同一格只能一個；房子長大擺設照樣在外面那幾圈', function () {
-  var s = houseBase();
-  assert.deepStrictEqual(C.houseOf(s.roles[0]).shape, 'tower'); assert.strictEqual(C.houseOf(s.roles[0]).visibility, 'public'); assert.strictEqual(C.houseOf(s.roles[0]).defaultVis, 'public');
-  throws(function () { C.setHouse(s, J1, { shape: 'castle' }); }, /清單/); throws(function () { C.setHouse(s, J1, { wall: '#FF0000' }); }, /清單/); throws(function () { C.setHouse(s, J1, { door: 'secret' }); }, /清單/);
-  throws(function () { C.setHouse(s, J1, { sign: '一二三四五六七八九十一二三四五六七八九十一' }); }, /20 字/);
-  var h = C.setHouse(s, J1, { shape: 'round', wall: 'cream', roof: 'pine', trim: 'clay', door: 'arch', window: 'round', roofStyle: 'dome', sign: '一二三四五六七八九十一二三四五六七八九十', visibility: 'neighbors', defaultVis: 'hidden' });
-  assert.deepStrictEqual([h.shape, h.wall, h.door, h.roofStyle, h.sign.length, h.visibility, h.defaultVis], ['round', 'cream', 'arch', 'dome', 20, 'neighbors', 'hidden']);
-  for (var i = 0; i < 20; i++) C.placeProp(s, J1, { kind: ['tree', 'flower', 'lamp', 'flag', 'bench', 'rock'][i % 6], a: i, r: i % 3, rot: 0 });
-  throws(function () { C.placeProp(s, J1, { kind: 'tree', a: 23, r: 2, rot: 0 }); }, /最多 20/);
-  C.removeProp(s, J1, 0, 0); throws(function () { C.placeProp(s, J1, { kind: 'tree', a: 1, r: 1, rot: 0 }); }, /已經有/);
-  throws(function () { C.placeProp(s, J1, { kind: 'tree', a: 0, r: 0, rot: 45 }); }, /格式/); throws(function () { C.placeProp(s, J1, { kind: 'dragon', a: 0, r: 0, rot: 0 }); }, /格式/); throws(function () { C.placeProp(s, J1, { kind: 'tree', a: 30, r: 0, rot: 0 }); }, /格式/);
-  C.placeProp(s, J1, { kind: 'tree', a: 0, r: 0, rot: 270 }); assert.strictEqual(C.rotateProp(s, J1, 0, 0).rot, 0, '轉 90 度一次：270 → 0');
-  var raw = JSON.parse(JSON.stringify(s.roles[0])); raw.house.wall = '<script>'; raw.house.props.push({ kind: 'x', a: 0, r: 0, rot: 0 }); raw.house.sign = 'x'.repeat(50);
-  var cl = C.cleanRole(raw).house; assert.strictEqual(cl.wall, 'brick', '讀檔：不認得的顏色換回預設'); assert.strictEqual(cl.props.length, 20); assert.strictEqual(cl.sign.length, 20);
-  assert.ok(C.viewHouse(s, J1, J1, T0).look.props.every(function (p) { return p.r < C.PROP_RINGS && p.a < C.PROP_ANGLES; }), '擺設的位置是房子外面第幾圈、第幾個方向，跟房子大小無關');
+/* ---------- 第 3 輪：大門磚、地皮、自己蓋 ---------- */
+// 某一天（年、月、日，本機日期）的 dayNum
+function dn(y, m, d) { return Math.round(Date.UTC(y, m - 1, d) / 86400000); }
+ok('大門：門牆排法跟日曆一樣：一層 12 個月從創角色那個月開始、一格一個月、一排一週（星期日在最左邊）；每過一年加高一層', function () {
+  var born = dn(2025, 10, 15);
+  assert.deepStrictEqual(C.gateSpot(born, born), { layer: 0, month: 0, row: 2, col: 3 }, '2025-10-15 星期三：第一層第 1 格、第 3 排、星期三那一欄');
+  assert.deepStrictEqual(C.gateSpot(born, dn(2025, 10, 1)), null, '創角色那天以前沒有磚');
+  assert.deepStrictEqual(C.gateSpot(born, dn(2025, 11, 1)), { layer: 0, month: 1, row: 0, col: 6 }, '11 月 1 日星期六：第 2 格第 1 排最右邊');
+  assert.deepStrictEqual(C.gateSpot(born, dn(2026, 9, 30)), { layer: 0, month: 11, row: 4, col: 3 }, '隔年 9 月是第一層最後一格');
+  assert.deepStrictEqual(C.gateSpot(born, dn(2026, 10, 1)), { layer: 1, month: 0, row: 0, col: 4 }, '隔年 10 月加高一層');
+  assert.deepStrictEqual(C.gateMonth(born, 0, 0), { y: 2025, m: 10 }); assert.deepStrictEqual(C.gateMonth(born, 0, 3), { y: 2026, m: 1 }); assert.deepStrictEqual(C.gateMonth(born, 2, 11), { y: 2028, m: 9 });
+  // 同一個月裡沒有兩天搶同一格；七欄、最多六排
+  var seen = {}; for (var d = born; d < born + 800; d++) { var g = C.gateSpot(born, d), k = [g.layer, g.month, g.row, g.col].join(); assert.ok(!seen[k] && g.col >= 0 && g.col < 7 && g.row >= 0 && g.row < 6); seen[k] = true; }
+  var s = houseBase(); C.createRole(s, { serial: '00000000006', name: '老人家', dailyPoints: 700, rules: {}, resources: [] }, T0 - 400 * DAY);
+  var f = C.addSlot(s, '00000000006', T0 + 3 * DAY, 2, null, T0); C.book(s, J1, f.id, T0);
+  var v = C.viewHouse(s, '00000000006', null, T0), b0 = C.bornOf(s.roles.find(function (r) { return r.serial === '00000000006'; }));
+  assert.strictEqual(v.bricks.filter(function (b) { return !b.future; }).length, 401, '每天一塊：創角色那天到今天');
+  assert.ok(v.bricks.every(function (b) { var g = C.gateSpot(b0, b.day); return JSON.stringify(b.g) === JSON.stringify(g); }), '每一塊都有門牆上的位置');
+  var fut = v.bricks.filter(function (b) { return b.future; }); assert.strictEqual(fut.length, 1); assert.ok(fut[0].booked && fut[0].g, '未來有預約的那天是虛線磚，也在門牆上');
+  assert.strictEqual(v.layers, 2, '活了 400 天：門牆兩層'); assert.strictEqual(v.gateMonths.length, 24);
+  assert.ok(!v.bricks.some(function (b) { return b.day > C.dayNum(T0) && !b.future; }), '還沒到的日子沒有磚');
+});
+ok('地皮：0 歲 12×12、高 12；每活一年四邊各外推一格、高度加 2；10 歲以上 32×32、高 32；大門在最前面一排中間 12 格', function () {
+  assert.deepStrictEqual([C.plotOf(0).size, C.plotOf(0).height], [12, 12]); assert.deepStrictEqual([C.plotOf(1).size, C.plotOf(1).height], [14, 14]);
+  assert.deepStrictEqual([C.plotOf(10).size, C.plotOf(10).height], [32, 32]); assert.deepStrictEqual([C.plotOf(25).size, C.plotOf(25).height], [32, 32]);
+  var p0 = C.plotOf(0), p1 = C.plotOf(1);
+  assert.deepStrictEqual([p0.min, p0.max, p1.min, p1.max], [-6, 5, -7, 6], '以地皮中心為準：長大時四邊各外推一格，原本的位置不變');
+  assert.ok(C.isGateCell(p0, 0, 5) && C.isGateCell(p0, -6, 5) && C.isGateCell(p0, 5, 5) && !C.isGateCell(p0, 0, 4), '0 歲：大門在 z = 5 那一排');
+  assert.ok(C.isGateCell(p1, 0, 6) && !C.isGateCell(p1, 0, 5) && !C.isGateCell(p1, 6, 6), '1 歲：大門跟著前緣往外移到 z = 6，兩邊多出來的格子可以蓋');
+  var s = houseBase(); C.createRole(s, { serial: '00000000006', name: '老人家', dailyPoints: 700, rules: {}, resources: [] }, T0 - 800 * DAY);
+  assert.strictEqual(C.viewHouse(s, '00000000006', null, T0).plot.size, 16, '2 歲：16×16'); assert.strictEqual(C.viewHouse(s, J1, null, T0).plot.size, 12);
+});
+ok('自己蓋：只收清單裡的種類、只能在地皮裡、不能在大門的格子、同一格不能兩塊、擺設只能轉 90 度；不限幾塊（5000 塊照收）；讀檔時不合格的丟掉、其他留著', function () {
+  var s = houseBase(), n0 = C.houseOf(s.roles[0]).blocks.length;
+  assert.ok(n0 > 50, '新角色先有一間預設小屋（' + n0 + ' 塊）'); assert.strictEqual(JSON.stringify(C.houseOf(s.roles[0]).blocks), JSON.stringify(C.template('house')));
+  var b = C.addBlock(s, J1, [4, 0, -5, 'sky'], T0); assert.deepStrictEqual(b, [4, 0, -5, 'sky']);
+  throws(function () { C.addBlock(s, J1, [4, 0, -5, 'brick'], T0); }, /已經有/);
+  throws(function () { C.addBlock(s, J1, [0, 0, 0, 'gold'], T0); }, /不在清單/); throws(function () { C.addBlock(s, J1, [0, 0, 0, '<img>'], T0); }, /不在清單/);
+  throws(function () { C.addBlock(s, J1, [6, 0, 0, 'sky'], T0); }, /地皮外面/); throws(function () { C.addBlock(s, J1, [0, 12, 0, 'sky'], T0); }, /地皮外面/); throws(function () { C.addBlock(s, J1, [0, -1, 0, 'sky'], T0); }, /地皮外面/);
+  throws(function () { C.addBlock(s, J1, [0, 3, 5, 'sky'], T0); }, /大門/); throws(function () { C.addBlock(s, J1, [-6, 0, 5, 'sky'], T0); }, /大門/);
+  throws(function () { C.addBlock(s, J1, [0.5, 0, 0, 'sky'], T0); }, /整數/);
+  throws(function () { C.addBlock(s, J1, [4, 0, -4, 'tree', 45], T0); }, /90 度/); throws(function () { C.addBlock(s, J1, [4, 0, -4, 'sky', 90], T0); }, /只有擺設能轉/);
+  C.addBlock(s, J1, [4, 0, -4, 'tree', 270], T0); assert.deepStrictEqual(C.rotateBlock(s, J1, 4, 0, -4), [4, 0, -4, 'tree', 0], '轉 90 度：270 → 0');
+  throws(function () { C.rotateBlock(s, J1, 4, 0, -5); }, /只有擺設/);
+  assert.deepStrictEqual(C.removeBlock(s, J1, 4, 0, -5), [4, 0, -5, 'sky']); throws(function () { C.removeBlock(s, J1, 4, 0, -5); }, /沒有東西/);
+  // 不限幾塊：5000 塊照收
+  var OLD = '00000000006'; C.createRole(s, { serial: OLD, name: '老人家', dailyPoints: 700, rules: {}, resources: [] }, T0 - 3700 * DAY);
+  var many = []; for (var x = -16; x <= 15; x++) for (var y = 0; y < 8; y++) for (var z = -16; z <= 14; z++) if (many.length < 5000) many.push([x, y, z, ['brick', 'glass', 'wood', 'lamp'][(x + y + z + 60) % 4]]);
+  C.setBlocks(s, OLD, many, T0); assert.strictEqual(C.houseOf(C.roleOf(s, OLD)).blocks.length, 5000, '10 歲的地皮：5000 塊照收');
+  throws(function () { C.setBlocks(s, OLD, many.concat([[0, 0, 15, 'sky']]), T0); }, /大門/); assert.strictEqual(C.houseOf(C.roleOf(s, OLD)).blocks.length, 5000, '整份換掉時有一塊不合格：整份擋下，原本的不動');
+  var mine = []; for (var x2 = -6; x2 <= 5; x2++) for (var y2 = 0; y2 < 12; y2++) for (var z2 = -6; z2 <= 4; z2++) mine.push([x2, y2, z2, 'brick']);
+  C.setBlocks(s, J1, mine, T0); assert.strictEqual(C.houseOf(s.roles[0]).blocks.length, 1584, '0 歲：地皮除了大門那一排全部蓋滿（1584 塊）也照收');
+  // 讀檔：不合格的丟掉、其他留著
+  var raw = JSON.parse(JSON.stringify(s.roles[0])); raw.house.blocks = [[1, 0, 1, 'sky'], [1, 0, 1, 'brick'], [0, 0, 5, 'sky'], [40, 0, 0, 'sky'], [2, 0, 2, 'dragon'], [3, 0, 3, 'tree', 33], 'x', [2, 1, 2, 'flag', 180]];
+  raw.house.sign = 'x'.repeat(50);
+  var cl = C.cleanRole(raw).house; assert.deepStrictEqual(cl.blocks, [[1, 0, 1, 'sky'], [2, 1, 2, 'flag', 180]], '讀檔：重複的、大門上的、地皮外的、不認得的、轉錯的都丟掉，其他留著'); assert.strictEqual(cl.sign.length, 20);
+  // 範本：放得進 12×12、高 12，不碰大門
+  Object.keys(C.TEMPLATES).forEach(function (k) { var t = C.template(k); assert.ok(t.length > 50 && JSON.stringify(C.cleanBlocks(t, C.plotOf(0), true)) === JSON.stringify(t), '範本「' + C.TEMPLATES[k] + '」放得進 12×12、高 12（' + t.length + ' 塊）'); });
+  var old = C.applyTemplate(s, J1, 'tower', T0); assert.strictEqual(old.length, 1584); assert.strictEqual(JSON.stringify(C.houseOf(s.roles[0]).blocks), JSON.stringify(C.template('tower')), '換範本：整份換成塔');
+  throws(function () { C.applyTemplate(s, J1, 'castle', T0); }, /沒有這個範本/);
+  // 門牌、整間屋給誰看、新的一筆預設
+  throws(function () { C.setHouse(s, J1, { sign: '一二三四五六七八九十一二三四五六七八九十一' }); }, /20 字/); throws(function () { C.setHouse(s, J1, { shape: 'tower' }); }, /只能改/);
+  var h = C.setHouse(s, J1, { sign: '一二三四五六七八九十一二三四五六七八九十', visibility: 'neighbors', defaultVis: 'hidden' }); assert.deepStrictEqual([h.sign.length, h.visibility, h.defaultVis], [20, 'neighbors', 'hidden']);
+  // 看一間屋只回傳資料：方塊是清單（位置、種類）
+  var look = C.viewHouse(s, J1, null, T0).look; assert.strictEqual(look.n, look.blocks.length); look.blocks[0][3] = 'x'; assert.notStrictEqual(C.houseOf(s.roles[0]).blocks[0][3], 'x', '回傳的是複本，畫面改不到資料');
+});
+ok('存檔：第 2 輪的存檔讀得進來：原本的外觀換成預設小屋（照原本牆和屋頂的顏色），擺設放得進地皮的換成方塊、放不進的不要', function () {
+  var s = houseBase(), raw = JSON.parse(JSON.stringify(s));
+  raw.roles[0].house = { shape: 'round', wall: 'cream', roof: 'pine', trim: 'ink', door: 'arch', window: 'round', roofStyle: 'dome', sign: '舊門牌', visibility: 'public', defaultVis: 'neighbors',
+    props: [{ kind: 'tree', a: 0, r: 0, rot: 90 }, { kind: 'lamp', a: 6, r: 0, rot: 0 }, { kind: 'rock', a: 12, r: 0, rot: 0 }, { kind: 'bench', a: 0, r: 2, rot: 0 }, { kind: 'flag', a: 18, r: 0, rot: 0 }] };
+  raw.roles[1].house = { shape: 'tower', wall: '???', roof: 'slate', props: [] };
+  var h = C.cleanRole(raw.roles[0]).house, h2 = C.cleanRole(raw.roles[1]).house;
+  assert.strictEqual(h.sign, '舊門牌'); assert.strictEqual(h.defaultVis, 'neighbors'); assert.strictEqual(h.shape, undefined, '屋型、樣式不要了');
+  var walls = h.blocks.filter(function (b) { return b[3] === 'cream'; }).length, roofs = h.blocks.filter(function (b) { return b[3] === 'pine'; }).length;
+  assert.ok(walls > 30 && roofs > 30, '預設小屋照原本牆（米白）和屋頂（松綠）的顏色');
+  var kinds = h.blocks.filter(function (b) { return ['tree', 'stone', 'flag', 'bench'].indexOf(b[3]) >= 0; }).map(function (b) { return b[3] + (b[4] != null ? ':' + b[4] : ''); }).sort();
+  assert.ok(kinds.indexOf('tree:90') >= 0 && kinds.indexOf('stone') >= 0 && kinds.indexOf('flag:0') >= 0, '放得進地皮的擺設換成方塊（樹照原本的方向、石頭換成石灰方塊）：' + kinds.join(','));
+  assert.ok(kinds.indexOf('bench:0') < 0, '放不進的（最外圈正前方，在大門那一排）不要');
+  assert.ok(JSON.stringify(C.cleanBlocks(h.blocks, C.plotOf(0), true)) === JSON.stringify(h.blocks), '換出來的每一塊都合格');
+  assert.ok(h2.blocks.filter(function (b) { return b[3] === 'brick'; }).length > 30, '不認得的牆色：用預設');
+  var store = {}; global.localStorage = { getItem: function (k) { return store[k] == null ? null : store[k]; }, setItem: function (k, v) { store[k] = v; } };
+  store['arrive-v9'] = JSON.stringify(Object.assign(raw, { v: 9, tutorial: { step: 'done' } }));
+  var back = C.load(); assert.ok(!C.io.loadIssue, '讀得進來、不會壞'); assert.ok(C.houseOf(back.roles[0]).blocks.length > 100);
+  delete global.localStorage;
+});
+ok('存檔：壓縮的保險：壓完先解開對照，不一樣就不存、跳提示，舊存檔不動', function () {
+  var store = {}; global.localStorage = { getItem: function (k) { return store[k] == null ? null : store[k]; }, setItem: function (k, v) { store[k] = v; } };
+  var big = C.fresh({ history: false }); require('./bulk.js').bulk(C, big);
+  assert.ok(C.save(big)); var good = store['arrive-v9']; assert.ok(good.slice(0, 4) === 'LZ1:', '大的存檔壓縮過');
+  var real = C.codec.compress; C.codec.compress = function (t) { var z = real(t); return z.slice(0, z.length >> 1) + String.fromCharCode(z.charCodeAt(z.length >> 1) ^ 1) + z.slice((z.length >> 1) + 1); };   // 故意讓壓縮出錯
+  big.records.push({ kind: 'x', at: 0, text: '新的一筆' });
+  assert.strictEqual(C.save(big), false, '壓出來解不回原樣：不存'); assert.ok(/壓縮出錯/.test(C.io.saveError) && /原本的存檔沒動/.test(C.io.saveError), '跳提示：' + C.io.saveError);
+  assert.strictEqual(store['arrive-v9'], good, '舊存檔不動');
+  C.codec.compress = real; assert.ok(C.save(big) && store['arrive-v9'] !== good, '壓縮正常了就照常存');
+  delete global.localStorage;
 });
 ok('示範資料：阿澄、小樂、引路人很久以前就創了，帶一段照規則跑出來的過去紀錄（成交、不成交、錯過、幾筆藏起來的）', function () {
   var s = C.fresh(), now = C.nowUs();
@@ -737,6 +817,8 @@ ok('示範資料：阿澄、小樂、引路人很久以前就創了，帶一段�
   assert.ok(s.entries.some(function (e) { return e.vis['00000000002'] !== 'public' || e.vis['00000000003'] !== 'public'; }), '有幾筆藏起來');
   assert.ok(s.entries.every(function (e) { return !e.docking || s.dockings.some(function (d) { return d.id === e.docking; }); }), '照正式的格式：每一筆都連到對接紀錄');
   var v = C.viewHouse(s, '00000000002', null, now); assert.ok(v.bricks.filter(function (b) { return b.lit; }).length > 10 && v.bricks.some(function (b) { return b.cover; }), '隨機跳過去看得到亮的磚和蓋布');
+  var looks = ['00000000002', '00000000003', C.GUIDE].map(function (x) { return JSON.stringify(C.houseOf(C.roleOf(s, x)).blocks); });
+  assert.ok(looks[0] !== looks[1] && looks[1] !== looks[2] && looks[0] !== looks[2] && looks.every(function (l) { return JSON.parse(l).length > 100; }), '阿澄、小樂、引路人各有一間不一樣的房子（塔、長屋、圓屋再改過）');
 });
 ok('存檔：第 1 輪的存檔讀得進來（補出每一筆，每一筆公開，預設外觀）；三年份（1100 個判過的時段、3300 筆對接）存得進去也讀得進來', function () {
   var store = {}; global.localStorage = { getItem: function (k) { return store[k] == null ? null : store[k]; }, setItem: function (k, v) { store[k] = v; } };
@@ -746,7 +828,7 @@ ok('存檔：第 1 輪的存檔讀得進來（補出每一筆，每一筆公開�
   store['arrive-v9'] = JSON.stringify(old);
   var st = C.load(); assert.ok(!C.io.loadIssue);
   assert.deepStrictEqual(st.entries.map(function (e) { return e.status; }).sort(), ['booked', 'traded']); assert.ok(st.entries.every(function (e) { return e.vis[J1] === 'public' && e.vis[J2] === 'public'; }), '每一筆公開');
-  assert.strictEqual(C.houseOf(st.roles[0]).shape, 'tower', '預設外觀'); assert.strictEqual(C.viewHouse(st, J1, null, T0).age.text, '0 歲 0 天', '沒有生日就從第一個版本算');
+  assert.strictEqual(JSON.stringify(C.houseOf(st.roles[0]).blocks), JSON.stringify(C.template('house')), '沒有外觀的：預設小屋'); assert.strictEqual(C.viewHouse(st, J1, null, T0).age.text, '0 歲 0 天', '沒有生日就從第一個版本算');
   var big = C.fresh({ history: false }); var B = require('./bulk.js').bulk(C, big);
   assert.strictEqual(big.dockings.length, 3300); assert.strictEqual(big.roles.find(function (r) { return r.serial === B.X; }).slots.length, 1100);
   assert.ok(C.save(big), '三年份存得進去'); assert.ok(store['arrive-v9'].length < 1000000, '存檔壓縮過：' + store['arrive-v9'].length + ' 字');

@@ -1,5 +1,5 @@
-// 達秒屋：780×360、360×780 都打得開；磚數對；拖著轉、兩指縮放、滾輪縮放真的有變；點磚跳出那天；點門到他的表格世界；序號框和隨機（不會跳到自己）；
-// 3D 用不了時顯示日曆；三年份一個畫面的繪製次數不超過 50；成交那一刻開著達秒屋：白光，今天那塊磚亮起來。
+// 達秒屋：一打開大門在畫面中間；780×360、360×780 都打得開；門牆的磚數對；拖著轉、兩指縮放、滾輪縮放真的有變；點門牆的磚跳出那天；點門到他的表格世界；
+// 序號框和隨機（不會跳到自己）；3D 用不了時顯示日曆；三年份的門牆、地皮塞滿（3 萬多塊）一個畫面的繪製次數不超過 50；成交那一刻開著達秒屋：白光，今天那塊磚亮起來。
 // node v9/tests/t_house.js <test9.html> [截圖資料夾]
 var lib = require('./lib'), assert = lib.assert, path = require('path'), fs = require('fs');
 var OUT = process.argv[3] || path.join(__dirname, 'shots'); fs.mkdirSync(OUT, { recursive: true });
@@ -14,7 +14,9 @@ var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){
   await H.nav('house'); await H.clickText('去我的達秒屋', '#tmain'); await pg.waitForTimeout(700);
   assert(!(await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("!!document.querySelector('#hstage canvas')")), '從「我的達秒屋」進到自己的達秒屋外面，整個畫面就是達秒屋');
   assert((await pg.textContent('#hwho')).indexOf('J1 我 的達秒屋') >= 0 && (await pg.textContent('#hwho')).indexOf('0 歲 0 天') >= 0, '最上面寫誰的達秒屋、幾歲幾天');
-  assert((await H.ev("WORLD.info().bricks")) === (await H.ev("HOUSE.data().bricks.length")), '磚數對：' + (await H.ev("WORLD.info().bricks")));
+  assert((await H.ev("WORLD.info().bricks")) === (await H.ev("HOUSE.data().bricks.length")), '門牆的磚數對：' + (await H.ev("WORLD.info().bricks")));
+  var mid = await H.ev("(function(){var s=WORLD.screenOf('door'),c=document.querySelector('#hstage canvas').getBoundingClientRect(),hb=document.querySelector('.hbar').getBoundingClientRect(),fb=document.querySelector('.hfoot').getBoundingClientRect();return {dx:Math.abs(s.x-(c.left+c.width/2))/c.width,inBand:s.y>hb.bottom&&s.y<fb.top};})()");
+  assert(mid.dx < 0.08 && mid.inBand, '一打開大門在畫面中間（門離正中 ' + (mid.dx * 100).toFixed(1) + '% 寬）');
   // 2. 序號框：到阿澄的達秒屋外面
   await H.houseSerial('J2');
   var v2 = await H.ev("JSON.stringify({b:WORLD.info().bricks,n:CORE.viewHouse(APP.state(),'" + J2 + "','" + J1 + "').bricks.length,s:WORLD.info().serial,calls:WORLD.info().calls})"); v2 = JSON.parse(v2);
@@ -68,15 +70,25 @@ var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){
   var door = await H.ev("(function(){var s=WORLD.screenOf('door');return s&&s.x>0&&s.x<innerWidth&&s.y>40&&s.y<innerHeight;})()"); assert(door, '一打開整間屋都在畫面裡，門看得到');
   await pg.screenshot({ path: OUT + '/v9_house_3_portrait.png' });
   await pg.setViewportSize({ width: 780, height: 360 }); await pg.waitForTimeout(200);
-  // 9. 三年份（1100 個時段、3300 筆對接）：打得開，一個畫面的繪製次數不超過 50
+  // 9. 三年份（1100 個時段、3300 筆對接）：門牆三層，打得開，一個畫面的繪製次數不超過 50
   await H.ev("(function(){var bulk=" + BULK + ";window.__B=bulk(CORE,APP.state());})()");
-  var shapes = ['tower', 'long', 'flat', 'round'], callsOk = true, msgs = [];
-  for (var sh of shapes) { await H.ev("CORE.setHouse(APP.state(),window.__B.X,{shape:'" + sh + "'});APP.goHouse(window.__B.X);HOUSE.render({resetCamera:true})"); await pg.waitForTimeout(500); await H.ev("WORLD.renderNow()"); var inf = await H.ev("WORLD.info()"); msgs.push(sh + ' ' + inf.calls + ' 次／' + inf.bricks + ' 塊'); if (!(inf.calls <= 50 && inf.bricks === 1102)) callsOk = false; }
-  assert(callsOk, '三年份四種屋型都打得開，繪製次數不超過 50：' + msgs.join('、'));
+  await H.ev("APP.goHouse(window.__B.X);HOUSE.render({resetCamera:true})"); await pg.waitForTimeout(500); await H.ev("WORLD.renderNow()");
+  var inf = await H.ev("WORLD.info()");
+  assert(inf.calls <= 50 && inf.bricks === 1102 && (await H.ev("HOUSE.data().layers")) >= 3, '三年份：門牆 ' + (await H.ev("HOUSE.data().layers")) + ' 層 ' + inf.bricks + ' 塊磚，繪製 ' + inf.calls + ' 次');
   await pg.screenshot({ path: OUT + '/v9_house_4_3years.png' });
+  // 10. 地皮塞滿：活了 10 年以上（32×32、高 32），除了大門那一排每一格都蓋（3 萬多塊、好幾種方塊和擺設）
+  var full = await H.ev("(function(){var S=APP.state(),r=APP.roleOf(window.__B.X);r.born-=3000;var p=CORE.plotAt(r,APP.now()),K=Object.keys(CORE.BLOCKS),L=[];for(var x=p.min;x<=p.max;x++)for(var y=0;y<p.height;y++)for(var z=p.min;z<=p.max;z++){if(CORE.isGateCell(p,x,z))continue;var k=K[(x*7+y*3+z*5+999)%K.length];L.push(CORE.BLOCKS[k].type==='prop'?[x,y,z,k,90]:[x,y,z,k]);}var t0=performance.now();CORE.setBlocks(S,r.serial,L,APP.now());var t1=performance.now();APP.saveNow();return {n:L.length,size:p.size,set:t1-t0};})()");
+  var t0 = Date.now(); await H.ev("APP.goHouse(window.__B.X);HOUSE.render({resetCamera:true});WORLD.renderNow()"); var open = Date.now() - t0;
+  inf = await H.ev("WORLD.info()");
+  var th0 = inf.theta, turn = 0;
+  for (var r = 0; r < 5; r++) { await pg.mouse.move(p.x, p.y); await pg.mouse.down(); await pg.mouse.move(p.x + 40, p.y, { steps: 3 }); await pg.mouse.up(); turn += await H.ev("(function(){var t=performance.now();WORLD.renderNow();return performance.now()-t;})()"); }
+  turn /= 5; var th1 = (await H.ev("WORLD.info()")).theta;
+  assert(full.size === 32 && full.n > 30000 && inf.blocks === full.n && inf.calls <= 50, '地皮塞滿：32×32、高 32 蓋了 ' + full.n + ' 塊，打得開（' + open + ' ms），畫 ' + inf.faces + ' 面，繪製 ' + inf.calls + ' 次');
+  assert(Math.abs(th1 - th0) > 0.5 && turn < 2000, '地皮塞滿也轉得動：拖了 5 下，轉一下重畫一次 ' + turn.toFixed(0) + ' ms（測試機是軟體繪圖）');
+  await pg.screenshot({ path: OUT + '/v9_house_5_full.png' });
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close();
-  // 10. 3D 用不了：達秒屋改顯示成日曆，點一格跟點一塊磚一樣
+  // 11. 3D 用不了：達秒屋改顯示成日曆，點一格跟點一塊磚一樣
   var N = await lib.open(process.argv[2], { noWebGL: true }), np = N.pg;
   await N.fresh({ history: true });
   assert((await N.ev("WORLD.available")) === false, '擋掉 WebGL：3D 用不了');

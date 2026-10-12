@@ -141,8 +141,18 @@ a.lk{word-break:break-all}
 .htut{display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:space-between;padding:6px 10px;background:var(--brass-soft);border:1px solid var(--line);border-radius:var(--r-m)}
 .hrow{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .hhint{font-size:.78rem;color:var(--ink);background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:3px 10px;backdrop-filter:blur(6px);pointer-events:none}
+.hbuild{display:flex;flex-direction:row;align-items:center;gap:6px;background:var(--hud);border:1px solid var(--line);border-radius:var(--r-m);padding:6px;backdrop-filter:blur(6px)}
+.hblk{order:2;flex:1 1 0;min-width:0;display:flex;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+.hblk button{flex:none;min-width:42px;min-height:42px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:2px solid var(--line);border-radius:var(--r-s);background:var(--panel);font-size:.68rem;padding:2px 4px;color:var(--ink)}
+.hblk button .sw{margin:0;width:20px;height:16px}
+.hblk button.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--brass)}
+.hops{order:1;flex:none;display:flex;gap:5px;align-items:center}
+.hops .btn{min-height:42px;padding:4px 9px}
+.hops .btn.on{background:var(--ink);color:var(--panel)}
 .hmsg{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:4;background:var(--ink);color:var(--panel);border-radius:var(--r-m);padding:6px 12px;font-size:.88rem;max-width:calc(100% - 32px)}
 .pop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);padding:16px}
+.pop.low{align-items:flex-end;background:transparent;pointer-events:none}
+.pop.low .card{pointer-events:auto;max-width:34em}
 .pop .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);max-width:30em;width:100%;max-height:calc(100% - 16px);display:flex;flex-direction:column;padding:12px 14px;gap:8px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
 .pop h3{font-family:var(--serif);margin:0;font-size:1.02rem}
 .pop .body{white-space:pre-line;overflow:auto;font-size:.92rem;min-height:0}
@@ -163,7 +173,7 @@ a.lk{word-break:break-all}
   <div id="hcal" hidden></div>
   <div class="hbar"><input type="text" id="hSerialIn" placeholder="序號，例如 J2" aria-label="序號" autocomplete="off"><button type="button" class="btn sm pri" data-hact="go" id="hSerialGo">去</button><button type="button" class="btn sm" data-hact="random" id="hRandom">隨機</button><span class="who" id="hwho"></span><button type="button" class="btn sm" data-hact="back" id="hBack">回我的表格世界</button></div>
   <div class="hmsg" id="hmsg" hidden></div>
-  <div class="hfoot"><div class="htut" id="htut" hidden></div><div class="hrow"><span class="hhint" id="hhint"></span><span><button type="button" class="btn sm" data-hact="place" id="hPlace" hidden>擺設</button> <button type="button" class="btn sm pri" data-hact="door" id="hDoor">進門</button></span></div></div>
+  <div class="hfoot"><div class="htut" id="htut" hidden></div><div class="hbuild" id="hbuild" hidden><div class="hblk" id="hblk" role="toolbar" aria-label="選方塊"></div><div class="hops"><button type="button" class="btn sm on" data-hact="modeAdd" id="hModeAdd">蓋</button><button type="button" class="btn sm" data-hact="modeDel" id="hModeDel">拆</button><button type="button" class="btn sm" data-hact="undo" id="hUndo">復原上一步</button><button type="button" class="btn sm" data-hact="tpl" id="hTpl">範本</button></div></div><div class="hrow"><span class="hhint" id="hhint"></span><span><button type="button" class="btn sm" data-hact="build" id="hBuild" hidden>蓋</button> <button type="button" class="btn sm pri" data-hact="door" id="hDoor">進門</button></span></div></div>
 </main>
 <div class="whiteflash" id="flash"></div>
 <div class="pop" id="pop" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="popTitle"><h3 id="popTitle"></h3><div class="body" id="popBody"></div><div class="btns" id="popBtns"></div></div></div>

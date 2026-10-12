@@ -336,7 +336,7 @@ var CORE = (function () {
     if (state.issued.indexOf(serial) < 0) state.issued.push(serial);
     if (!f.name || !String(f.name).trim()) bad('角色要有名字');
     var daily = f.dailyPoints == null ? DEFAULT_DAILY : Math.floor(+f.dailyPoints); if (!(daily >= 1)) bad('每天的點要是正整數');
-    var r = { serial: serial, name: String(f.name).trim(), contact: String(f.contact || ''), slots: [], stock: {}, world: f.world || defaultWorld(serial), born: dayNum(atUs), house: cleanHouse(f.house || {}),
+    var r = { serial: serial, name: String(f.name).trim(), contact: String(f.contact || ''), slots: [], stock: {}, world: f.world || defaultWorld(serial), born: dayNum(atUs), house: f.house && f.house.template ? Object.assign(cleanHouse(f.house), { blocks: cleanBlocks(template(f.house.template, f.house.wall, f.house.roof).concat(f.house.extra || []), plotOf(0), false) }) : cleanHouse(f.house || {}),
               versions: [{ id: newId('v'), fromDay: dayNum(atUs), dailyPoints: daily, rules: cleanRules(f.rules), resources: (f.resources || []).map(cleanRes) }] };
     r.versions[0].resources.forEach(function (x, i) { var src = f.resources[i]; r.stock[x.id] = { avail: Math.max(0, Math.floor(+(src && src.avail) || 0)), reserved: 0 }; });
     state.roles.push(r);
@@ -667,48 +667,160 @@ var CORE = (function () {
   /* ---------- 達秒屋（7-2）：每一筆、藏、外觀、看一間屋 ---------- */
   var VIS_LEVELS = { public: '公開', neighbors: '只給鄰居看', hidden: '全藏' };
   function cleanVisLevel(v) { return VIS_LEVELS[v] ? v : 'hidden'; }   // 讀到不認得的值就當全藏
-  var HOUSE_SHAPES = { tower: '塔', long: '長屋', flat: '平房', round: '圓屋' };
   var PALETTE = { brick: { name: '磚紅', hex: '#A9533B' }, clay: { name: '陶土', hex: '#C7794A' }, sand: { name: '沙色', hex: '#D9C08C' }, cream: { name: '米白', hex: '#EDE4CC' }, stone: { name: '石灰', hex: '#9C9A92' }, slate: { name: '石板', hex: '#55606B' },
     moss: { name: '苔綠', hex: '#6C7F4A' }, pine: { name: '松綠', hex: '#2F5B45' }, sky: { name: '天藍', hex: '#7FA7C4' }, ink: { name: '墨藍', hex: '#2C3E5C' }, plum: { name: '梅紫', hex: '#6E4A68' }, coal: { name: '炭黑', hex: '#2E2C2B' } };
-  var DOOR_STYLES = { plain: '平門', arch: '拱門', double: '雙開門' };
-  var WINDOW_STYLES = { square: '方窗', round: '圓窗', tall: '長窗' };
-  var ROOF_STYLES = { gable: '斜屋頂', flat: '平屋頂', dome: '圓頂' };
-  var PROPS = { tree: '樹', flower: '花', lamp: '燈', flag: '旗子', bench: '長椅', rock: '石頭' };
-  var PROP_MAX = 20, PROP_ANGLES = 24, PROP_RINGS = 3, SIGN_MAX = 20;   // 擺設放在房子外面的一圈一圈格子上（24 個方向 × 3 圈），跟著房子大小往外推，不會被蓋住
-  var DEFAULT_HOUSE = { shape: 'tower', wall: 'brick', roof: 'slate', trim: 'cream', door: 'plain', window: 'square', roofStyle: 'gable', sign: '', props: [], visibility: 'public', defaultVis: 'public' };
-  // 外觀只能是清單裡的資料：讀檔和修改時都檢查；不認得的換回預設
-  function cleanHouse(h, strict) {
-    h = h && typeof h === 'object' ? h : {};
-    var pick = function (k, table) { if (h[k] == null) return DEFAULT_HOUSE[k]; if (table[h[k]]) return h[k]; if (strict) bad('不在清單裡：' + h[k]); return DEFAULT_HOUSE[k]; };
+  // 方塊清單：色票 12 色、玻璃、木頭、燈是方塊；樹、花、旗子、長椅是擺設（也佔一格，可以轉 90 度）
+  var BLOCKS = {};
+  Object.keys(PALETTE).forEach(function (k) { BLOCKS[k] = { name: PALETTE[k].name, type: 'solid', hex: PALETTE[k].hex }; });
+  BLOCKS.glass = { name: '玻璃', type: 'glass', hex: '#BFE0EE' };
+  BLOCKS.wood = { name: '木頭', type: 'solid', hex: '#9A6B3F' };
+  BLOCKS.lamp = { name: '燈', type: 'lamp', hex: '#FFE6A0' };
+  BLOCKS.tree = { name: '樹', type: 'prop', hex: '#4E7A3E' };
+  BLOCKS.flower = { name: '花', type: 'prop', hex: '#D9667A' };
+  BLOCKS.flag = { name: '旗子', type: 'prop', hex: '#C0453A' };
+  BLOCKS.bench = { name: '長椅', type: 'prop', hex: '#8B6A44' };
+  var SIGN_MAX = 20, PLOT_MIN = 12, PLOT_MAX = 32, GATE_W = 12;
+  var ROTS = [0, 90, 180, 270];
+  // 地皮跟著年齡長：一開始 12×12、高 12；每活一年四邊各外推一格、高度加 2；最大 32×32、高 32
+  function plotOf(years) { var s = Math.min(PLOT_MAX, PLOT_MIN + 2 * Math.max(0, Math.floor(years || 0))); return { size: s, height: s, min: -s / 2, max: s / 2 - 1, gateZ: s / 2 - 1, gateX0: -GATE_W / 2, gateX1: GATE_W / 2 - 1 }; }
+  function plotAt(role, now) { return plotOf(ageOf(bornOf(role), dayNum(now || nowUs())).years); }
+  // 方塊位置以地皮中心為準：x、z 從 -size/2 到 size/2-1，y 從 0 到 height-1；大門佔最前面一排中間 12 格（整個高度）
+  function isGateCell(plot, x, z) { return z === plot.gateZ && x >= plot.gateX0 && x <= plot.gateX1; }
+  function blockProblem(b, plot) {
+    if (!Array.isArray(b) || b.length < 4 || b.length > 5) return '方塊格式不對';
+    var x = b[0], y = b[1], z = b[2], k = b[3], rot = b.length > 4 ? b[4] : 0;
+    if (![x, y, z].every(function (n) { return typeof n === 'number' && n % 1 === 0; })) return '方塊位置要是整數';
+    if (!BLOCKS.hasOwnProperty(k)) return '方塊種類不在清單裡：' + k;
+    if (BLOCKS[k].type === 'prop' ? ROTS.indexOf(rot) < 0 : rot !== 0) return '只有擺設能轉，而且只能轉 90 度';
+    if (x < plot.min || x > plot.max || z < plot.min || z > plot.max || y < 0 || y >= plot.height) return '地皮外面不能蓋';
+    if (isGateCell(plot, x, z)) return '大門那幾格不能蓋';
+    return null;
+  }
+  function cellKey(x, y, z) { return x + ',' + y + ',' + z; }
+  function normBlock(b) { var k = b[3]; return BLOCKS[k].type === 'prop' ? [b[0], b[1], b[2], k, b.length > 4 ? b[4] : 0] : [b[0], b[1], b[2], k]; }
+  // 方塊清單：strict（修改時）不合格就整個擋下；讀檔時不合格的丟掉、其他留著
+  function cleanBlocks(list, plot, strict) {
+    var seen = {}, out = [];
+    (Array.isArray(list) ? list : []).forEach(function (b) {
+      var p = blockProblem(b, plot);
+      if (!p && seen[cellKey(b[0], b[1], b[2])]) p = '同一格不能放兩塊';
+      if (p) { if (strict) bad(p); return; }
+      seen[cellKey(b[0], b[1], b[2])] = true; out.push(normBlock(b));
+    });
+    return out;
+  }
+
+  /* 範本和預設小屋：都放得進 12×12、高 12，不碰大門那一排 */
+  function boxFill(out, x0, x1, y0, y1, z0, z1, k) { for (var x = x0; x <= x1; x++) for (var y = y0; y <= y1; y++) for (var z = z0; z <= z1; z++) out.push([x, y, z, k]); }
+  function shell(out, x0, x1, z0, z1, y0, y1, k) { for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) for (var z = z0; z <= z1; z++) if (x === x0 || x === x1 || z === z0 || z === z1) out.push([x, y, z, k]); }
+  function carve(out, test) { return out.filter(function (b) { return !test(b[0], b[1], b[2]); }); }
+  function setCell(out, x, y, z, k, rot) { out = carve(out, function (a, b, c) { return a === x && b === y && c === z; }); out.push(rot == null ? [x, y, z, k] : [x, y, z, k, rot]); return out; }
+  var TEMPLATES = { house: '預設小屋', tower: '塔', long: '長屋', flat: '平房', round: '圓屋' };
+  var TEMPLATE_COLORS = { house: ['brick', 'slate'], tower: ['stone', 'slate'], long: ['sand', 'moss'], flat: ['cream', 'coal'], round: ['cream', 'pine'] };
+  function template(name, wall, roof) {
+    if (!TEMPLATES[name]) bad('沒有這個範本');
+    wall = BLOCKS[wall] && BLOCKS[wall].type === 'solid' ? wall : TEMPLATE_COLORS[name][0]; roof = BLOCKS[roof] && BLOCKS[roof].type === 'solid' ? roof : TEMPLATE_COLORS[name][1];
+    var out = [], y, x, z;
+    if (name === 'house') {   // 預設小屋：6×5、牆高 3，斜屋頂；門對著大門，兩邊有窗
+      shell(out, -3, 2, -4, 0, 0, 2, wall);
+      out = carve(out, function (a, b, c) { return c === 0 && (a === -1 || a === 0) && b <= 1; });
+      [[-3, -2], [2, -2]].forEach(function (p) { out = setCell(out, p[0], 1, p[1], 'glass'); });
+      out = setCell(out, -2, 1, 0, 'glass'); out = setCell(out, 1, 1, 0, 'glass');
+      [[-5, 1], [-4, 0], [-3, -1], [-2, -2]].forEach(function (r, i) { boxFill(out, -4, 3, 3 + i, 3 + i, r[0] + (i ? 0 : 0), r[1], roof); });
+      out = setCell(out, 2, 0, 2, 'lamp'); out.push([-3, 0, 2, 'flower', 0]);
+    } else if (name === 'tower') {   // 塔：4×4、高 10，頂上一圈垛口
+      shell(out, -2, 1, -3, 0, 0, 8, wall);
+      out = carve(out, function (a, b, c) { return c === 0 && (a === -1 || a === 0) && b <= 1; });
+      for (y = 3; y <= 7; y += 2) { out = setCell(out, -1, y, 0, 'glass'); out = setCell(out, -2, y, -2, 'glass'); out = setCell(out, 1, y, -1, 'glass'); }
+      boxFill(out, -3, 2, 9, 9, -4, 1, roof);
+      for (x = -3; x <= 2; x++) for (z = -4; z <= 1; z++) if ((x === -3 || x === 2 || z === -4 || z === 1) && (x + z) % 2 === 0) out.push([x, 10, z, roof]);
+      out.push([1, 0, 2, 'flag', 0]);
+    } else if (name === 'long') {    // 長屋：10×3、牆高 3，斜屋頂，前面三扇窗
+      shell(out, -5, 4, -3, -1, 0, 2, wall);
+      out = carve(out, function (a, b, c) { return c === -1 && (a === -1 || a === 0) && b <= 1; });
+      [-4, -3, 2, 3].forEach(function (a) { out = setCell(out, a, 1, -1, 'glass'); });
+      boxFill(out, -6, 5, 3, 3, -4, 0, roof); boxFill(out, -6, 5, 4, 4, -3, -1, roof); boxFill(out, -6, 5, 5, 5, -2, -2, roof);
+      out.push([-5, 0, 1, 'tree', 0]); out.push([4, 0, 1, 'bench', 0]);
+    } else if (name === 'flat') {    // 平房：8×8、牆高 2，平屋頂
+      shell(out, -4, 3, -5, 2, 0, 1, wall);
+      out = carve(out, function (a, b, c) { return c === 2 && (a === -1 || a === 0) && b <= 1; });
+      [-3, 2].forEach(function (a) { out = setCell(out, a, 1, 2, 'glass'); });
+      boxFill(out, -5, 4, 2, 2, -6, 3, roof);
+      out = setCell(out, -5, 3, 3, 'lamp'); out = setCell(out, 4, 3, 3, 'lamp');
+    } else {                          // 圓屋：圓牆高 3，圓頂
+      var cx = -0.5, cz = -1.5, dd = function (a, c) { return Math.sqrt((a - cx) * (a - cx) + (c - cz) * (c - cz)); };
+      for (x = -6; x <= 5; x++) for (z = -6; z <= 4; z++) { var d = dd(x, z); if (d >= 3 && d < 4.1) for (y = 0; y <= 2; y++) out.push([x, y, z, wall]); }
+      out = carve(out, function (a, b, c) { return (a === -1 || a === 0) && c >= 1 && b <= 1; });
+      [[3.6, 0], [3.0, 1], [2.2, 2], [1.1, 3]].forEach(function (r, i) { for (x = -6; x <= 5; x++) for (z = -6; z <= 4; z++) if (dd(x, z) < r[0] + 0.5) out.push([x, 3 + i, z, roof]); });
+      out = setCell(out, -3, 0, 3, 'lamp'); out = setCell(out, 2, 0, 3, 'lamp');
+    }
+    return cleanBlocks(out, plotOf(0), false);
+  }
+  // 第 2 輪的外觀（屋型、顏色、擺設）換成預設小屋：照原本牆和屋頂的顏色；擺設放得進地皮的換成方塊，放不進的不要
+  function fromOldLook(h, plot) {
+    var blocks = template('house', h.wall, h.roof), taken = {};
+    blocks.forEach(function (b) { taken[cellKey(b[0], b[1], b[2])] = true; });
+    var KIND = { tree: 'tree', flower: 'flower', flag: 'flag', bench: 'bench', lamp: 'lamp', rock: 'stone' };
+    (Array.isArray(h.props) ? h.props : []).forEach(function (p) {
+      if (!p || !KIND[p.kind] || typeof p.a !== 'number' || typeof p.r !== 'number') return;
+      var ang = p.a / 24 * Math.PI * 2 + Math.PI / 2, rad = 4.5 + p.r * 1.3, x = Math.round(-0.5 + Math.cos(ang) * rad), z = Math.round(-2 + Math.sin(ang) * rad), k = KIND[p.kind];
+      var b = BLOCKS[k].type === 'prop' ? [x, 0, z, k, ROTS.indexOf(p.rot) >= 0 ? p.rot : 0] : [x, 0, z, k];
+      if (blockProblem(b, plot) || taken[cellKey(x, 0, z)]) return;
+      taken[cellKey(x, 0, z)] = true; blocks.push(b);
+    });
+    return blocks;
+  }
+  var DEFAULT_HOUSE = { sign: '', visibility: 'public', defaultVis: 'public' };
+  // 達秒屋的資料：門牌一句話、整間屋給誰看、新的一筆預設、自己蓋的方塊清單。plot＝現在的地皮
+  function cleanHouse(h, plot, strict) {
+    h = h && typeof h === 'object' ? h : {}; plot = plot || plotOf(0);
     var sign = String(h.sign == null ? '' : h.sign);
     if (sign.length > SIGN_MAX) { if (strict) bad('門牌一句話要在 ' + SIGN_MAX + ' 字以內'); sign = sign.slice(0, SIGN_MAX); }
-    var seen = {}, props = [];
-    (Array.isArray(h.props) ? h.props : []).forEach(function (p) {
-      if (!p || !PROPS[p.kind] || !(p.a >= 0 && p.a < PROP_ANGLES && p.a % 1 === 0) || !(p.r >= 0 && p.r < PROP_RINGS && p.r % 1 === 0) || [0, 90, 180, 270].indexOf(p.rot) < 0 || seen[p.a + ':' + p.r]) { if (strict) bad('擺設格式不對'); return; }
-      if (props.length >= PROP_MAX) { if (strict) bad('擺設最多 ' + PROP_MAX + ' 個'); return; }
-      seen[p.a + ':' + p.r] = true; props.push({ kind: p.kind, a: p.a, r: p.r, rot: p.rot });
-    });
-    return { shape: pick('shape', HOUSE_SHAPES), wall: pick('wall', PALETTE), roof: pick('roof', PALETTE), trim: pick('trim', PALETTE), door: pick('door', DOOR_STYLES), window: pick('window', WINDOW_STYLES), roofStyle: pick('roofStyle', ROOF_STYLES),
-      sign: sign, props: props, visibility: h.visibility === 'neighbors' ? 'neighbors' : 'public', defaultVis: h.defaultVis == null ? 'public' : cleanVisLevel(h.defaultVis) };
+    var blocks = Array.isArray(h.blocks) ? cleanBlocks(h.blocks, plot, strict) : (h.shape || h.props || h.wall ? fromOldLook(h, plot) : template('house'));
+    return { sign: sign, visibility: h.visibility === 'neighbors' ? 'neighbors' : 'public', defaultVis: h.defaultVis == null ? 'public' : cleanVisLevel(h.defaultVis), blocks: blocks, rev: 0 };
   }
   function houseOf(role) { return role && role.house ? role.house : DEFAULT_HOUSE; }
-  // 改外觀、整間屋給誰看、新的一筆預設：都馬上生效
+  // 門牌一句話、整間屋給誰看、新的一筆預設：馬上生效
   function setHouse(state, serial, fields) {
-    var r = need(state, serial), h = Object.assign({}, houseOf(r));
-    Object.keys(fields || {}).forEach(function (k) { if (k !== 'props') h[k] = fields[k]; });
-    if (fields && fields.visibility != null && ['public', 'neighbors'].indexOf(fields.visibility) < 0) bad('整間屋只能公開或只給鄰居看');
-    if (fields && fields.defaultVis != null && !VIS_LEVELS[fields.defaultVis]) bad('新的一筆預設只能是公開、只給鄰居看或全藏');
-    r.house = cleanHouse(h, true); return r.house;
+    var r = need(state, serial), h = houseOf(r), f = fields || {};
+    Object.keys(f).forEach(function (k) { if (['sign', 'visibility', 'defaultVis'].indexOf(k) < 0) bad('只能改門牌、整間屋給誰看、新的一筆預設'); });
+    if (f.visibility != null && ['public', 'neighbors'].indexOf(f.visibility) < 0) bad('整間屋只能公開或只給鄰居看');
+    if (f.defaultVis != null && !VIS_LEVELS[f.defaultVis]) bad('新的一筆預設只能是公開、只給鄰居看或全藏');
+    if (f.sign != null && String(f.sign).length > SIGN_MAX) bad('門牌一句話要在 ' + SIGN_MAX + ' 字以內');
+    if (f.sign != null) h.sign = String(f.sign);
+    if (f.visibility != null) h.visibility = f.visibility;
+    if (f.defaultVis != null) h.defaultVis = f.defaultVis;
+    return h;
   }
-  function placeProp(state, serial, p) {
-    var r = need(state, serial), h = houseOf(r);
-    if (h.props.length >= PROP_MAX) bad('擺設最多 ' + PROP_MAX + ' 個');
-    if (h.props.some(function (x) { return x.a === p.a && x.r === p.r; })) bad('這一格已經有擺設了');
-    var props = h.props.concat([{ kind: p.kind, a: p.a, r: p.r, rot: p.rot == null ? 0 : p.rot }]);
-    r.house = cleanHouse(Object.assign({}, h, { props: props }), true); return r.house;
+  // 自己蓋：加一塊、拆一塊、轉擺設、整份換掉（範本、復原）。不限幾塊，只限地皮
+  function blockIndex(h, x, y, z) { for (var i = 0; i < h.blocks.length; i++) { var b = h.blocks[i]; if (b[0] === x && b[1] === y && b[2] === z) return i; } return -1; }
+  function addBlock(state, serial, b, now) {
+    var r = need(state, serial), h = houseOf(r), plot = plotAt(r, now);
+    var nb = b && !Array.isArray(b) ? (BLOCKS[b.k] && BLOCKS[b.k].type === 'prop' ? [b.x, b.y, b.z, b.k, b.rot == null ? 0 : b.rot] : [b.x, b.y, b.z, b.k]) : b;
+    var p = blockProblem(nb, plot); if (p) bad(p);
+    if (blockIndex(h, nb[0], nb[1], nb[2]) >= 0) bad('這一格已經有東西了');
+    nb = normBlock(nb); h.blocks.push(nb); h.rev = (h.rev || 0) + 1; return nb.slice();
   }
-  function rotateProp(state, serial, a, rr) { var r = need(state, serial), p = houseOf(r).props.find(function (x) { return x.a === a && x.r === rr; }); if (!p) bad('這一格沒有擺設'); p.rot = (p.rot + 90) % 360; return p; }
-  function removeProp(state, serial, a, rr) { var r = need(state, serial), h = houseOf(r); if (!h.props.some(function (x) { return x.a === a && x.r === rr; })) bad('這一格沒有擺設'); h.props = h.props.filter(function (x) { return !(x.a === a && x.r === rr); }); }
+  function removeBlock(state, serial, x, y, z) { var h = houseOf(need(state, serial)), i = blockIndex(h, x, y, z); if (i < 0) bad('這一格沒有東西'); var b = h.blocks.splice(i, 1)[0]; h.rev = (h.rev || 0) + 1; return b.slice(); }
+  function rotateBlock(state, serial, x, y, z) {
+    var h = houseOf(need(state, serial)), i = blockIndex(h, x, y, z); if (i < 0) bad('這一格沒有東西');
+    var b = h.blocks[i]; if (BLOCKS[b[3]].type !== 'prop') bad('只有擺設能轉');
+    b[4] = (b[4] + 90) % 360; h.rev = (h.rev || 0) + 1; return b.slice();
+  }
+  function setBlocks(state, serial, list, now) { var r = need(state, serial), h = houseOf(r), old = h.blocks; h.blocks = cleanBlocks(list, plotAt(r, now), true); h.rev = (h.rev || 0) + 1; return old.map(function (b) { return b.slice(); }); }
+  function applyTemplate(state, serial, name, now) { return setBlocks(state, serial, template(name), now); }
+
+  /* 大門：門牆排法跟日曆一樣。一層 12 個月（從創角色那個月開始），一格一個月，一排一週（七欄，星期日在最左邊）；每過一年加高一層 */
+  function ymdOf(dn) { var d = new Date(dn * 86400000); return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate(), wd: d.getUTCDay() }; }
+  function gateSpot(born, day) {
+    var b = ymdOf(born), t = ymdOf(day), mi = (t.y - b.y) * 12 + (t.m - b.m);
+    if (mi < 0 || day < born) return null;
+    var first = ymdOf(day - t.d + 1).wd;
+    return { layer: Math.floor(mi / 12), month: mi % 12, row: Math.floor((first + t.d - 1) / 7), col: t.wd };
+  }
+  // 門牆第 layer 層第 k 格是哪一年哪一月
+  function gateMonth(born, layer, k) { var b = ymdOf(born), mi = b.m + layer * 12 + k; return { y: b.y + Math.floor(mi / 12), m: mi % 12 + 1 }; }
+  function gateMonths(born, layers) { var out = []; for (var L = 0; L < layers; L++) for (var k = 0; k < 12; k++) out.push(gateMonth(born, L, k)); return out; }
   // 是不是鄰居：第 3 輪接上街；這一輪沒有街，永遠不是
   function isNeighbor(state, a, b) { return false; }
 
@@ -752,14 +864,15 @@ var CORE = (function () {
     return lv === 'public' || (lv === 'neighbors' && !!viewer && isNeighbor(state, owner, viewer));
   }
   function houseClosed(state, role, viewer) { return houseOf(role).visibility === 'neighbors' && viewer !== role.serial && !(viewer && isNeighbor(state, role.serial, viewer)); }
-  function lookOf(role) { var h = houseOf(role); return { shape: h.shape, wall: h.wall, roof: h.roof, trim: h.trim, door: h.door, window: h.window, roofStyle: h.roofStyle, props: h.props.map(function (p) { return { kind: p.kind, a: p.a, r: p.r, rot: p.rot }; }) }; }
+  function lookOf(role) { var h = houseOf(role); return { blocks: (h.blocks || []).map(function (b) { return b.slice(); }), rev: h.rev || 0, n: (h.blocks || []).length }; }
   // 看一間屋：只回傳 viewer 看得到的東西（viewer 是 null 就是陌生人，例如家規系統）
   function viewHouse(state, ownerSerial, viewerSerial, now) {
     now = now || nowUs(); var r = need(state, ownerSerial), today = dayNum(now), born = bornOf(r), viewer = viewerSerial || null;
-    var bricks = [], d;
-    if (houseClosed(state, r, viewer)) {   // 只給鄰居看、看的人又不是鄰居：只回外觀和牌子
-      for (d = born; d <= today; d++) bricks.push({ day: d, future: false });
-      return { serial: r.serial, name: r.name, closed: true, look: lookOf(r), sign: '', age: null, born: null, today: today, bricks: bricks };
+    var bricks = [], d, plot = plotOf(ageOf(born, today).years), layers = 1;
+    var spot = function (b) { b.g = gateSpot(born, b.day); if (b.g && b.g.layer + 1 > layers) layers = b.g.layer + 1; return b; };
+    if (houseClosed(state, r, viewer)) {   // 只給鄰居看、看的人又不是鄰居：只回外觀（自己蓋的）和門牆上的磚（沒有亮暗）
+      for (d = born; d <= today; d++) bricks.push(spot({ day: d, future: false }));
+      return { serial: r.serial, name: r.name, closed: true, look: lookOf(r), plot: plot, layers: layers, gateMonths: gateMonths(born, layers), sign: '', age: null, born: null, today: today, bricks: bricks };
     }
     var byDay = {};
     entriesOf(state).forEach(function (e) { if (e.a !== ownerSerial && e.b !== ownerSerial) return; var dd = dayNum(e.atUs); (byDay[dd] = byDay[dd] || []).push(e); });
@@ -768,10 +881,10 @@ var CORE = (function () {
       var lit = vis.filter(function (e) { return e.status === 'traded'; }).length, judged = vis.filter(function (e) { return e.status !== 'booked'; });
       return { day: day, future: future, lit: lit, mark: !lit && judged.length > 0, booked: vis.some(function (e) { return e.status === 'booked'; }), cover: es.length > 0 && vis.length === 0, n: vis.length };
     };
-    for (d = born; d <= today; d++) bricks.push(brick(d, false));
-    Object.keys(byDay).map(Number).filter(function (x) { return x > today; }).sort(function (x, y) { return x - y; }).forEach(function (x) { bricks.push(brick(x, true)); });
+    for (d = born; d <= today; d++) bricks.push(spot(brick(d, false)));
+    Object.keys(byDay).map(Number).filter(function (x) { return x > today; }).sort(function (x, y) { return x - y; }).forEach(function (x) { bricks.push(spot(brick(x, true))); });
     var h = houseOf(r);
-    return { serial: r.serial, name: r.name, closed: false, look: lookOf(r), sign: h.sign, age: ageOf(born, today), born: born, today: today, bricks: bricks };
+    return { serial: r.serial, name: r.name, closed: false, look: lookOf(r), plot: plot, layers: layers, gateMonths: gateMonths(born, layers), sign: h.sign, age: ageOf(born, today), born: born, today: today, bricks: bricks };
   }
   function versionOnDay(role, day) { var out = role.versions[0]; role.versions.forEach(function (v) { if (v.fromDay <= day) out = v; }); return out; }
   function holdState(state, h) { if (!h) return null; return h.status === 'redeemed' ? '換了 ' + (h.redeemedAt ? fmtUs(h.redeemedAt).slice(5, 10) : '') : h.status === 'expired' ? '到期作廢' + (h.endedAt ? ' ' + fmtUs(h.endedAt).slice(5, 10) : '') : h.status === 'voided' ? '作廢' : '保留中'; }
@@ -796,7 +909,7 @@ var CORE = (function () {
       if (viewer === ownerSerial) { out.vis = e.vis[ownerSerial]; out.locked = e.tutorial && ownerSerial === GUIDE; }
       return out;
     });
-    return { closed: false, day: day, label: dayLabel(day), entries: rows, covered: es.length - vis.length,
+    return { closed: false, day: day, label: dayLabel(day), owner: { serial: r.serial, name: r.name }, mine: viewer === ownerSerial, entries: rows, covered: es.length - vis.length,
       rules: { uses: v.rules.uses.slice(), conditions: v.rules.conditions.map(condText), village: v.rules.village, site: v.rules.site || '' }, resources: v.resources.map(function (x) { return { name: x.name, price: x.price, keepDays: x.keepDays, def: x.def }; }) };
   }
   // 從舊存檔（第 1 輪）的對接紀錄、時段補出每一筆（每一筆公開，引路人的教學那一邊全藏）
@@ -870,13 +983,13 @@ var CORE = (function () {
     var now = nowUs(), hist = opts.history !== false, ago = function (days) { return hist ? now - days * DAY_US : now; };
     var st = { v: 9, me: -1, roles: [], issued: [], holds: [], dockings: [], redeems: [], acceptances: [], records: [], notices: [], tutorial: freshTutorial() };
     // 示範角色：阿澄（條件：可換的貨 ≥ 5）、小樂（要兩方都通、接受家規）、引路人（沒有條件、一堆 0 點的「空的」）。第一次打開從創角色開始
-    createRole(st, { serial: '00000000002', name: '阿澄', dailyPoints: 2000, house: { shape: 'tower', wall: 'brick', roof: 'slate', trim: 'cream', sign: '聽你講，幫你改' },
+    createRole(st, { serial: '00000000002', name: '阿澄', dailyPoints: 2000, house: { template: 'tower', wall: 'brick', roof: 'slate', sign: '聽你講，幫你改', extra: [[-3, 0, 2, 'lamp'], [-2, 0, 3, 'flower', 0], [-1, 0, 3, 'flower', 0]] },
       rules: { uses: ['1 阿澄點 = 聽你講 1 分鐘', '100 阿澄點 = 幫你改一份履歷'], conditions: [{ field: 'avail', op: '>=', value: 5 }], village: '東恆家規：對接後要一起立一個難題。' },
       resources: [{ id: 'r2a', name: '改履歷', def: '一份，三天內回', price: 100, keepDays: 30, avail: 3 }, { id: 'r2b', name: '一小時諮詢', def: '', price: 90, keepDays: null, avail: 10 }, { id: 'r2c', name: '試聽 5 分鐘', def: '試用品，不收點', price: 0, keepDays: 7, avail: 3 }], contact: '' }, ago(420));
-    createRole(st, { serial: '00000000003', name: '小樂', dailyPoints: 800, house: { shape: 'long', wall: 'sand', roof: 'moss', trim: 'ink', door: 'arch', window: 'tall', sign: '借書的長屋', props: [{ kind: 'tree', a: 0, r: 0, rot: 0 }, { kind: 'bench', a: 3, r: 0, rot: 90 }, { kind: 'flower', a: 21, r: 0, rot: 0 }] },
+    createRole(st, { serial: '00000000003', name: '小樂', dailyPoints: 800, house: { template: 'long', wall: 'sand', roof: 'moss', sign: '借書的長屋', extra: [[-3, 0, 3, 'tree', 0], [2, 0, 3, 'tree', 90], [0, 0, 3, 'flower', 0], [-6, 0, -5, 'wood'], [-6, 1, -5, 'wood']] },
       rules: { uses: ['1 小樂點 = 借書 1 天'], conditions: [{ field: 'myPoints', op: '>=', value: 0 }], bothMustPass: true, mustAcceptVillage: true, village: '小樂家規：借的書要在一個月內還。' },
       resources: [{ id: 'r3a', name: '借一本書', def: '', price: 10, keepDays: 14, avail: 20 }], contact: 'mail@example.com' }, ago(230));
-    createRole(st, { serial: GUIDE, name: '引路人', dailyPoints: 2000, house: { shape: 'round', wall: 'cream', roof: 'pine', trim: 'clay', roofStyle: 'dome', window: 'round', sign: '空的換空的', props: [{ kind: 'lamp', a: 0, r: 0, rot: 0 }, { kind: 'lamp', a: 23, r: 0, rot: 0 }] },
+    createRole(st, { serial: GUIDE, name: '引路人', dailyPoints: 2000, house: { template: 'round', wall: 'cream', roof: 'pine', sign: '空的換空的', extra: [[-4, 0, 4, 'flower', 0], [3, 0, 4, 'flower', 0], [-6, 0, -6, 'tree', 0], [5, 0, -6, 'tree', 180]] },
       rules: { uses: ['引路人的點只用來教學'], conditions: [], village: '' },
       resources: [{ id: 'r4e', name: '空的', def: '什麼都不給；教學用', price: 0, keepDays: null, avail: 99999 }], contact: '' }, ago(800));
     if (hist) demoHistory(st, now);
@@ -953,14 +1066,16 @@ var CORE = (function () {
     if (!/^\d{11}$/.test(String(r.serial)) || !abbrev(r.serial)) bad('序號格式錯');
     var stock = {}; obj(r.stock || {}, '數量'); Object.keys(r.stock || {}).forEach(function (k) { var s = obj(r.stock[k], '數量'); stock[ident(k, '資源')] = { avail: num(s.avail, '可換'), reserved: num(s.reserved, '已保留') }; });
     var ser = function (what) { return function (b) { return str(b, 11, what); }; };
-    return {
+    var out = {
       serial: r.serial, name: str(r.name, LIMITS.name, '名字'), contact: str(r.contact || '', LIMITS.text, '聯絡方式'),
-      versions: list(r.versions, LIMITS.versions, '版本').map(cleanVersion), stock: stock, born: r.born == null ? null : num(r.born, '生日'), house: cleanHouse(r.house),
+      versions: list(r.versions, LIMITS.versions, '版本').map(cleanVersion), stock: stock, born: r.born == null ? null : num(r.born, '生日'), house: null,
       slots: list(r.slots || [], LIMITS.slots, '時段').map(function (s) { obj(s, '時段'); var wants = {}; Object.keys(s.wants || {}).forEach(function (a) { wants[str(a, 11, '選')] = {}; Object.keys(s.wants[a]).forEach(function (b) { wants[a][str(b, 11, '選')] = list(s.wants[a][b], 200, '選').map(function (id) { return ident(id, '選'); }); }); }); var mg = {}; Object.keys(s.maxGive || {}).forEach(function (a) { mg[str(a, 11, '最多給')] = num(s.maxGive[a], '最多給'); });
         var ba = {}; Object.keys(s.bookedAt || {}).forEach(function (k) { ba[str(k, 11, '預約時間')] = num(s.bookedAt[k], '預約時間'); });
         return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), together: !!s.together, bookings: list(s.bookings || [], LIMITS.booked, '預約').map(ser('預約')), confirmed: list(s.confirmed || [], LIMITS.booked, '確認到達').map(ser('確認到達')), bookedAt: ba, docked: list(s.docked || [], LIMITS.booked, '對接').map(ser('對接')), missed: list(s.missed || [], LIMITS.booked, '錯過').map(ser('錯過')), wants: wants, maxGive: mg, judged: !!s.judged, visAt: (function () { var o = {}; Object.keys(s.visAt || {}).forEach(function (k) { o[str(k, 11, '預設')] = cleanVisLevel(s.visAt[k]); }); return o; })() }; }),
       world: cleanWorld(r.world)
     };
+    out.house = cleanHouse(r.house, plotAt(out));   // 方塊照現在的地皮檢查：不合格的丟掉；第 2 輪的外觀換成預設小屋
+    return out;
   }
   // 世界：沿用 v5 的格式（物件、門、走法、路、起點）
   function cleanWorld(w) {
@@ -1022,8 +1137,16 @@ var CORE = (function () {
   return out.join('');
 }
 
-  function encodeSave(json) { return json.length > LZ_OVER ? LZ_MARK + compress(json) : json; }
-  function decodeSave(raw) { return raw && raw.slice(0, LZ_MARK.length) === LZ_MARK ? decompress(raw.slice(LZ_MARK.length)) : raw; }
+  // 壓縮的保險：壓完先解開對照一次，一樣才存；不一樣就丟錯，存檔不動
+  var codec = { compress: compress, decompress: decompress };
+  function encodeSave(json) {
+    if (json.length <= LZ_OVER) return json;
+    var z = codec.compress(json), back = null;
+    try { back = codec.decompress(z); } catch (e) { back = null; }
+    if (back !== json) { var err = new Error('壓縮出錯'); err.name = 'CompressCheck'; throw err; }
+    return LZ_MARK + z;
+  }
+  function decodeSave(raw) { return raw && raw.slice(0, LZ_MARK.length) === LZ_MARK ? codec.decompress(raw.slice(LZ_MARK.length)) : raw; }
   var io = { loadIssue: null, saveError: null, blocked: false, lastSize: 0 };
   function load(opts) {
     io.loadIssue = null; io.blocked = false;
@@ -1073,7 +1196,7 @@ var CORE = (function () {
   function save(state) {
     if (io.blocked) { io.saveError = '舊存檔讀不進來、也沒辦法另外留一份，為了不蓋掉它，這次不存。'; return false; }
     try { var json = JSON.stringify(state); io.lastSize = json.length; localStorage.setItem(KEY, encodeSave(json)); io.saveError = null; return true; }
-    catch (e) { io.saveError = '存不進去（' + (e && e.name === 'QuotaExceededError' ? '空間滿了' : (e && e.message) || '不知道為什麼') + '），剛才改的沒存到。'; return false; }
+    catch (e) { io.saveError = e && e.name === 'CompressCheck' ? '存檔壓縮出錯（壓完解不回原樣），這次不存，原本的存檔沒動。剛才改的沒存到。' : '存不進去（' + (e && e.name === 'QuotaExceededError' ? '空間滿了' : (e && e.message) || '不知道為什麼') + '），剛才改的沒存到。'; return false; }
   }
   function cleanEntry(e) {
     obj(e, '每一筆'); var vis = {}; obj(e.vis || {}, '藏'); Object.keys(e.vis || {}).forEach(function (k) { vis[str(k, 11, '藏')] = cleanVisLevel(e.vis[k]); });
@@ -1100,8 +1223,8 @@ var CORE = (function () {
   return {
     abbrev: abbrev, expand: expand, digitsAfter: digitsAfter, Decoder: Decoder, route: route,
     FUNCS: FUNCS, SHAPES: SHAPES, LOOKS: LOOKS, look: look, radiusOf: radiusOf, VIS: VIS, allObjects: allObjects, findObject: findObject, cleanWorld: cleanWorld, cleanRole: cleanRole, tryClean: tryClean,
-    fmtUs: fmtUs, nowUs: nowUs, untilText: untilText, deleteSlot: deleteSlot, VIS_LEVELS: VIS_LEVELS, HOUSE_SHAPES: HOUSE_SHAPES, PALETTE: PALETTE, DOOR_STYLES: DOOR_STYLES, WINDOW_STYLES: WINDOW_STYLES, ROOF_STYLES: ROOF_STYLES, PROPS: PROPS, PROP_MAX: PROP_MAX, PROP_ANGLES: PROP_ANGLES, PROP_RINGS: PROP_RINGS, SIGN_MAX: SIGN_MAX,
-    cleanHouse: cleanHouse, houseOf: houseOf, compress: compress, decompress: decompress, encodeSave: encodeSave, decodeSave: decodeSave, setHouse: setHouse, placeProp: placeProp, rotateProp: rotateProp, removeProp: removeProp, isNeighbor: isNeighbor, entriesOf: entriesOf, setVis: setVis, viewHouse: viewHouse, dayDetail: dayDetail, ageOf: ageOf, bornOf: bornOf, buildEntries: buildEntries, io: io, LIMITS: LIMITS, cleanSite: cleanSite, setSite: setSite, setContact: setContact, randomRole: randomRole, postNotice: postNotice, removeNotice: removeNotice, expireNotices: expireNotices, giveNames: giveNames, canBook: canBook, search: search, KEY: KEY, OLD_KEY: OLD_KEY, togetherMissing: togetherMissing, togetherStatus: togetherStatus, selectedPairs: selectedPairs, BLANK: BLANK, dayOf: dayOf, dayNum: dayNum, dayLabel: dayLabel, DAY_US: DAY_US, newId: newId, DEFAULT_DAILY: DEFAULT_DAILY,
+    fmtUs: fmtUs, nowUs: nowUs, untilText: untilText, deleteSlot: deleteSlot, VIS_LEVELS: VIS_LEVELS, PALETTE: PALETTE, BLOCKS: BLOCKS, SIGN_MAX: SIGN_MAX, PLOT_MIN: PLOT_MIN, PLOT_MAX: PLOT_MAX, GATE_W: GATE_W, TEMPLATES: TEMPLATES, plotOf: plotOf, plotAt: plotAt, isGateCell: isGateCell, cleanBlocks: cleanBlocks, template: template, gateSpot: gateSpot, gateMonth: gateMonth, codec: codec,
+    cleanHouse: cleanHouse, houseOf: houseOf, compress: compress, decompress: decompress, encodeSave: encodeSave, decodeSave: decodeSave, setHouse: setHouse, addBlock: addBlock, removeBlock: removeBlock, rotateBlock: rotateBlock, setBlocks: setBlocks, applyTemplate: applyTemplate, isNeighbor: isNeighbor, entriesOf: entriesOf, setVis: setVis, viewHouse: viewHouse, dayDetail: dayDetail, ageOf: ageOf, bornOf: bornOf, buildEntries: buildEntries, io: io, LIMITS: LIMITS, cleanSite: cleanSite, setSite: setSite, setContact: setContact, randomRole: randomRole, postNotice: postNotice, removeNotice: removeNotice, expireNotices: expireNotices, giveNames: giveNames, canBook: canBook, search: search, KEY: KEY, OLD_KEY: OLD_KEY, togetherMissing: togetherMissing, togetherStatus: togetherStatus, selectedPairs: selectedPairs, BLANK: BLANK, dayOf: dayOf, dayNum: dayNum, dayLabel: dayLabel, DAY_US: DAY_US, newId: newId, DEFAULT_DAILY: DEFAULT_DAILY,
     version: version, pending: pending, tomorrow: tomorrow, dropPending: dropPending, resourceOf: resourceOf, resourceName: resourceName, setDailyPoints: setDailyPoints, setRules: setRules, addResource: addResource, setResource: setResource, removeResource: removeResource, cleanRules: cleanRules,
     dailyPoints: dailyPoints, givenToday: givenToday, remainingToday: remainingToday, stockOf: stockOf, restock: restock, availTotal: availTotal,
     COND_FIELDS: COND_FIELDS, OPS: OPS, condText: condText, passes: passes, eligible: eligible, accepted: accepted, acceptedAny: acceptedAny, accept: accept, acceptState: acceptState, villageChanges: villageChanges, ruleTime: ruleTime,

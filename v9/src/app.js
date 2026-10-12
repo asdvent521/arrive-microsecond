@@ -97,14 +97,14 @@ var APP = (function () {
   // 每一步：名字、怎麼做、到哪一張表、做完沒
   var TUT = [
     { id: 't1', name: '創角色', how: '在「我的／角色」填名字、每天的點（預設 2000）、第一樣東西「空的」（0 點，補 1 份），按「建立」', sheet: 'role', done: function () { return !isBlank(); } },
-    { id: 't2', name: '找陌生人一：隨機', how: '在達秒屋外面按「隨機」，跳到一個陌生人的達秒屋外面，看看他的磚，點門進他的表格世界', sheet: 'house', done: function () { return !!tut().door; } },
+    { id: 't2', name: '找陌生人一：隨機', how: '在達秒屋外面按「隨機」，跳到一個陌生人的達秒屋外面，看看他的大門，點門進他的表格世界', sheet: 'house', done: function () { return !!tut().door; } },
     { id: 't3', name: '找陌生人二：在公告欄找序號', how: '打開「公告欄／公告」，找到引路人的公告（需要：空的；可以給：空的），記下他的序號，在最上面的序號框輸入，按「去」（在達秒屋外面輸入就到他的達秒屋外面）', sheet: 'notices', done: function () { return !!tut().found; } },
     { id: 't4', name: '看他的家規', how: '在引路人的表格世界打開「規則表」：家規那一段沒有家規網站，表示他不收留言', sheet: 'rules', who: GUIDE, done: function () { return !!tut().sawRules; } },
     { id: 't5', name: '預約、選他的「空的」', how: '在引路人的「時段」按「約他」（到達的勾預設勾著，預約時就確認到達），再到「預約／我預約的」選他的「空的」。引路人一定會選你的「空的」', sheet: 'slots', who: GUIDE,
       done: function () { var s = tutSlot(); if (!s || s.bookings.indexOf(me.serial) < 0 || !CORE.isPresent(state, me.serial, s.id)) return false; var g = guide(); return CORE.wantsValid(state, s, me.serial, GUIDE).some(function (id) { var x = CORE.resourceOf(CORE.version(g, s.atUs), id); return x && x.price === 0; }); } },
     { id: 't6', name: '那一微秒', how: '大約一分鐘後，白光一閃，跳出成交結果：「我拿出：空的；拿到：引路人的空的」。不用守著', sheet: 'booked', done: function () { return !!tutDocking(); } },
     { id: 't7', name: '兌現', how: '到「我的／背包」，在引路人的那一筆按「兌現」', sheet: 'bag', done: function () { var h = tutHold(GUIDE, me.serial); return !!h && h.status === 'redeemed'; } },
-    { id: 't8', name: '看自己的達秒屋', how: '按「去我的達秒屋」：你 0 歲，第一塊磚亮了', sheet: 'house', done: function () { return !!tut().house; } }
+    { id: 't8', name: '看自己的達秒屋', how: '按「去我的達秒屋」：你 0 歲，門牆上的第一塊磚亮了', sheet: 'house', done: function () { return !!tut().house; } }
   ];
   var NO = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'];
   function tutSteps() {
@@ -159,7 +159,7 @@ var APP = (function () {
 
   /* ---------- 表格世界和達秒屋之間的切換（兩邊都只聽事件） ---------- */
   var view = { name: 'table', serial: null };
-  function goHouse(serial) { view = { name: 'house', serial: serial || me.serial }; emit('view', view); if (view.serial === me.serial) tutEvent('myHouse'); }
+  function goHouse(serial, build) { view = { name: 'house', serial: serial || me.serial, build: !!build }; emit('view', view); if (view.serial === me.serial) tutEvent('myHouse'); }
   function goTable(serial, sheet, how) { view = { name: 'table', serial: serial && serial !== me.serial ? serial : null, sheet: sheet || null, how: how || null }; emit('view', view); }
 
   return {
