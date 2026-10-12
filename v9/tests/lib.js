@@ -8,8 +8,9 @@ var NAME = { today: '今天', notices: '公告', find: '找人', booked: '我預
 async function open(pagePath, opts) {
   opts = opts || {};
   var browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
-  var ctx = await browser.newContext({ viewport: { width: opts.width || 780, height: opts.height || 360 }, deviceScaleFactor: 2 });
+  var ctx = await browser.newContext({ viewport: { width: opts.width || 780, height: opts.height || 360 }, deviceScaleFactor: 2, hasTouch: !!opts.touch });
   var pg = await ctx.newPage();
+  if (opts.noWebGL) await pg.addInitScript(function () { var g = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function (t) { return /webgl/.test(t) ? null : g.apply(this, arguments); }; });   // 3D 用不了
   var errs = [];
   pg.on('pageerror', function (e) { errs.push(String(e)); });
   pg.on('console', function (m) { if (m.type() === 'error' && m.text().indexOf('ERR_') < 0) errs.push(m.text()); });
@@ -18,7 +19,8 @@ async function open(pagePath, opts) {
   var H = {
     pg: pg, browser: browser, errs: errs, file: file, NAME: NAME,
     // 重置：預設放一個示範的「我」（J1）並跳過教學；raw＝真的第一次打開（從創角色開始）
-    fresh: async function (o) { await pg.evaluate("localStorage.clear()"); await pg.reload(); await pg.waitForTimeout(400); if (!(o && o.raw)) { await pg.evaluate("APP.demo()"); await pg.waitForTimeout(200); } },
+    // 重置：預設是不帶過去紀錄的示範資料，放一個示範的「我」（J1）並跳過教學；raw＝真的第一次打開（從創角色開始，示範角色帶過去的紀錄）；history＝帶過去紀錄
+    fresh: async function (o) { o = o || {}; await pg.evaluate("localStorage.clear()"); await pg.reload(); await pg.waitForTimeout(400); if (!o.raw) { if (!o.history) await pg.evaluate("APP.resetAll({ history: false })"); await pg.evaluate("APP.demo()"); await pg.evaluate("APP.goTable(null, 'today')"); await pg.waitForTimeout(200); } },
     close: function () { return browser.close(); },
     ev: function (js) { return pg.evaluate(js); },
     // 用手指按一個元素：捲到看得見、算出中心、確認 elementFromPoint 打到的就是它，再點那個座標
@@ -62,6 +64,15 @@ async function open(pagePath, opts) {
     popOk: async function (label) { await H.clickText(label || '好', '#popBtns'); },
     sheetName: function () { return pg.evaluate("TABLE.ui.other ? 'other:' + TABLE.ui.osheet : TABLE.ui.sheet"); },
     // 把時段的那一微秒拉到幾秒後（資料層直接改，省得等）
+    // 達秒屋：點 3D 裡的東西，先確認那一點是畫布，再點座標
+    tap3d: async function (target, what) {
+      await pg.waitForTimeout(200);
+      var p = await pg.evaluate(function (t) { var s = WORLD.screenOf(t); if (!s) return { err: '不在畫面上' }; var el = document.elementFromPoint(Math.round(s.x), Math.round(s.y)); if (!el || el.tagName !== 'CANVAS') return { err: '那一點不是畫布：' + (el ? el.tagName + '#' + el.id : '空的') }; s.x = Math.round(s.x); s.y = Math.round(s.y); var h = WORLD.hitAt(s.x, s.y); s.hit = h; if (!h) return { err: '那一點什麼都沒打到' }; if (t === 'door' ? h.kind !== 'door' : t.day != null ? h.day !== t.day : t.cell ? !(h.kind === 'cell' && h.a === t.cell[0] && h.r === t.cell[1]) : t.prop ? !(h.kind === 'prop' && h.a === t.prop[0] && h.r === t.prop[1]) : false) return { err: '那一點打到的是 ' + JSON.stringify(h) }; return s; }, target);
+      if (p.err) throw new Error('點不到 ' + (what || JSON.stringify(target)) + '：' + p.err);
+      await pg.mouse.click(p.x, p.y); await pg.waitForTimeout(250);
+    },
+    hclick: async function (sel) { await H.finger("function(){ return document.querySelector(" + JSON.stringify(sel) + "); }", sel); },
+    houseSerial: async function (code) { await pg.evaluate(function (c) { var el = document.getElementById('hSerialIn'); el.value = c; }, code); await H.hclick('#hSerialGo'); await pg.waitForTimeout(400); },
     soon: function (slotId, sec) { return pg.evaluate("(function(){var x=CORE.slotOf(APP.state(),'" + slotId + "');x.slot.atUs=APP.now()+" + (sec || 3) + "e6;APP.changed();})()"); }
   };
   return H;

@@ -26,8 +26,9 @@
 }
 *,*::before,*::after{box-sizing:inherit}
 [hidden]{display:none!important}
-html,body{height:100%;overflow:hidden}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%;overflow:hidden}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+body.in-house{overflow:hidden;height:100%}
 button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--brass);outline-offset:1px}
 .num{font-variant-numeric:tabular-nums}
@@ -41,8 +42,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .view{position:absolute;inset:0;overflow:hidden}
 
 
-/* ===== 表格世界 ===== */
-#view-table{display:flex;flex-direction:column;background:var(--bg)}
+/* ===== 表格世界：整頁一起捲（序號框和上方分頁跟著捲上去，表頭貼在最上面，下方四組留著） ===== */
+#view-table{background:var(--bg);min-height:100vh;padding-bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 .tbar{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line)}
 .tbar input[type=text]{width:8.5em;min-height:36px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg);font-variant-numeric:tabular-nums}
 .tbar .btn{min-height:36px}
@@ -53,8 +54,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .ttabs{flex:none;display:flex;gap:4px;overflow-x:auto;padding:6px 8px 0;background:var(--panel2);border-bottom:1px solid var(--line);scrollbar-width:thin}
 .ttabs .tab{flex:none;min-height:36px;padding:4px 12px;border:1px solid transparent;border-bottom:0;border-radius:var(--r-s) var(--r-s) 0 0;background:transparent;cursor:pointer;font-size:.9rem;white-space:nowrap}
 .ttabs .tab.on{background:var(--panel);border-color:var(--line);font-weight:700}
-#tmain{flex:1;min-height:0;overflow:auto;padding:0 6px 12px}
-.tgroups{flex:none;display:flex;background:var(--panel2);border-top:1px solid var(--line);padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px));gap:4px}
+#tmain{padding:0 6px 12px}
+.tgroups{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:var(--panel2);border-top:1px solid var(--line);padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px));gap:4px}
 .tgroups .grp{flex:1;min-height:40px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--panel);cursor:pointer;font-weight:500}
 .tgroups .grp.on{background:var(--ink);color:var(--panel);border-color:var(--ink);font-weight:700}
 .msg{margin:8px 2px 0;padding:6px 10px;border-radius:var(--r-s);background:var(--blue-soft);font-size:.88rem;white-space:pre-line}
@@ -67,11 +68,14 @@ button,input,select,textarea{font:inherit;color:inherit}
 .energy-box{margin:8px 2px;max-width:24em}
 .energy{height:10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;margin:3px 0}
 .energy i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--brass));transition:width .4s}
-/* 表：寬度跟著畫面，字可以換行；手機轉橫（約 780）放得下，直放時左右滑 */
-.ws{border-collapse:separate;border-spacing:0;font-size:.84rem;width:100%;margin-top:6px}
+/* 表：寬度跟著畫面，字可以換行；手機轉橫（約 780）放得下；直放時每張表跟轉橫時一樣寬（768），左右滑 */
+.tw{margin-top:6px}
+.ws{border-collapse:separate;border-spacing:0;font-size:.84rem;width:100%}
+@media (orientation:portrait) and (max-width:700px){.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}.ws{width:768px}}
 .ws th,.ws td{border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);padding:5px 6px;text-align:left;vertical-align:top;background:var(--panel);white-space:normal;overflow-wrap:anywhere}
 .ws thead th{position:sticky;top:0;z-index:3;background:var(--panel2);font-weight:600;font-size:.8rem;white-space:nowrap}
 .ws .fz{position:sticky;left:0;z-index:1;box-shadow:1px 0 0 var(--line)}
+.ws input{box-sizing:border-box}
 .ws thead .fz{z-index:4}
 .ws tr.flash > td{animation:rowflash 1.6s ease-out}
 @keyframes rowflash{0%,40%{background:var(--brass-soft)}100%{background:var(--panel)}}
@@ -101,6 +105,43 @@ a.lk{word-break:break-all}
 .whiteflash{position:fixed;inset:0;pointer-events:none;background:#fff;opacity:0;z-index:60}
 .whiteflash.go{animation:whiteflash .9s ease-out forwards}
 @keyframes whiteflash{0%{opacity:1}100%{opacity:0}}
+/* 日曆：一格一天，跟磚一樣的狀態 */
+.cal{max-width:30em;margin:8px 2px}
+.calhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.cal .wk,.cal .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .wk span{text-align:center;font-size:.76rem;color:var(--muted)}
+.cd{position:relative;min-height:42px;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:2px 4px;text-align:left;font-size:.78rem;cursor:pointer;color:var(--ink)}
+.cd:disabled{cursor:default;opacity:.55}
+.cd.pad,.cd.none{border:0;background:transparent}
+.cd .dn{font-variant-numeric:tabular-nums}
+.cd .cnt{position:absolute;right:4px;bottom:2px;font-weight:700;font-size:.72rem}
+.cd.lit1{background:#F3D27C;border-color:#D6A93C;opacity:1}.cd.lit2{background:#F7C33C;border-color:#C9951D;opacity:1}.cd.lit3{background:#FFE58A;border-color:#B8860B;box-shadow:0 0 0 2px #FFD54A inset;opacity:1}
+.cd.mark{opacity:1}.cd.mark::after{content:'';position:absolute;right:6px;top:6px;width:7px;height:7px;border-radius:50%;background:var(--ink)}
+.cd.cover{background:repeating-linear-gradient(45deg,#C9C3B6 0 6px,#B9B3A6 6px 12px);opacity:1}
+.cd.fut{border-style:dashed;border-width:2px;background:transparent;opacity:1}
+.cd.today{outline:2px solid var(--blue);outline-offset:1px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:8px;color:var(--muted)}
+.legend .cd{display:inline-block;min-height:14px;width:18px;height:14px;padding:0;cursor:default}
+.sw{display:inline-block;width:18px;height:18px;border-radius:4px;border:1px solid var(--line);vertical-align:middle;margin-right:6px}
+.ent{border-bottom:1px solid var(--grid);padding:6px 0}
+.ent-h{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.vis{margin-top:4px}
+.vis select{min-height:30px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
+/* ===== 達秒屋：外面整個畫面就是達秒屋 ===== */
+#view-house{position:fixed;inset:0;z-index:40;background:#DCE6EE;overflow:hidden}
+.hbar{position:absolute;left:0;right:0;top:0;z-index:3;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:6px 10px;background:var(--hud);border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
+.hbar input[type=text]{width:8.5em;min-height:36px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
+.hbar .btn{min-height:36px}
+.hbar .who{flex:1 1 12em;min-width:0;font-size:.9rem}
+#hstage{position:absolute;inset:0}
+#hstage canvas{display:block}
+#hcal{position:absolute;inset:0;overflow:auto;padding:110px 10px 90px;background:var(--bg)}
+.hfoot{position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;flex-direction:column;gap:6px;padding:6px 10px calc(8px + env(safe-area-inset-bottom,0px));pointer-events:none}
+.hfoot>*{pointer-events:auto}
+.htut{display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:space-between;padding:6px 10px;background:var(--brass-soft);border:1px solid var(--line);border-radius:var(--r-m)}
+.hrow{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.hhint{font-size:.78rem;color:var(--ink);background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:3px 10px;backdrop-filter:blur(6px);pointer-events:none}
+.hmsg{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:4;background:var(--ink);color:var(--panel);border-radius:var(--r-m);padding:6px 12px;font-size:.88rem;max-width:calc(100% - 32px)}
 .pop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);padding:16px}
 .pop .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);max-width:30em;width:100%;max-height:calc(100% - 16px);display:flex;flex-direction:column;padding:12px 14px;gap:8px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
 .pop h3{font-family:var(--serif);margin:0;font-size:1.02rem}
@@ -109,13 +150,20 @@ a.lk{word-break:break-all}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 
-<main id="view-table" class="view">
+<main id="view-table">
   <div class="tbar"><input type="text" id="serialIn" placeholder="序號，例如 J2" aria-label="序號" autocomplete="off" inputmode="text"><button type="button" class="btn sm pri" data-act="serialGo" id="serialGo">去</button><button type="button" class="btn sm" data-act="random" id="randomBtn">隨機</button><span class="who" id="tother"></span></div>
   <div id="rotHint">轉橫看整張表</div>
   <div class="tutbar" id="tutbar" hidden></div>
   <nav class="ttabs" id="ttabs" aria-label="表"></nav>
   <div id="tmain"></div>
   <nav class="tgroups" id="tgroups" aria-label="組"></nav>
+</main>
+<main id="view-house" hidden>
+  <div id="hstage"></div>
+  <div id="hcal" hidden></div>
+  <div class="hbar"><input type="text" id="hSerialIn" placeholder="序號，例如 J2" aria-label="序號" autocomplete="off"><button type="button" class="btn sm pri" data-hact="go" id="hSerialGo">去</button><button type="button" class="btn sm" data-hact="random" id="hRandom">隨機</button><span class="who" id="hwho"></span><button type="button" class="btn sm" data-hact="back" id="hBack">回我的表格世界</button></div>
+  <div class="hmsg" id="hmsg" hidden></div>
+  <div class="hfoot"><div class="htut" id="htut" hidden></div><div class="hrow"><span class="hhint" id="hhint"></span><span><button type="button" class="btn sm" data-hact="place" id="hPlace" hidden>擺設</button> <button type="button" class="btn sm pri" data-hact="door" id="hDoor">進門</button></span></div></div>
 </main>
 <div class="whiteflash" id="flash"></div>
 <div class="pop" id="pop" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="popTitle"><h3 id="popTitle"></h3><div class="body" id="popBody"></div><div class="btns" id="popBtns"></div></div></div>

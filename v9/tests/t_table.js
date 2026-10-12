@@ -9,7 +9,7 @@ var fits = "(function(){var m=document.getElementById('tmain');var ts=[...m.quer
 (async function () {
   var H = await lib.open(process.argv[2]), pg = H.pg;
   await H.fresh();
-  assert((await H.ev("typeof THREE")) === 'undefined' && (await H.ev("typeof GAME")) === 'undefined' && (await H.ev("document.getElementById('swapToSheet')")) === null, '只有表格世界：沒有 3D、裡世界、切換鈕');
+  assert((await H.ev("typeof GAME")) === 'undefined' && (await H.ev("document.getElementById('swapToSheet')")) === null && (await H.ev("document.getElementById('view-house').hidden")) === true, '做事都在表格世界：沒有裡世界、切換鈕；3D 只畫達秒屋（沒打開）');
   // 讓表有內容：一個一起成交的預約、別人預約我的時段、一張公告、一筆保留
   await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+600e6,2,null,t,true);CORE.book(S,'" + J1 + "',s.id,t);var m=S.roles[0].slots[0];CORE.book(S,'" + J2 + "',m.id,t);CORE.postNotice(S,'" + J1 + "',{need:'想找人一起跑步，早上在河堤',kind:'運動',give:['r1a','r1b'],cap:3,untilDay:CORE.dayNum(t)+3},t);APP.changed();})()");
   assert((await H.ev("Array.from(document.querySelectorAll('#tgroups button')).map(b=>b.textContent).join(',')")) === '今天,公告欄,預約,我的', '下方分頁是四組：今天、公告欄、預約、我的');
@@ -45,7 +45,7 @@ var fits = "(function(){var m=document.getElementById('tmain');var ts=[...m.quer
   assert((await H.ev("document.getElementById('rotHint').offsetHeight")) === 0, '轉橫時沒有「轉橫看整張表」');
   await pg.setViewportSize({ width: 360, height: 780 }); await pg.waitForTimeout(200); await H.nav('booked');
   assert((await H.ev("document.getElementById('rotHint').offsetHeight")) > 0 && (await pg.textContent('#rotHint')) === '轉橫看整張表', '直放時最上面一行小字「轉橫看整張表」');
-  assert((await H.ev("document.getElementById('tmain').scrollWidth > document.getElementById('tmain').clientWidth")), '直放時表可以左右滑');
+  assert((await H.ev("(function(){var w=document.querySelector('#tmain .tw');return w.scrollWidth>w.clientWidth;})()")), '直放時表可以左右滑');
   await pg.screenshot({ path: OUT + '/v9_table_2_portrait.png' });
   await pg.setViewportSize({ width: 780, height: 360 }); await pg.waitForTimeout(200);
 
@@ -77,7 +77,27 @@ var fits = "(function(){var m=document.getElementById('tmain');var ts=[...m.quer
   assert((await H.main()).indexOf('今天還能給') >= 0 && (await H.rows('bag')) === 1 && (await H.main()).indexOf('改履歷') >= 0, '背包：上面寫今天還能給多少點，有一筆阿澄的改履歷');
   await H.clickText('兌現', '#tmain');
   assert((await H.rows('bag')) === 0 && (await H.ev("APP.state().holds.find(function(h){return h.holder==='" + J1 + "';}).status")) === 'redeemed' && (await H.msg()) === '換到了', '在背包直接兌現，換到了');
-  await H.nav('calendar'); assert((await H.main()).indexOf('成交') >= 0 && (await H.main()).indexOf('兌現「改履歷」') >= 0, '日曆一天一段列出成交和兌現');
+  await H.nav('calendar');
+  var today = await H.ev("CORE.dayNum(APP.now())");
+  assert((await H.ev("document.querySelector('#tmain .cal [data-day=\"" + today + "\"]').className")).indexOf('lit1') >= 0, '日曆一格一天：今天那一格亮了');
+  await H.click('#tmain .cal [data-day="' + today + '"]');
+  assert((await H.popOpen()) && (await H.popBody()).indexOf('成交') >= 0 && (await H.popBody()).indexOf('換了 ') >= 0, '點今天那一格：那天的明細，改履歷寫「換了」'); await H.popOk();
+  // 版面 1：780×300 在我預約的往下滑以後，序號框和分頁捲出畫面、表頭還在，表頭下面看得到的高度至少 200
+  await H.ev("(function(){var S=APP.state(),t=APP.now();for(var k=0;k<3;k++){var s=CORE.addSlot(S,'" + J2 + "',t+(900+k*60)*1e6,2,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2b']);}APP.changed();})()");
+  await pg.setViewportSize({ width: 780, height: 300 }); await H.nav('booked'); await pg.mouse.move(390, 200); await pg.mouse.wheel(0, 260); await pg.waitForTimeout(300);
+  var lay = await H.ev("(function(){var th=document.querySelector('#tmain thead th').getBoundingClientRect(),bar=document.querySelector('.tbar').getBoundingClientRect(),tabs=document.getElementById('ttabs').getBoundingClientRect(),g=document.getElementById('tgroups').getBoundingClientRect();return {sy:scrollY,thTop:th.top,thBottom:th.bottom,bar:bar.bottom,tabs:tabs.bottom,groupsTop:g.top,win:innerHeight};})()");
+  assert(lay.sy > 0 && lay.bar <= 0 && lay.tabs <= 0, '往下滑：序號框和上方分頁跟著捲出畫面（' + JSON.stringify(lay) + '）');
+  assert(lay.thTop >= -1 && lay.thTop <= 2 && lay.groupsTop < lay.win && lay.groupsTop - lay.thBottom >= 200, '表頭貼在最上面、下方四組留著，表頭下面看得到 ' + Math.round(lay.groupsTop - lay.thBottom) + ' 高');
+  // 版面 2：360×780 每張表跟 780 寬時一樣寬；版面 3：每張表的輸入格提示字和內容沒被切掉
+  var widths = {}, cut = [];
+  var checkInputs = "(function(){var c=document.createElement('canvas').getContext('2d'),bad=[];document.querySelectorAll('#tmain input[type=text],#tmain input[type=number],#tmain input[type=search],#tmain input[type=url]').forEach(function(el){var cs=getComputedStyle(el);if(el.offsetParent===null)return;c.font=cs.fontStyle+' '+cs.fontWeight+' '+cs.fontSize+' '+cs.fontFamily;var need=Math.max(c.measureText(el.value||'').width,c.measureText(el.placeholder||'').width);var room=el.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)-(el.type==='number'?16:0);if(need>room+1)bad.push((el.id||el.dataset.ed)+':'+Math.round(need)+'>'+Math.round(room));});return bad;})()";
+  await pg.setViewportSize({ width: 780, height: 360 });
+  for (var k2 of SHEETS) { await H.nav(k2); widths[k2] = await H.ev("Array.from(document.querySelectorAll('#tmain .ws')).map(function(t){return Math.round(t.getBoundingClientRect().width);}).join(',')"); cut = cut.concat((await H.ev(checkInputs)).map(function (x) { return k2 + '/' + x; })); }
+  await pg.setViewportSize({ width: 360, height: 780 }); var same = true, diff = [];
+  for (var k3 of SHEETS) { await H.nav(k3); var w3 = await H.ev("Array.from(document.querySelectorAll('#tmain .ws')).map(function(t){return Math.round(t.getBoundingClientRect().width);}).join(',')"); if (w3 !== widths[k3]) { same = false; diff.push(k3 + ' ' + w3 + '≠' + widths[k3]); } cut = cut.concat((await H.ev(checkInputs)).map(function (x) { return '直放 ' + k3 + '/' + x; })); }
+  assert(same, '360×780 每張表跟 780 寬時一樣寬' + (diff.length ? '：' + diff.join('；') : ''));
+  await pg.setViewportSize({ width: 780, height: 360 });
+  assert(!cut.length, '每張表的輸入格提示字和內容都沒被切掉' + (cut.length ? '：' + cut.join('；') : ''));
 
   // 6. 存檔用新的名字；第一次打開讀得到 v8 的存檔就搬過來，讀不了就從頭開始
   await H.ev("(function(){var st=CORE.fresh();CORE.demoMe(st,APP.now());st.v=8;delete st.notices;st.tutorial={step:'done'};st.roles[0].name='舊的我';localStorage.clear();localStorage.setItem('arrive-v8',JSON.stringify(st));})()");

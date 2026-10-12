@@ -1,5 +1,5 @@
-/* ===== v9 共用：狀態、存檔、今天的提醒、新手教學、那一微秒的判定 =====
- * 表格世界（table.js）只透過這裡和 CORE 做事；第 2 輪的達秒屋也一樣。
+/* ===== v9 共用：狀態、存檔、今天的提醒、新手教學、那一微秒的判定、表格世界和達秒屋之間的切換 =====
+ * 表格世界（table.js）和達秒屋（house.js）都只透過這裡和 CORE 做事，彼此不互相呼叫：要換到另一邊就叫 APP.goHouse／APP.goTable，由事件通知。
  */
 var APP = (function () {
   'use strict';
@@ -14,8 +14,18 @@ var APP = (function () {
   function opt(v, label, sel) { return '<option value="' + esc(v) + '"' + (v === sel ? ' selected' : '') + '>' + esc(label) + '</option>'; }
   function on(name, fn) { (handlers[name] = handlers[name] || []).push(fn); }
   function emit(name, a, b) { (handlers[name] || []).forEach(function (fn) { fn(a, b); }); }
-  function save() { CORE.save(state); }
+  // 存檔：小的馬上存；大的（壓縮要時間）等手停下來再存，離開頁面時一定存。存不進去就跳提示
+  var saveTimer = null, saveFailed = false;
+  function saveNow() {
+    clearTimeout(saveTimer); saveTimer = null;
+    var ok = CORE.save(state);
+    if (!ok && !saveFailed) { saveFailed = true; emit('saveFail', CORE.io.saveError); }
+    if (ok) saveFailed = false;
+    return ok;
+  }
+  function save() { if (CORE.io.lastSize > 1000000) { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 1500); } else saveNow(); }
   function changed() { save(); emit('change'); }
+  if (typeof window !== 'undefined') { window.addEventListener('pagehide', function () { if (saveTimer) saveNow(); }); document.addEventListener('visibilitychange', function () { if (document.hidden && saveTimer) saveNow(); }); }
   var roleOf = function (serial) { return CORE.roleOf(state, serial); };
   var ver = function (r) { return CORE.version(r, now()); };
   var pend = function (r) { return CORE.pending(r, now()); };
@@ -38,11 +48,12 @@ var APP = (function () {
     me = r;
     if (skip) { tut().step = 'done'; tut().skipped = true; }
     changed(); emit('me'); tutTick();
+    if (!skip) goHouse(r.serial);   // 創完角色，先到自己的達秒屋外面
     return r;
   }
   // 測試和示範用：放一個示範的「我」（J1），教學算跳過
   function demo() { if (!isBlank()) return; CORE.demoMe(state, now()); me = state.roles[0]; tut().step = 'done'; tut().skipped = true; changed(); emit('me'); }
-  function resetAll() { state = CORE.fresh(); me = roleFor(); away = []; changed(); emit('me'); }
+  function resetAll(opts) { state = CORE.fresh(opts); me = roleFor(); away = []; changed(); emit('me'); }
   function quit(serial) {
     var n = CORE.quit(state, serial, now(), true);
     if (!state.roles.length) { state = CORE.fresh(); }
@@ -86,22 +97,32 @@ var APP = (function () {
   // 每一步：名字、怎麼做、到哪一張表、做完沒
   var TUT = [
     { id: 't1', name: '創角色', how: '在「我的／角色」填名字、每天的點（預設 2000）、第一樣東西「空的」（0 點，補 1 份），按「建立」', sheet: 'role', done: function () { return !isBlank(); } },
-    { id: 't2', name: '找陌生人一：隨機', how: '按最上面的「隨機」，跳到一個陌生人的表格世界，看看他的規則和能給的東西', sheet: 'today', done: function () { return !!tut().random; } },
-    { id: 't3', name: '找陌生人二：在公告欄找序號', how: '打開「公告欄／公告」，找到引路人的公告（需要：空的；可以給：空的），記下他的序號，在最上面的序號框輸入，按「去」', sheet: 'notices', done: function () { return !!tut().found; } },
+    { id: 't2', name: '找陌生人一：隨機', how: '在達秒屋外面按「隨機」，跳到一個陌生人的達秒屋外面，看看他的磚，點門進他的表格世界', sheet: 'house', done: function () { return !!tut().door; } },
+    { id: 't3', name: '找陌生人二：在公告欄找序號', how: '打開「公告欄／公告」，找到引路人的公告（需要：空的；可以給：空的），記下他的序號，在最上面的序號框輸入，按「去」（在達秒屋外面輸入就到他的達秒屋外面）', sheet: 'notices', done: function () { return !!tut().found; } },
     { id: 't4', name: '看他的家規', how: '在引路人的表格世界打開「規則表」：家規那一段沒有家規網站，表示他不收留言', sheet: 'rules', who: GUIDE, done: function () { return !!tut().sawRules; } },
     { id: 't5', name: '預約、選他的「空的」', how: '在引路人的「時段」按「約他」（到達的勾預設勾著，預約時就確認到達），再到「預約／我預約的」選他的「空的」。引路人一定會選你的「空的」', sheet: 'slots', who: GUIDE,
       done: function () { var s = tutSlot(); if (!s || s.bookings.indexOf(me.serial) < 0 || !CORE.isPresent(state, me.serial, s.id)) return false; var g = guide(); return CORE.wantsValid(state, s, me.serial, GUIDE).some(function (id) { var x = CORE.resourceOf(CORE.version(g, s.atUs), id); return x && x.price === 0; }); } },
     { id: 't6', name: '那一微秒', how: '大約一分鐘後，白光一閃，跳出成交結果：「我拿出：空的；拿到：引路人的空的」。不用守著', sheet: 'booked', done: function () { return !!tutDocking(); } },
-    { id: 't7', name: '兌現', how: '到「我的／背包」，在引路人的那一筆按「兌現」', sheet: 'bag', done: function () { var h = tutHold(GUIDE, me.serial); return !!h && h.status === 'redeemed'; } }
+    { id: 't7', name: '兌現', how: '到「我的／背包」，在引路人的那一筆按「兌現」', sheet: 'bag', done: function () { var h = tutHold(GUIDE, me.serial); return !!h && h.status === 'redeemed'; } },
+    { id: 't8', name: '看自己的達秒屋', how: '按「去我的達秒屋」：你 0 歲，第一塊磚亮了', sheet: 'house', done: function () { return !!tut().house; } }
   ];
-  var NO = ['①', '②', '③', '④', '⑤', '⑥', '⑦'];
+  var NO = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'];
   function tutSteps() {
     var T = tut(), rows = TUT.map(function (x, i) { return { id: x.id, no: NO[i], name: x.name, ok: i + 1 < T.step, status: x.how, sheet: x.sheet, who: x.who || null, tut: true }; });
     var next = rows[T.step - 1] || null;
     return { rows: rows, next: next, hint: next ? '教學 ' + next.no + ' ' + next.name + '：' + next.status : '', tutorial: true };
   }
   // 畫面告訴我發生了什麼：按了隨機、用序號找到引路人、看了引路人的規則表
-  function tutEvent(name) { var T = tut(); if (!tutActive()) return; if (name === 'random') T.random = true; if (name === 'foundGuide' && T.step >= 3) T.found = true; if (name === 'sawGuideRules' && T.step >= 4) T.sawRules = true; tutTick(); }
+  // 畫面告訴我發生了什麼：在達秒屋外面按了隨機、點門進了別人的表格世界、用序號找到引路人、看了引路人的規則表、到了自己的達秒屋
+  function tutEvent(name) {
+    var T = tut(); if (!tutActive()) return;
+    if (name === 'houseRandom' && T.step === 2) T.random = true;
+    if (name === 'door' && T.step === 2 && T.random) T.door = true;
+    if (name === 'foundGuide' && T.step >= 3) T.found = true;
+    if (name === 'sawGuideRules' && T.step >= 4) T.sawRules = true;
+    if (name === 'myHouse' && T.step === 8) { T.house = true; tutTick(); emit('firstBrick'); return; }
+    tutTick();
+  }
   function tutSkip() { var T = tut(); if (!tutActive() || isBlank()) return; T.step = 'done'; T.skipped = true; changed(); emit('tut', 'done'); }
   // 每格：步驟做完就往下走；引路人的自動化（開時段、選玩家的「空的」、玩家兌現了他也兌現）
   function tutTick() {
@@ -117,7 +138,7 @@ var APP = (function () {
     while (typeof T.step === 'number' && T.step <= TUT.length && TUT[T.step - 1].done() && guard++ < 10) {
       if (T.step === 7) { var h = tutHold(me.serial, GUIDE); if (h && h.status === 'held') { try { CORE.redeem(state, GUIDE, h.id, t); } catch (err) { /* 換不到就算了 */ } } }   // 玩家兌現了，引路人也兌現玩家的「空的」
       T.step++; dirty = true;
-      if (T.step > TUT.length) T.step = 'done';   // 第 8 步（看自己的達秒屋）第 2 輪做
+      if (T.step > TUT.length) T.step = 'done';
     }
     if (dirty) { changed(); emit('tut', T.step); }
   }
@@ -136,7 +157,13 @@ var APP = (function () {
     }
   }, 50);
 
+  /* ---------- 表格世界和達秒屋之間的切換（兩邊都只聽事件） ---------- */
+  var view = { name: 'table', serial: null };
+  function goHouse(serial) { view = { name: 'house', serial: serial || me.serial }; emit('view', view); if (view.serial === me.serial) tutEvent('myHouse'); }
+  function goTable(serial, sheet, how) { view = { name: 'table', serial: serial && serial !== me.serial ? serial : null, sheet: sheet || null, how: how || null }; emit('view', view); }
+
   return {
+    goHouse: goHouse, goTable: goTable, view: function () { return view; }, saveNow: saveNow, loadIssue: function () { return CORE.io.loadIssue; },
     state: function () { return state; }, me: function () { return me; }, now: now, esc: esc, opt: opt, ver: ver, pend: pend,
     on: on, emit: emit, save: save, changed: changed, run: run, roleOf: roleOf,
     becomeMe: becomeMe, resetAll: resetAll, quit: quit, isBlank: isBlank, createPlayer: createPlayer, demo: demo,

@@ -165,7 +165,7 @@ var CORE = (function () {
   function obj(v, what) { if (!v || typeof v !== 'object' || Array.isArray(v)) bad(what + ' 不是資料'); return v; }
   function color(v, what) { if (!/^#[0-9a-fA-F]{6}$/.test(String(v))) bad(what + ' 顏色格式錯'); return v; }
   function ident(v, what) { if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(v))) bad(what + ' 代號只能是英數'); return v; }
-  var LIMITS = { objects: 60, parts: 24, path: 200, rules: 50, text: 2000, name: 60 };
+  var LIMITS = { objects: 60, parts: 24, path: 200, rules: 50, text: 2000, name: 60, slots: 20000, versions: 20000, rows: 300000, booked: 200 };   // 存檔要撐好幾年：每天開好幾個時段、玩十年也放得下
   var VIS = { all: '所有人', self: '只有自己' };
   function cleanVis(v) { return VIS[v] ? v : 'all'; }
   function cleanPart(p) {
@@ -336,7 +336,7 @@ var CORE = (function () {
     if (state.issued.indexOf(serial) < 0) state.issued.push(serial);
     if (!f.name || !String(f.name).trim()) bad('角色要有名字');
     var daily = f.dailyPoints == null ? DEFAULT_DAILY : Math.floor(+f.dailyPoints); if (!(daily >= 1)) bad('每天的點要是正整數');
-    var r = { serial: serial, name: String(f.name).trim(), contact: String(f.contact || ''), slots: [], stock: {}, world: f.world || defaultWorld(serial),
+    var r = { serial: serial, name: String(f.name).trim(), contact: String(f.contact || ''), slots: [], stock: {}, world: f.world || defaultWorld(serial), born: dayNum(atUs), house: cleanHouse(f.house || {}),
               versions: [{ id: newId('v'), fromDay: dayNum(atUs), dailyPoints: daily, rules: cleanRules(f.rules), resources: (f.resources || []).map(cleanRes) }] };
     r.versions[0].resources.forEach(function (x, i) { var src = f.resources[i]; r.stock[x.id] = { avail: Math.max(0, Math.floor(+(src && src.avail) || 0)), reserved: 0 }; });
     state.roles.push(r);
@@ -347,9 +347,11 @@ var CORE = (function () {
   function quit(state, serial, atUs, consent) {
     var r = need(state, serial), blockers = quitBlockers(state, serial, atUs);
     if (blockers.length && !consent) bad('還有 ' + blockers.length + ' 筆你的點沒換：' + blockers.map(function (h) { return abbrev(h.holder) + '「' + h.name + '」'; }).join('、') + '。先讓他們換完，或取得同意');
-    blockers.forEach(function (h) { h.status = 'voided'; });
-    state.holds.forEach(function (h) { if (h.holder === serial && holdStatus(h, atUs) === 'held') { h.status = 'voided'; var iss = roleOf(state, h.issuer); if (iss) { var st = stockOf(iss, h.resource); st.reserved = Math.max(0, st.reserved - 1); st.avail += 1; } } });
+    blockers.forEach(function (h) { h.status = 'voided'; h.endedAt = atUs; });
+    state.holds.forEach(function (h) { if (h.holder === serial && holdStatus(h, atUs) === 'held') { h.status = 'voided'; h.endedAt = atUs; var iss = roleOf(state, h.issuer); if (iss) { var st = stockOf(iss, h.resource); st.reserved = Math.max(0, st.reserved - 1); st.avail += 1; } } });
     state.roles.forEach(function (o) { o.slots.forEach(function (s) { s.bookings = s.bookings.filter(function (b) { return b !== serial; }); }); });
+    var mySlots = {}; r.slots.forEach(function (s) { if (!s.judged) mySlots[s.id] = true; });
+    state.entries = entriesOf(state).filter(function (e) { return !(e.status === 'booked' && (e.a === serial || e.b === serial || mySlots[e.slot])); });   // 未來的預約一起拿掉；過去的那幾筆留著（記著名字）
     state.roles = state.roles.filter(function (x) { return x !== r; });
     state.records.push({ kind: 'quit', at: atUs, serial: serial, text: abbrev(serial) + ' ' + r.name + ' 不玩了' + (blockers.length ? '，' + blockers.length + ' 筆保留作廢（持有人同意）' : '') });
     return blockers.length;
@@ -379,7 +381,7 @@ var CORE = (function () {
     var r = need(state, serial);
     if (!(atUs > (now || nowUs()))) bad('對接時段要在未來');
     var cap = Math.floor(+capacity); if (!(cap >= 1)) bad('名額要至少 1');
-    var s = { id: newId('slot'), atUs: atUs, capacity: cap, together: !!together, bookings: [], confirmed: [], bookedAt: {}, docked: [], missed: [], wants: {}, maxGive: {}, judged: false };
+    var s = { id: newId('slot'), atUs: atUs, capacity: cap, together: !!together, bookings: [], confirmed: [], visAt: {}, bookedAt: {}, docked: [], missed: [], wants: {}, maxGive: {}, judged: false };
     if (maxGive != null && maxGive !== '') setMaxGive(state, s, serial, maxGive);
     r.slots.push(s);
     return s;
@@ -407,9 +409,13 @@ var CORE = (function () {
     x.slot.bookedAt = x.slot.bookedAt || {}; x.slot.bookedAt[visitorSerial] = atUs;   // 預約那一刻：那一微秒照這時候的規則表判
     x.slot.confirmed = (x.slot.confirmed || []).filter(function (c) { return c !== visitorSerial; });
     if (arrive !== false) x.slot.confirmed.push(visitorSerial);
+    // 未來的預約也算一筆：約的人照自己約的那一刻、主人照被約的那一刻的「新的一筆預設」；兩個來約的人之間照各自約的那一刻
+    x.slot.visAt = x.slot.visAt || {}; x.slot.visAt[visitorSerial] = houseOf(visitor).defaultVis;
+    addEntry(state, x.slot, x.owner, x.owner.serial, visitorSerial, houseOf(x.owner).defaultVis, x.slot.visAt[visitorSerial], atUs);
+    x.slot.bookings.forEach(function (b) { if (b !== visitorSerial) addEntry(state, x.slot, x.owner, b, visitorSerial, x.slot.visAt[b] || houseOf(roleOf(state, b)).defaultVis, x.slot.visAt[visitorSerial], atUs); });
     return x.slot;
   }
-  function cancelBooking(state, visitorSerial, slotId) { var x = slotOf(state, slotId); if (!x) bad('沒有這個時段'); if (x.slot.judged) bad('那一微秒已經過了'); x.slot.bookings = x.slot.bookings.filter(function (s) { return s !== visitorSerial; }); x.slot.confirmed = (x.slot.confirmed || []).filter(function (c) { return c !== visitorSerial; }); delete x.slot.wants[visitorSerial]; if (x.slot.bookedAt) delete x.slot.bookedAt[visitorSerial]; }
+  function cancelBooking(state, visitorSerial, slotId) { var x = slotOf(state, slotId); if (!x) bad('沒有這個時段'); if (x.slot.judged) bad('那一微秒已經過了'); x.slot.bookings = x.slot.bookings.filter(function (s) { return s !== visitorSerial; }); x.slot.confirmed = (x.slot.confirmed || []).filter(function (c) { return c !== visitorSerial; }); delete x.slot.wants[visitorSerial]; if (x.slot.visAt) delete x.slot.visAt[visitorSerial]; state.entries = entriesOf(state).filter(function (e) { return !(e.slot === slotId && e.status === 'booked' && (e.a === visitorSerial || e.b === visitorSerial)); }); if (x.slot.bookedAt) delete x.slot.bookedAt[visitorSerial]; }
   // 那一微秒之前：同一個時段的人對其他每個人選「我要他的哪些東西」，可以改到那一微秒；設「每人最多給多少點」
   function setWants(state, slotId, me, other, resourceIds) {
     var x = slotOf(state, slotId); if (!x) bad('沒有這個時段');
@@ -519,6 +525,13 @@ var CORE = (function () {
       var owner = x.owner, s = x.s, late = now >= s.atUs + DOCK_WINDOW_US, at = s.atUs;
       s.judged = true; expireHolds(state, at);
       var present = [owner.serial].concat(s.bookings.filter(function (b) { return isPresent(state, b, s.id); }));
+      try { judgeSlot(state, owner, s, present, at, late, out); } finally { settleEntries(state, s); }
+    });
+    if (due.length) expireHolds(state, now);   // 補判完，保留到期也算到現在
+    return out;
+  }
+  function judgeSlot(state, owner, s, present, at, late, out) {
+    (function () {
       s.bookings.forEach(function (b) { if (present.indexOf(b) < 0) { s.missed.push(b); state.records.push({ kind: 'miss', at: at, text: abbrev(b) + ' 錯過了 ' + fmtUs(s.atUs) + ' 的對接' + (late ? '（沒確認到達）' : '') }); out.push({ slot: s, owner: owner, docking: null, missed: b, late: late }); } else s.docked.push(b); });
       if (s.together) { judgeTogether(state, owner, s, present, at, out); out.forEach(function (o) { if (o.slot === s) o.late = late; }); return; }
       var atUs = at;   // 下面這一段照原本的寫法，用這個時段的那一微秒
@@ -531,9 +544,7 @@ var CORE = (function () {
           state.records.push({ kind: 'error', at: atUs, text: abbrev(present[i]) + ' 與 ' + abbrev(present[j]) + ' 在 ' + fmtUs(atUs) + ' 判定出錯：' + e.message });
         }
       }
-    });
-    if (due.length) expireHolds(state, now);   // 補判完，保留到期也算到現在
-    return out;
+    })();
   }
   function dockText(state, d, atUs) { return (d.tutorial ? '（教學）' : '') + abbrev(d.a) + ' 與 ' + abbrev(d.b) + ' 在 ' + fmtUs(atUs) + (d.traded ? ' 互換：' + need(state, d.a).name + ' 拿出 ' + itemsText(d.itemsA) + '（' + d.gaveA + ' 點）' + (d.noteA ? '（' + d.noteA + '）' : '') + '，' + need(state, d.b).name + ' 拿出 ' + itemsText(d.itemsB) + '（' + d.gaveB + ' 點）' + (d.noteB ? '（' + d.noteB + '）' : '') + '（' + d.how + '）' : ' 不成交：' + d.reason); }
   // 有選東西的一對：至少一邊選了對方的東西
@@ -653,6 +664,156 @@ var CORE = (function () {
     return { notices: notices, resources: resources };
   }
 
+  /* ---------- 達秒屋（7-2）：每一筆、藏、外觀、看一間屋 ---------- */
+  var VIS_LEVELS = { public: '公開', neighbors: '只給鄰居看', hidden: '全藏' };
+  function cleanVisLevel(v) { return VIS_LEVELS[v] ? v : 'hidden'; }   // 讀到不認得的值就當全藏
+  var HOUSE_SHAPES = { tower: '塔', long: '長屋', flat: '平房', round: '圓屋' };
+  var PALETTE = { brick: { name: '磚紅', hex: '#A9533B' }, clay: { name: '陶土', hex: '#C7794A' }, sand: { name: '沙色', hex: '#D9C08C' }, cream: { name: '米白', hex: '#EDE4CC' }, stone: { name: '石灰', hex: '#9C9A92' }, slate: { name: '石板', hex: '#55606B' },
+    moss: { name: '苔綠', hex: '#6C7F4A' }, pine: { name: '松綠', hex: '#2F5B45' }, sky: { name: '天藍', hex: '#7FA7C4' }, ink: { name: '墨藍', hex: '#2C3E5C' }, plum: { name: '梅紫', hex: '#6E4A68' }, coal: { name: '炭黑', hex: '#2E2C2B' } };
+  var DOOR_STYLES = { plain: '平門', arch: '拱門', double: '雙開門' };
+  var WINDOW_STYLES = { square: '方窗', round: '圓窗', tall: '長窗' };
+  var ROOF_STYLES = { gable: '斜屋頂', flat: '平屋頂', dome: '圓頂' };
+  var PROPS = { tree: '樹', flower: '花', lamp: '燈', flag: '旗子', bench: '長椅', rock: '石頭' };
+  var PROP_MAX = 20, PROP_ANGLES = 24, PROP_RINGS = 3, SIGN_MAX = 20;   // 擺設放在房子外面的一圈一圈格子上（24 個方向 × 3 圈），跟著房子大小往外推，不會被蓋住
+  var DEFAULT_HOUSE = { shape: 'tower', wall: 'brick', roof: 'slate', trim: 'cream', door: 'plain', window: 'square', roofStyle: 'gable', sign: '', props: [], visibility: 'public', defaultVis: 'public' };
+  // 外觀只能是清單裡的資料：讀檔和修改時都檢查；不認得的換回預設
+  function cleanHouse(h, strict) {
+    h = h && typeof h === 'object' ? h : {};
+    var pick = function (k, table) { if (h[k] == null) return DEFAULT_HOUSE[k]; if (table[h[k]]) return h[k]; if (strict) bad('不在清單裡：' + h[k]); return DEFAULT_HOUSE[k]; };
+    var sign = String(h.sign == null ? '' : h.sign);
+    if (sign.length > SIGN_MAX) { if (strict) bad('門牌一句話要在 ' + SIGN_MAX + ' 字以內'); sign = sign.slice(0, SIGN_MAX); }
+    var seen = {}, props = [];
+    (Array.isArray(h.props) ? h.props : []).forEach(function (p) {
+      if (!p || !PROPS[p.kind] || !(p.a >= 0 && p.a < PROP_ANGLES && p.a % 1 === 0) || !(p.r >= 0 && p.r < PROP_RINGS && p.r % 1 === 0) || [0, 90, 180, 270].indexOf(p.rot) < 0 || seen[p.a + ':' + p.r]) { if (strict) bad('擺設格式不對'); return; }
+      if (props.length >= PROP_MAX) { if (strict) bad('擺設最多 ' + PROP_MAX + ' 個'); return; }
+      seen[p.a + ':' + p.r] = true; props.push({ kind: p.kind, a: p.a, r: p.r, rot: p.rot });
+    });
+    return { shape: pick('shape', HOUSE_SHAPES), wall: pick('wall', PALETTE), roof: pick('roof', PALETTE), trim: pick('trim', PALETTE), door: pick('door', DOOR_STYLES), window: pick('window', WINDOW_STYLES), roofStyle: pick('roofStyle', ROOF_STYLES),
+      sign: sign, props: props, visibility: h.visibility === 'neighbors' ? 'neighbors' : 'public', defaultVis: h.defaultVis == null ? 'public' : cleanVisLevel(h.defaultVis) };
+  }
+  function houseOf(role) { return role && role.house ? role.house : DEFAULT_HOUSE; }
+  // 改外觀、整間屋給誰看、新的一筆預設：都馬上生效
+  function setHouse(state, serial, fields) {
+    var r = need(state, serial), h = Object.assign({}, houseOf(r));
+    Object.keys(fields || {}).forEach(function (k) { if (k !== 'props') h[k] = fields[k]; });
+    if (fields && fields.visibility != null && ['public', 'neighbors'].indexOf(fields.visibility) < 0) bad('整間屋只能公開或只給鄰居看');
+    if (fields && fields.defaultVis != null && !VIS_LEVELS[fields.defaultVis]) bad('新的一筆預設只能是公開、只給鄰居看或全藏');
+    r.house = cleanHouse(h, true); return r.house;
+  }
+  function placeProp(state, serial, p) {
+    var r = need(state, serial), h = houseOf(r);
+    if (h.props.length >= PROP_MAX) bad('擺設最多 ' + PROP_MAX + ' 個');
+    if (h.props.some(function (x) { return x.a === p.a && x.r === p.r; })) bad('這一格已經有擺設了');
+    var props = h.props.concat([{ kind: p.kind, a: p.a, r: p.r, rot: p.rot == null ? 0 : p.rot }]);
+    r.house = cleanHouse(Object.assign({}, h, { props: props }), true); return r.house;
+  }
+  function rotateProp(state, serial, a, rr) { var r = need(state, serial), p = houseOf(r).props.find(function (x) { return x.a === a && x.r === rr; }); if (!p) bad('這一格沒有擺設'); p.rot = (p.rot + 90) % 360; return p; }
+  function removeProp(state, serial, a, rr) { var r = need(state, serial), h = houseOf(r); if (!h.props.some(function (x) { return x.a === a && x.r === rr; })) bad('這一格沒有擺設'); h.props = h.props.filter(function (x) { return !(x.a === a && x.r === rr); }); }
+  // 是不是鄰居：第 3 輪接上街；這一輪沒有街，永遠不是
+  function isNeighbor(state, a, b) { return false; }
+
+  /* 每一筆：一個時段裡的一對人。約的時候就有（未來的預約），判完寫上結果；取消預約就沒了 */
+  function entriesOf(state) { return state.entries || (state.entries = []); }
+  function nameOf(state, serial) { var r = roleOf(state, serial); return r ? r.name : abbrev(serial); }
+  function addEntry(state, slot, owner, a, b, visA, visB, atUs) {
+    if (entriesOf(state).some(function (e) { return e.slot === slot.id && ((e.a === a && e.b === b) || (e.a === b && e.b === a)); })) return null;
+    var tut = a === GUIDE || b === GUIDE, vis = {}; vis[a] = cleanVisLevel(visA); vis[b] = cleanVisLevel(visB);
+    if (tut) vis[GUIDE] = 'hidden';   // 引路人那一邊的教學紀錄固定全藏
+    var e = { id: newId('en'), slot: slot.id, owner: owner.serial, a: a, b: b, names: {}, bookedAt: atUs, atUs: slot.atUs, status: 'booked', docking: null, reason: null, together: !!slot.together, tutorial: tut, vis: vis };
+    e.names[a] = nameOf(state, a); e.names[b] = nameOf(state, b);
+    entriesOf(state).push(e); return e;
+  }
+  function pairDocking(state, slotId, a, b) { var out = null; state.dockings.forEach(function (d) { if (d.slot === slotId && ((d.a === a && d.b === b) || (d.a === b && d.b === a))) out = d; }); return out; }
+  // 判完一個時段：每一筆寫上結果（成交、不成交、不成立、錯過）和原因
+  function settleEntries(state, s) {
+    entriesOf(state).forEach(function (e) {
+      if (e.slot !== s.id || e.status !== 'booked') return;
+      var miss = [e.a, e.b].filter(function (x) { return (s.missed || []).indexOf(x) >= 0; });
+      if (miss.length) { e.status = 'miss'; e.reason = miss.map(function (x) { return e.names[x]; }).join('、') + ' 沒確認到達'; return; }
+      var d = pairDocking(state, s.id, e.a, e.b);
+      if (!d) { e.status = 'nodock'; e.reason = '判定出錯'; return; }
+      e.docking = d.id; e.status = d.traded ? 'traded' : d.ok ? 'nodock' : 'invalid'; e.reason = d.traded ? null : d.reason;
+    });
+  }
+  // 在那一筆上改自己那一邊的藏：馬上生效；引路人那一邊的教學紀錄不能改
+  function setVis(state, serial, entryId, level) {
+    var e = entriesOf(state).find(function (x) { return x.id === entryId; }); if (!e) bad('沒有這一筆');
+    if (e.a !== serial && e.b !== serial) bad('只能改自己的那幾筆');
+    if (!VIS_LEVELS[level]) bad('只能選公開、只給鄰居看或全藏');
+    if (e.tutorial && serial === GUIDE) bad('引路人的教學紀錄固定全藏');
+    e.vis[serial] = level; return e;
+  }
+  function ageOf(born, today) { var d = Math.max(0, today - born); return { years: Math.floor(d / 365), days: d % 365, total: d, text: Math.floor(d / 365) + ' 歲 ' + (d % 365) + ' 天' }; }
+  function bornOf(role) { return role.born != null ? role.born : role.versions[0].fromDay; }
+  // 這一筆在 owner 的達秒屋裡，viewer 看不看得到：對接的兩個人永遠看得到；其他人照 owner 那一邊的設定
+  function canSeeEntry(state, e, owner, viewer) {
+    if (viewer && (viewer === e.a || viewer === e.b)) return true;
+    var lv = e.vis[owner] || 'hidden';
+    return lv === 'public' || (lv === 'neighbors' && !!viewer && isNeighbor(state, owner, viewer));
+  }
+  function houseClosed(state, role, viewer) { return houseOf(role).visibility === 'neighbors' && viewer !== role.serial && !(viewer && isNeighbor(state, role.serial, viewer)); }
+  function lookOf(role) { var h = houseOf(role); return { shape: h.shape, wall: h.wall, roof: h.roof, trim: h.trim, door: h.door, window: h.window, roofStyle: h.roofStyle, props: h.props.map(function (p) { return { kind: p.kind, a: p.a, r: p.r, rot: p.rot }; }) }; }
+  // 看一間屋：只回傳 viewer 看得到的東西（viewer 是 null 就是陌生人，例如家規系統）
+  function viewHouse(state, ownerSerial, viewerSerial, now) {
+    now = now || nowUs(); var r = need(state, ownerSerial), today = dayNum(now), born = bornOf(r), viewer = viewerSerial || null;
+    var bricks = [], d;
+    if (houseClosed(state, r, viewer)) {   // 只給鄰居看、看的人又不是鄰居：只回外觀和牌子
+      for (d = born; d <= today; d++) bricks.push({ day: d, future: false });
+      return { serial: r.serial, name: r.name, closed: true, look: lookOf(r), sign: '', age: null, born: null, today: today, bricks: bricks };
+    }
+    var byDay = {};
+    entriesOf(state).forEach(function (e) { if (e.a !== ownerSerial && e.b !== ownerSerial) return; var dd = dayNum(e.atUs); (byDay[dd] = byDay[dd] || []).push(e); });
+    var brick = function (day, future) {
+      var es = byDay[day] || [], vis = es.filter(function (e) { return canSeeEntry(state, e, ownerSerial, viewer); });
+      var lit = vis.filter(function (e) { return e.status === 'traded'; }).length, judged = vis.filter(function (e) { return e.status !== 'booked'; });
+      return { day: day, future: future, lit: lit, mark: !lit && judged.length > 0, booked: vis.some(function (e) { return e.status === 'booked'; }), cover: es.length > 0 && vis.length === 0, n: vis.length };
+    };
+    for (d = born; d <= today; d++) bricks.push(brick(d, false));
+    Object.keys(byDay).map(Number).filter(function (x) { return x > today; }).sort(function (x, y) { return x - y; }).forEach(function (x) { bricks.push(brick(x, true)); });
+    var h = houseOf(r);
+    return { serial: r.serial, name: r.name, closed: false, look: lookOf(r), sign: h.sign, age: ageOf(born, today), born: born, today: today, bricks: bricks };
+  }
+  function versionOnDay(role, day) { var out = role.versions[0]; role.versions.forEach(function (v) { if (v.fromDay <= day) out = v; }); return out; }
+  function holdState(state, h) { if (!h) return null; return h.status === 'redeemed' ? '換了 ' + (h.redeemedAt ? fmtUs(h.redeemedAt).slice(5, 10) : '') : h.status === 'expired' ? '到期作廢' + (h.endedAt ? ' ' + fmtUs(h.endedAt).slice(5, 10) : '') : h.status === 'voided' ? '作廢' : '保留中'; }
+  // 點一塊磚：那天看得到的每一筆、還有幾筆蓋著、那天生效的規則表和資源表
+  function dayDetail(state, ownerSerial, viewerSerial, day, now) {
+    now = now || nowUs(); var r = need(state, ownerSerial), viewer = viewerSerial || null;
+    if (houseClosed(state, r, viewer)) return { closed: true, day: day };
+    var es = entriesOf(state).filter(function (e) { return (e.a === ownerSerial || e.b === ownerSerial) && dayNum(e.atUs) === day; }).sort(function (x, y) { return x.atUs - y.atUs; });
+    var vis = es.filter(function (e) { return canSeeEntry(state, e, ownerSerial, viewer); });
+    var v = versionOnDay(r, day), RES = { traded: '成交', nodock: '不成交', invalid: '不成立', miss: '錯過', booked: '預約' };
+    var rows = vis.map(function (e) {
+      var other = e.a === ownerSerial ? e.b : e.a, dk = e.docking ? state.dockings.find(function (x) { return x.id === e.docking; }) : null, party = viewer === e.a || viewer === e.b;
+      var gave = [], got = [];
+      if (dk) { var mine = dk.a === ownerSerial; gave = (mine ? dk.itemsA : dk.itemsB).map(function (it) { return { name: it.name, price: it.price }; }); got = (mine ? dk.itemsB : dk.itemsA).map(function (it) { return { name: it.name, price: it.price }; }); }
+      var out = { id: e.id, atUs: e.atUs, time: fmtUs(e.atUs).slice(11, 16), other: { serial: other, name: e.names[other] || nameOf(state, other), gone: !roleOf(state, other) }, gave: gave, got: got, result: RES[e.status] || e.status, status: e.status, reason: e.reason, tutorial: e.tutorial, together: e.together };
+      if (party && dk) {   // 選好的東西現在怎樣：只給對接的兩個人
+        var hs = state.holds.filter(function (h) { return h.docking === dk.id; });
+        out.gave.forEach(function (it) { var h = hs.find(function (x) { return x.issuer === ownerSerial && x.name === it.name && !x._u; }); if (h) { h._u = 1; it.state = holdState(state, h); } });
+        out.got.forEach(function (it) { var h = hs.find(function (x) { return x.holder === ownerSerial && x.name === it.name && !x._u; }); if (h) { h._u = 1; it.state = holdState(state, h); } });
+        hs.forEach(function (h) { delete h._u; });
+      }
+      if (viewer === ownerSerial) { out.vis = e.vis[ownerSerial]; out.locked = e.tutorial && ownerSerial === GUIDE; }
+      return out;
+    });
+    return { closed: false, day: day, label: dayLabel(day), entries: rows, covered: es.length - vis.length,
+      rules: { uses: v.rules.uses.slice(), conditions: v.rules.conditions.map(condText), village: v.rules.village, site: v.rules.site || '' }, resources: v.resources.map(function (x) { return { name: x.name, price: x.price, keepDays: x.keepDays, def: x.def }; }) };
+  }
+  // 從舊存檔（第 1 輪）的對接紀錄、時段補出每一筆（每一筆公開，引路人的教學那一邊全藏）
+  function buildEntries(state) {
+    state.entries = [];
+    var pub = function (a, b) { var v = {}; v[a] = 'public'; v[b] = 'public'; if (a === GUIDE || b === GUIDE) v[GUIDE] = 'hidden'; return v; };
+    var push = function (o) { o.id = newId('en'); o.names = {}; o.names[o.a] = nameOf(state, o.a); o.names[o.b] = nameOf(state, o.b); o.tutorial = o.a === GUIDE || o.b === GUIDE; o.vis = pub(o.a, o.b); state.entries.push(o); };
+    var slots = {}; state.roles.forEach(function (r) { r.slots.forEach(function (s) { slots[s.id] = { owner: r, slot: s }; }); });
+    state.dockings.forEach(function (d) { var x = slots[d.slot]; push({ slot: d.slot, owner: x ? x.owner.serial : null, a: d.a, b: d.b, bookedAt: d.atUs, atUs: d.atUs, status: d.traded ? 'traded' : d.ok ? 'nodock' : 'invalid', docking: d.id, reason: d.traded ? null : d.reason, together: !!d.together }); });
+    Object.keys(slots).forEach(function (id) {
+      var x = slots[id], s = x.slot, o = x.owner.serial;
+      (s.missed || []).forEach(function (b) { push({ slot: s.id, owner: o, a: o, b: b, bookedAt: s.atUs, atUs: s.atUs, status: 'miss', docking: null, reason: nameOf(state, b) + ' 沒確認到達', together: !!s.together }); });
+      if (!s.judged) s.bookings.forEach(function (b, i) { push({ slot: s.id, owner: o, a: o, b: b, bookedAt: (s.bookedAt || {})[b] || s.atUs, atUs: s.atUs, status: 'booked', docking: null, reason: null, together: !!s.together }); s.bookings.slice(0, i).forEach(function (c) { push({ slot: s.id, owner: o, a: c, b: b, bookedAt: s.atUs, atUs: s.atUs, status: 'booked', docking: null, reason: null, together: !!s.together }); }); });
+    });
+    state.entries.sort(function (x, y) { return x.atUs - y.atUs; });
+  }
+
   /* ---------- 規則 6（點數帳）：保留 ---------- */
   function holdStatus(h, atUs) { if (h.status === 'held' && h.untilDay != null && dayNum(atUs) > h.untilDay) return 'expired'; return h.status; }
   // 到期沒換：作廢、已保留 −1、可換 +1，留紀錄
@@ -660,7 +821,7 @@ var CORE = (function () {
     var n = 0;
     state.holds.forEach(function (h) {
       if (h.status !== 'held' || holdStatus(h, atUs) !== 'expired') return;
-      h.status = 'expired'; n++;
+      h.status = 'expired'; h.endedAt = atUs; n++;
       var iss = roleOf(state, h.issuer); if (iss) { var st = stockOf(iss, h.resource); st.reserved = Math.max(0, st.reserved - 1); st.avail += 1; }
       state.records.push({ kind: 'expire', at: atUs, text: abbrev(h.holder) + ' 保留的「' + h.name + '」（' + h.price + ' ' + (iss ? iss.name : abbrev(h.issuer)) + '點）到期沒換，作廢，貨回到可換' });
     });
@@ -704,26 +865,51 @@ var CORE = (function () {
     };
   }
   var GUIDE = '00000000004';   // 引路人：平台的教學角色（J4）
-  function fresh() {
-    var now = nowUs();
+  function fresh(opts) {
+    opts = opts || {};
+    var now = nowUs(), hist = opts.history !== false, ago = function (days) { return hist ? now - days * DAY_US : now; };
     var st = { v: 9, me: -1, roles: [], issued: [], holds: [], dockings: [], redeems: [], acceptances: [], records: [], notices: [], tutorial: freshTutorial() };
     // 示範角色：阿澄（條件：可換的貨 ≥ 5）、小樂（要兩方都通、接受家規）、引路人（沒有條件、一堆 0 點的「空的」）。第一次打開從創角色開始
-    createRole(st, { serial: '00000000002', name: '阿澄', dailyPoints: 2000,
+    createRole(st, { serial: '00000000002', name: '阿澄', dailyPoints: 2000, house: { shape: 'tower', wall: 'brick', roof: 'slate', trim: 'cream', sign: '聽你講，幫你改' },
       rules: { uses: ['1 阿澄點 = 聽你講 1 分鐘', '100 阿澄點 = 幫你改一份履歷'], conditions: [{ field: 'avail', op: '>=', value: 5 }], village: '東恆家規：對接後要一起立一個難題。' },
-      resources: [{ id: 'r2a', name: '改履歷', def: '一份，三天內回', price: 100, keepDays: 30, avail: 3 }, { id: 'r2b', name: '一小時諮詢', def: '', price: 90, keepDays: null, avail: 10 }, { id: 'r2c', name: '試聽 5 分鐘', def: '試用品，不收點', price: 0, keepDays: 7, avail: 3 }], contact: '' }, now);
-    createRole(st, { serial: '00000000003', name: '小樂', dailyPoints: 800,
+      resources: [{ id: 'r2a', name: '改履歷', def: '一份，三天內回', price: 100, keepDays: 30, avail: 3 }, { id: 'r2b', name: '一小時諮詢', def: '', price: 90, keepDays: null, avail: 10 }, { id: 'r2c', name: '試聽 5 分鐘', def: '試用品，不收點', price: 0, keepDays: 7, avail: 3 }], contact: '' }, ago(420));
+    createRole(st, { serial: '00000000003', name: '小樂', dailyPoints: 800, house: { shape: 'long', wall: 'sand', roof: 'moss', trim: 'ink', door: 'arch', window: 'tall', sign: '借書的長屋', props: [{ kind: 'tree', a: 0, r: 0, rot: 0 }, { kind: 'bench', a: 3, r: 0, rot: 90 }, { kind: 'flower', a: 21, r: 0, rot: 0 }] },
       rules: { uses: ['1 小樂點 = 借書 1 天'], conditions: [{ field: 'myPoints', op: '>=', value: 0 }], bothMustPass: true, mustAcceptVillage: true, village: '小樂家規：借的書要在一個月內還。' },
-      resources: [{ id: 'r3a', name: '借一本書', def: '', price: 10, keepDays: 14, avail: 20 }], contact: 'mail@example.com' }, now);
-    createRole(st, { serial: GUIDE, name: '引路人', dailyPoints: 2000,
+      resources: [{ id: 'r3a', name: '借一本書', def: '', price: 10, keepDays: 14, avail: 20 }], contact: 'mail@example.com' }, ago(230));
+    createRole(st, { serial: GUIDE, name: '引路人', dailyPoints: 2000, house: { shape: 'round', wall: 'cream', roof: 'pine', trim: 'clay', roofStyle: 'dome', window: 'round', sign: '空的換空的', props: [{ kind: 'lamp', a: 0, r: 0, rot: 0 }, { kind: 'lamp', a: 23, r: 0, rot: 0 }] },
       rules: { uses: ['引路人的點只用來教學'], conditions: [], village: '' },
-      resources: [{ id: 'r4e', name: '空的', def: '什麼都不給；教學用', price: 0, keepDays: null, avail: 99999 }], contact: '' }, now);
+      resources: [{ id: 'r4e', name: '空的', def: '什麼都不給；教學用', price: 0, keepDays: null, avail: 99999 }], contact: '' }, ago(800));
+    if (hist) demoHistory(st, now);
     // 阿澄開兩個對接時段：3 分鐘後、10 分鐘後，各 2 個名額
     addSlot(st, '00000000002', now + 180e6, 2, null, now);
     addSlot(st, '00000000002', now + 600e6, 2, null, now);
     guideNotice(st, now);
     return st;
   }
-  function freshTutorial() { return { step: 1, skipped: false, slot: null, random: false, found: false, sawRules: false }; }
+  // 示範的過去：阿澄和小樂照規則一天一天跑出來（約、選東西、那一微秒判定、兌現或到期），有成交、不成交、錯過，有幾筆藏起來
+  function demoHistory(st, now) {
+    var A = '00000000002', B = '00000000003', today = dayNum(now), start = dayNum(now - 228 * DAY_US), seed = 7;
+    var rnd = function () { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    accept(st, A, B, now - 229 * DAY_US);
+    for (var d = 0; start + d < today; d += 2 + Math.floor(rnd() * 3)) {
+      var dn = start + d, at = ((dn * 86400000 + new Date((dn * 86400000)).getTimezoneOffset() * 60000) + (9 + Math.floor(rnd() * 11)) * 3600000 + Math.floor(rnd() * 60) * 60000) * 1000 + Math.floor(rnd() * 1e6);   // 那天白天某個時間
+      var owner = rnd() < 0.55 ? A : B, guest = owner === A ? B : A, kind = rnd();
+      var ro = roleOf(st, owner), rg = roleOf(st, guest);
+      ['r2a', 'r2b'].forEach(function (id) { var x = stockOf(roleOf(st, A), id); if (x.avail < 3) x.avail += 5; }); var y = stockOf(roleOf(st, B), 'r3a'); if (y.avail < 5) y.avail += 10;
+      var slot = addSlot(st, owner, at, 1, null, at - 3 * 3600e6);
+      book(st, guest, slot.id, at - 2 * 3600e6, kind >= 0.12);   // 一成多沒確認到達 → 錯過
+      var pa = owner === A ? (rnd() < 0.5 ? 'r2a' : 'r2b') : 'r3a', pb = guest === A ? (rnd() < 0.5 ? 'r2b' : 'r2c') : 'r3a';
+      setWants(st, slot.id, guest, owner, [pa]);
+      if (kind >= 0.25) setWants(st, slot.id, owner, guest, [pb]);   // 有幾次主人沒選 → 不成交
+      judge(st, at + 1);
+      var e = entriesOf(st).find(function (x) { return x.slot === slot.id; });
+      if (e && rnd() < 0.18) setVis(st, rnd() < 0.5 ? A : B, e.id, rnd() < 0.5 ? 'hidden' : 'neighbors');   // 幾筆藏起來
+      holdsOf(st, guest, at + 1).concat(holdsOf(st, owner, at + 1)).forEach(function (h) { if (h.docking && rnd() < 0.6) { try { redeem(st, h.holder, h.id, at + (1 + Math.floor(rnd() * 3)) * DAY_US); } catch (err) { /* 換不到就算了 */ } } });
+    }
+    expire(st, now);
+    st.records.push({ kind: 'demo', at: now, text: '示範資料：阿澄、小樂過去的紀錄照規則跑出來' });
+  }
+  function freshTutorial() { return { step: 1, skipped: false, slot: null, random: false, door: false, found: false, sawRules: false, house: false }; }
   // 引路人在公告欄一直掛著一張教學用的公告：需要「空的」、可以給「空的」；沒有期限，成交也不拿掉
   function guideNotice(st, now) {
     if (!roleOf(st, GUIDE) || noticesOf(st).some(function (n) { return n.owner === GUIDE && n.pinned; })) return;
@@ -769,10 +955,10 @@ var CORE = (function () {
     var ser = function (what) { return function (b) { return str(b, 11, what); }; };
     return {
       serial: r.serial, name: str(r.name, LIMITS.name, '名字'), contact: str(r.contact || '', LIMITS.text, '聯絡方式'),
-      versions: list(r.versions, 4000, '版本').map(cleanVersion), stock: stock,
-      slots: list(r.slots || [], 200, '時段').map(function (s) { obj(s, '時段'); var wants = {}; Object.keys(s.wants || {}).forEach(function (a) { wants[str(a, 11, '選')] = {}; Object.keys(s.wants[a]).forEach(function (b) { wants[a][str(b, 11, '選')] = list(s.wants[a][b], 200, '選').map(function (id) { return ident(id, '選'); }); }); }); var mg = {}; Object.keys(s.maxGive || {}).forEach(function (a) { mg[str(a, 11, '最多給')] = num(s.maxGive[a], '最多給'); });
+      versions: list(r.versions, LIMITS.versions, '版本').map(cleanVersion), stock: stock, born: r.born == null ? null : num(r.born, '生日'), house: cleanHouse(r.house),
+      slots: list(r.slots || [], LIMITS.slots, '時段').map(function (s) { obj(s, '時段'); var wants = {}; Object.keys(s.wants || {}).forEach(function (a) { wants[str(a, 11, '選')] = {}; Object.keys(s.wants[a]).forEach(function (b) { wants[a][str(b, 11, '選')] = list(s.wants[a][b], 200, '選').map(function (id) { return ident(id, '選'); }); }); }); var mg = {}; Object.keys(s.maxGive || {}).forEach(function (a) { mg[str(a, 11, '最多給')] = num(s.maxGive[a], '最多給'); });
         var ba = {}; Object.keys(s.bookedAt || {}).forEach(function (k) { ba[str(k, 11, '預約時間')] = num(s.bookedAt[k], '預約時間'); });
-        return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), together: !!s.together, bookings: list(s.bookings || [], 200, '預約').map(ser('預約')), confirmed: list(s.confirmed || [], 200, '確認到達').map(ser('確認到達')), bookedAt: ba, docked: list(s.docked || [], 200, '對接').map(ser('對接')), missed: list(s.missed || [], 200, '錯過').map(ser('錯過')), wants: wants, maxGive: mg, judged: !!s.judged }; }),
+        return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), together: !!s.together, bookings: list(s.bookings || [], LIMITS.booked, '預約').map(ser('預約')), confirmed: list(s.confirmed || [], LIMITS.booked, '確認到達').map(ser('確認到達')), bookedAt: ba, docked: list(s.docked || [], LIMITS.booked, '對接').map(ser('對接')), missed: list(s.missed || [], LIMITS.booked, '錯過').map(ser('錯過')), wants: wants, maxGive: mg, judged: !!s.judged, visAt: (function () { var o = {}; Object.keys(s.visAt || {}).forEach(function (k) { o[str(k, 11, '預設')] = cleanVisLevel(s.visAt[k]); }); return o; })() }; }),
       world: cleanWorld(r.world)
     };
   }
@@ -796,22 +982,73 @@ var CORE = (function () {
     return { id: str(n.id, 60, '公告'), owner: str(n.owner, 11, '公告'), need: str(n.need, 200, '公告'), kind: str(n.kind || '', 20, '種類'), give: list(n.give || [], 50, '可以給').map(function (id) { return ident(id, '可以給'); }), cap: num(n.cap, '上限'), untilDay: n.untilDay == null ? null : num(n.untilDay, '期限'), atUs: num(n.atUs, '公告'), pinned: !!n.pinned,
       links: list(n.links || [], 200, '接上去').map(function (x) { obj(x, '接上去'); return JSON.parse(JSON.stringify(x)); }), noReport: !!n.noReport };
   }
-  function load() {
+  // 存檔壓縮（LZW）：固定 18 位元的碼，0＝後面接一個新字（16 位元），1＝結束；位元流每 15 位元一個字（加 32，避開控制字元和代理對）
+  var CAP = 1 << 18, W = 18, LZ_MARK = 'LZ1:', LZ_OVER = 1000000;   // 存檔超過 100 萬字才壓縮（三年份大約 600 萬字壓成 30 多萬字）
+  function pack(codesFn) {
+  var out = [], buf = 0, n = 0;
+  function bits(v, k) { for (var i = k - 1; i >= 0; i--) { buf = (buf << 1) | ((v >>> i) & 1); n++; if (n === 15) { out.push(String.fromCharCode(buf + 32)); buf = 0; n = 0; } } }
+  codesFn(bits);
+  if (n) { buf <<= (15 - n); out.push(String.fromCharCode(buf + 32)); }
+  return out.join('');
+}
+  function compress(str) {
+  return pack(function (bits) {
+    var single = new Map(), pairs = new Map(), next = 2, cur = -1;
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charCodeAt(i), sc = single.get(c);
+      if (sc === undefined) { if (cur >= 0) bits(cur, W); bits(0, W); bits(c, 16); if (next < CAP) single.set(c, next++); cur = -1; continue; }
+      if (cur < 0) { cur = sc; continue; }
+      var key = cur * 65536 + c, v = pairs.get(key);
+      if (v !== undefined) { cur = v; continue; }
+      bits(cur, W); if (next < CAP) pairs.set(key, next++); cur = sc;
+    }
+    if (cur >= 0) bits(cur, W); bits(1, W);
+  });
+}
+  function decompress(s) {
+  var pos = 0, buf = 0, n = 0;
+  function read(k) { var v = 0; for (var i = 0; i < k; i++) { if (n === 0) { buf = s.charCodeAt(pos++) - 32; n = 15; } n--; v = (v << 1) | ((buf >>> n) & 1); } return v; }
+  var dict = [], next = 2, prev = null, out = [];
+  for (;;) {
+    var k = read(W);
+    if (k === 1) break;
+    if (k === 0) { var c = String.fromCharCode(read(16)); if (next < CAP) dict[next++] = c; out.push(c); prev = null; continue; }
+    var e = k < next && dict[k] !== undefined ? dict[k] : (k === next && prev !== null ? prev + prev.charAt(0) : null);
+    if (e === null) throw new Error('壞掉的壓縮存檔');
+    out.push(e);
+    if (prev !== null && next < CAP) dict[next++] = prev + e.charAt(0);
+    prev = e;
+  }
+  return out.join('');
+}
+
+  function encodeSave(json) { return json.length > LZ_OVER ? LZ_MARK + compress(json) : json; }
+  function decodeSave(raw) { return raw && raw.slice(0, LZ_MARK.length) === LZ_MARK ? decompress(raw.slice(LZ_MARK.length)) : raw; }
+  var io = { loadIssue: null, saveError: null, blocked: false, lastSize: 0 };
+  function load(opts) {
+    io.loadIssue = null; io.blocked = false;
+    var raw = null; try { raw = localStorage.getItem(KEY); } catch (e) { raw = null; }
     var st = loadFrom(KEY, 9);
     if (st) return st;
+    if (raw) {   // 存檔在，但讀不進來：另外留一份，不蓋掉，跳提示
+      var bk = KEY + '-backup-' + Date.now();
+      try { localStorage.setItem(bk, raw); io.loadIssue = { message: '存檔讀不進來，已經另外留一份（' + bk + '），先從新的開始。', backup: bk }; }
+      catch (e) { io.blocked = true; io.loadIssue = { message: '存檔讀不進來，空間也不夠另外留一份；為了不蓋掉舊存檔，這次玩的都不會存。', backup: null }; }
+      return fresh(opts);
+    }
     st = loadFrom(OLD_KEY, 8);   // 第一次打開：讀得到 v8 的存檔就搬過來
     if (st) { save(st); return st; }
-    return fresh();
+    return fresh(opts);
   }
   function loadFrom(key, ver) {
     try {
       var s = localStorage.getItem(key);
       if (s) {
-        var j = JSON.parse(s);
+        var j = JSON.parse(decodeSave(s));
         if (j && j.v === ver && Array.isArray(j.roles) && j.roles.length) {
           var roles = j.roles.map(cleanRole);
-          var holds = list(j.holds || [], 20000, '保留').map(function (h) { obj(h, '保留'); return { id: str(h.id, 60, '保留'), issuer: str(h.issuer, 11, '保留'), holder: str(h.holder, 11, '保留'), resource: ident(h.resource, '保留'), name: str(h.name, LIMITS.name, '保留'), price: num(h.price, '保留'), docking: str(h.docking || '', 60, '保留'), atUs: num(h.atUs, '保留'), untilDay: h.untilDay == null ? null : num(h.untilDay, '保留'), status: ['held', 'redeemed', 'expired', 'voided'].indexOf(h.status) >= 0 ? h.status : 'held', sig: h.sig == null ? null : str(h.sig, 200, '簽章') }; });
-          var copy = function (what) { return list(j[what] || [], 20000, what).map(function (x) { obj(x, what); return JSON.parse(JSON.stringify(x)); }); };
+          var holds = list(j.holds || [], LIMITS.rows, '保留').map(function (h) { obj(h, '保留'); return { id: str(h.id, 60, '保留'), issuer: str(h.issuer, 11, '保留'), holder: str(h.holder, 11, '保留'), resource: ident(h.resource, '保留'), name: str(h.name, LIMITS.name, '保留'), price: num(h.price, '保留'), docking: str(h.docking || '', 60, '保留'), atUs: num(h.atUs, '保留'), untilDay: h.untilDay == null ? null : num(h.untilDay, '保留'), status: ['held', 'redeemed', 'expired', 'voided'].indexOf(h.status) >= 0 ? h.status : 'held', redeemedAt: h.redeemedAt == null ? null : num(h.redeemedAt, '保留'), endedAt: h.endedAt == null ? null : num(h.endedAt, '保留'), sig: h.sig == null ? null : str(h.sig, 200, '簽章') }; });
+          var copy = function (what) { return list(j[what] || [], LIMITS.rows, what).map(function (x) { obj(x, what); return JSON.parse(JSON.stringify(x)); }); };
           var me = (typeof j.me === 'number' && j.me >= -1 && j.me < roles.length) ? j.me : -1;
           var tu = obj(j.tutorial || {}, '教學');
           // 發過的序號：存檔記的，加上存檔裡出現過的（角色、對接、保留、兌現、接受家規、不玩了的紀錄）
@@ -821,9 +1058,10 @@ var CORE = (function () {
           (j.dockings || []).forEach(function (d) { d = obj(d, '對接'); seen(d.a); seen(d.b); }); (j.redeems || []).forEach(function (x) { x = obj(x, '兌現'); seen(x.holder); seen(x.issuer); });
           (j.acceptances || []).forEach(function (x) { x = obj(x, '接受'); seen(x.who); seen(x.of); }); (j.records || []).forEach(function (x) { x = obj(x, '紀錄'); seen(x.serial); });
           var tutorial;
-          if (ver === 9) tutorial = { step: tu.step == null ? 'done' : (tu.step === 'done' ? 'done' : num(tu.step, '教學')), skipped: !!tu.skipped, slot: tu.slot == null ? null : str(tu.slot, 60, '教學'), random: !!tu.random, found: !!tu.found, sawRules: !!tu.sawRules };
+          if (ver === 9) tutorial = { step: tu.step == null ? 'done' : (tu.step === 'done' ? 'done' : num(tu.step, '教學')), skipped: !!tu.skipped, slot: tu.slot == null ? null : str(tu.slot, 60, '教學'), random: !!tu.random, door: !!tu.door, found: !!tu.found, sawRules: !!tu.sawRules, house: !!tu.house };
           else tutorial = me < 0 ? freshTutorial() : { step: 'done', skipped: !!tu.skipped, slot: null, random: false, found: false, sawRules: false };   // v8 搬過來：教學步驟不一樣，還沒創角色的從頭，其他算走完
-          var out = { v: 9, me: me, roles: roles, issued: issued, holds: holds, dockings: copy('dockings'), redeems: copy('redeems'), acceptances: copy('acceptances'), records: copy('records'), notices: list(j.notices || [], 2000, '公告').map(cleanNotice), tutorial: tutorial };
+          var out = { v: 9, me: me, roles: roles, issued: issued, holds: holds, dockings: copy('dockings'), redeems: copy('redeems'), acceptances: copy('acceptances'), records: copy('records'), notices: list(j.notices || [], 20000, '公告').map(cleanNotice), tutorial: tutorial };
+          if (Array.isArray(j.entries)) out.entries = list(j.entries, LIMITS.rows, '每一筆').map(cleanEntry); else buildEntries(out);   // 第 1 輪的存檔：從對接紀錄和時段補出每一筆（每一筆公開）
           guideNotice(out, nowUs());
           return out;
         }
@@ -831,7 +1069,21 @@ var CORE = (function () {
     } catch (e) { /* 壞掉或沒有儲存空間：用預設 */ }
     return null;
   }
-  function save(state) { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 忽略 */ } }
+  // 存檔：成功回 true；存不進去（空間滿了）回 false，原因放在 io.saveError，畫面要跳提示
+  function save(state) {
+    if (io.blocked) { io.saveError = '舊存檔讀不進來、也沒辦法另外留一份，為了不蓋掉它，這次不存。'; return false; }
+    try { var json = JSON.stringify(state); io.lastSize = json.length; localStorage.setItem(KEY, encodeSave(json)); io.saveError = null; return true; }
+    catch (e) { io.saveError = '存不進去（' + (e && e.name === 'QuotaExceededError' ? '空間滿了' : (e && e.message) || '不知道為什麼') + '），剛才改的沒存到。'; return false; }
+  }
+  function cleanEntry(e) {
+    obj(e, '每一筆'); var vis = {}; obj(e.vis || {}, '藏'); Object.keys(e.vis || {}).forEach(function (k) { vis[str(k, 11, '藏')] = cleanVisLevel(e.vis[k]); });
+    var names = {}; Object.keys(e.names || {}).forEach(function (k) { names[str(k, 11, '名字')] = str(e.names[k], LIMITS.name, '名字'); });
+    var a = str(e.a, 11, '每一筆'), b = str(e.b, 11, '每一筆');
+    if (vis[a] == null) vis[a] = 'hidden'; if (vis[b] == null) vis[b] = 'hidden';
+    var tut = !!e.tutorial; if (tut && (a === GUIDE || b === GUIDE)) vis[GUIDE] = 'hidden';
+    return { id: str(e.id, 60, '每一筆'), slot: str(e.slot, 60, '每一筆'), owner: e.owner == null ? null : str(e.owner, 11, '每一筆'), a: a, b: b, names: names, bookedAt: num(e.bookedAt, '每一筆'), atUs: num(e.atUs, '每一筆'),
+      status: ['booked', 'traded', 'nodock', 'invalid', 'miss'].indexOf(e.status) >= 0 ? e.status : 'nodock', docking: e.docking == null ? null : str(e.docking, 60, '每一筆'), reason: e.reason == null ? null : str(e.reason, LIMITS.text, '每一筆'), together: !!e.together, tutorial: tut, vis: vis };
+  }
   // 用序號找角色：簡寫（J2）或 11 位數都可以；找不到回 null
   function findRole(state, code) {
     var c = String(code == null ? '' : code).trim().toUpperCase(); if (!c) return null;
@@ -848,7 +1100,8 @@ var CORE = (function () {
   return {
     abbrev: abbrev, expand: expand, digitsAfter: digitsAfter, Decoder: Decoder, route: route,
     FUNCS: FUNCS, SHAPES: SHAPES, LOOKS: LOOKS, look: look, radiusOf: radiusOf, VIS: VIS, allObjects: allObjects, findObject: findObject, cleanWorld: cleanWorld, cleanRole: cleanRole, tryClean: tryClean,
-    fmtUs: fmtUs, nowUs: nowUs, untilText: untilText, deleteSlot: deleteSlot, cleanSite: cleanSite, setSite: setSite, setContact: setContact, randomRole: randomRole, postNotice: postNotice, removeNotice: removeNotice, expireNotices: expireNotices, giveNames: giveNames, canBook: canBook, search: search, KEY: KEY, OLD_KEY: OLD_KEY, togetherMissing: togetherMissing, togetherStatus: togetherStatus, selectedPairs: selectedPairs, BLANK: BLANK, dayOf: dayOf, dayNum: dayNum, dayLabel: dayLabel, DAY_US: DAY_US, newId: newId, DEFAULT_DAILY: DEFAULT_DAILY,
+    fmtUs: fmtUs, nowUs: nowUs, untilText: untilText, deleteSlot: deleteSlot, VIS_LEVELS: VIS_LEVELS, HOUSE_SHAPES: HOUSE_SHAPES, PALETTE: PALETTE, DOOR_STYLES: DOOR_STYLES, WINDOW_STYLES: WINDOW_STYLES, ROOF_STYLES: ROOF_STYLES, PROPS: PROPS, PROP_MAX: PROP_MAX, PROP_ANGLES: PROP_ANGLES, PROP_RINGS: PROP_RINGS, SIGN_MAX: SIGN_MAX,
+    cleanHouse: cleanHouse, houseOf: houseOf, compress: compress, decompress: decompress, encodeSave: encodeSave, decodeSave: decodeSave, setHouse: setHouse, placeProp: placeProp, rotateProp: rotateProp, removeProp: removeProp, isNeighbor: isNeighbor, entriesOf: entriesOf, setVis: setVis, viewHouse: viewHouse, dayDetail: dayDetail, ageOf: ageOf, bornOf: bornOf, buildEntries: buildEntries, io: io, LIMITS: LIMITS, cleanSite: cleanSite, setSite: setSite, setContact: setContact, randomRole: randomRole, postNotice: postNotice, removeNotice: removeNotice, expireNotices: expireNotices, giveNames: giveNames, canBook: canBook, search: search, KEY: KEY, OLD_KEY: OLD_KEY, togetherMissing: togetherMissing, togetherStatus: togetherStatus, selectedPairs: selectedPairs, BLANK: BLANK, dayOf: dayOf, dayNum: dayNum, dayLabel: dayLabel, DAY_US: DAY_US, newId: newId, DEFAULT_DAILY: DEFAULT_DAILY,
     version: version, pending: pending, tomorrow: tomorrow, dropPending: dropPending, resourceOf: resourceOf, resourceName: resourceName, setDailyPoints: setDailyPoints, setRules: setRules, addResource: addResource, setResource: setResource, removeResource: removeResource, cleanRules: cleanRules,
     dailyPoints: dailyPoints, givenToday: givenToday, remainingToday: remainingToday, stockOf: stockOf, restock: restock, availTotal: availTotal,
     COND_FIELDS: COND_FIELDS, OPS: OPS, condText: condText, passes: passes, eligible: eligible, accepted: accepted, acceptedAny: acceptedAny, accept: accept, acceptState: acceptState, villageChanges: villageChanges, ruleTime: ruleTime,
