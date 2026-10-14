@@ -1,9 +1,9 @@
 // 打進去的字一律當普通字：每個能打字的地方（名字、聯絡方式、用途、家規、家規網站、資源名稱和定義、公告的需要和種類、找、門牌、打招呼密鑰）都填 <i class=xx>Z</i>，
-// 自己看、換人看，四張紙（每一張、更多裡的每一張、他的那張紙、找、小日曆、那天的明細）和達秒屋（最上面一行、點磚的明細）都走一遍：畫面上不能出現 i.xx 這個標籤。
+// 自己看、換人看，五張紙（每一張、更多裡的每一張、他的那張紙、他的日曆、找、那天的明細）和達秒屋（最上面一行、點磚的明細）都走一遍：畫面上不能出現 i.xx 這個標籤。
 // node v9/tests/t_escape.js <test9.html>
 var lib = require('./lib'), assert = lib.assert;
 var X = '<i class=xx>Z</i>', J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
-var SHEETS = ['log', 'res', 'find', 'more', 'rules', 'together', 'greet', 'slots', 'house', 'village', 'role', 'help'];
+var SHEETS = ['log', 'cal', 'res', 'find', 'more', 'rules', 'together', 'greet', 'slots', 'house', 'village', 'role', 'help'];
 (async function () {
   var H = await lib.open(process.argv[2]), pg = H.pg;
   var bad = [];
@@ -37,7 +37,7 @@ var SHEETS = ['log', 'res', 'find', 'more', 'rules', 'together', 'greet', 'slots
   await H.nav('find'); await H.setIn('kwIn', 'Z'); await H.click('#tmain [data-act="search"]'); await check('找'); var seen1 = await shows();
   var today = await H.ev("CORE.dayNum(APP.now())");
   await H.nav('log'); await check('事件簿（成交那一行）'); var seen2 = await shows();
-  await H.click('#tmain [data-act="pickDay"]'); await check('小日曆'); await H.popOk('不要');
+  await H.click('#tmain [data-act="pickDay"]'); await check('日曆紙');
   await H.ev("KIT.dayPop(APP.me().serial," + today + ")"); await check('那天的明細'); var seen5 = await shows(); await H.popOk();
   await H.ev("APP.goHouse(APP.me().serial)"); await pg.waitForTimeout(400); await check('自己的達秒屋'); var seen3 = (await pg.textContent('#hwho')).indexOf(X) >= 0;
   await H.ev("KIT.dayPop(APP.me().serial," + today + ")"); await check('自己的達秒屋點磚'); await H.popOk();
@@ -47,6 +47,7 @@ var SHEETS = ['log', 'res', 'find', 'more', 'rules', 'together', 'greet', 'slots
   await H.nav('log'); await check('阿澄的事件簿（密鑰的提醒）'); var seen6 = await shows();
   await H.serial('J1'); await pg.waitForTimeout(200); await check('阿澄看 J1 的那張紙');
   await H.clickText('看他的規則', '#tmain'); await check('阿澄看 J1 的規則');
+  await H.clickText('‹ 他的資源表', '#tmain'); await H.clickText('看他的日曆', '#tmain'); await check('阿澄看 J1 的日曆紙');
   await H.clickText('‹ 他的資源表', '#tmain'); await H.clickText('看他的達秒屋', '#tmain'); await pg.waitForTimeout(400); await check('阿澄看 J1 的達秒屋');
   await H.ev("KIT.dayPop('" + J1 + "'," + today + ")"); await check('阿澄看 J1 的達秒屋點磚'); var seen4 = await shows(); await H.popOk();
   await H.hclick('#hBack'); await H.nav('find'); await check('阿澄看公告欄'); await H.setIn('kwIn', 'Z'); await H.click('#tmain [data-act="search"]'); await check('阿澄找');

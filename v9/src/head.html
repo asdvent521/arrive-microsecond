@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
-/* v9 表格世界：四張紙（A4 橫式等比例縮放）；最上面序號或密鑰框、去、骰子、四張紙的分頁、現在是誰 */
+/* v9 表格世界：五張紙（A4 橫式等比例縮放）；最上面序號或密鑰框、去、骰子、五張紙的分頁、現在是誰 */
 :root{
   --bg:#E6ECF1; --panel:#F7F9FB; --panel2:#EEF2F6; --ink:#16212D; --muted:#586676; --line:#C7D1DB; --grid:#D5DDE5;
   --brass:#A2731F; --brass-soft:#F1E4C8; --teal:#1C7A73; --teal-soft:#D5ECE9; --rose:#9C4450; --rose-soft:#F3DDE0; --blue:#2D5A86; --blue-soft:#DCE7F2;
@@ -42,7 +42,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .view{position:absolute;inset:0;overflow:hidden}
 
 
-/* ===== 表格世界：四張紙。每一頁就是紙本那張 A4 橫式（297×210），整張照畫面寬等比例縮放（1mm = 頁寬/297）；
+/* ===== 表格世界：五張紙。每一頁就是紙本那張 A4 橫式（297×210），整張照畫面寬等比例縮放（1mm = 頁寬/297）；
    欄位、格線、底下的說明跟印出來的一樣；寫進去的是藍墨、簽名是紅字（系統簽）。紙永遠是淺的，桌面跟著深淺模式 ===== */
 :root{--paper:#FDFCF8;--pen:#1F4A8A;--stamp:#A2392B;--gold:#9A6A12;--gold-ink:#FFFAF0;--hi:#FBF0D9;--rule:#999;--head:#EFECE4;--hand:"LXGW WenKai TC","Kaiti TC","DFKai-SB",serif}
 #view-table{background:var(--bg);min-height:100vh;padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
@@ -142,23 +142,28 @@ button.box{cursor:pointer}
 .whiteflash{position:fixed;inset:0;pointer-events:none;background:#fff;opacity:0;z-index:60}
 .whiteflash.go{animation:whiteflash .9s ease-out forwards}
 @keyframes whiteflash{0%{opacity:1}100%{opacity:0}}
-/* 日曆（彈出框裡的小日曆、3D 用不了時的達秒屋）：一格一天，跟磚一樣的狀態 */
-.cal{max-width:30em;margin:8px 2px}
-.calhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
-.cal .wk,.cal .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.cal .wk span{text-align:center;font-size:.76rem;color:var(--muted)}
-.cal .cd,.legend .cd{display:block;position:relative;min-height:42px;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:2px 4px;text-align:left;font-size:.78rem;cursor:pointer;color:var(--ink);font-family:var(--sans)}
-.cal .cd:disabled{cursor:default;opacity:.55}
-.cal .cd.pad,.cal .cd.none{border:0;background:transparent}
-.cal .cd .dn{font-variant-numeric:tabular-nums}
-.cal .cd .cnt{position:absolute;right:4px;bottom:2px;font-weight:700;font-size:.72rem}
-.cal .cd.lit1,.legend .cd.lit1{background:#F3D27C;border-color:#D6A93C;opacity:1}.cal .cd.lit2{background:#F7C33C;border-color:#C9951D;opacity:1}.cal .cd.lit3{background:#FFE58A;border-color:#B8860B;box-shadow:0 0 0 2px #FFD54A inset;opacity:1}
-.cal .cd.mark,.legend .cd.mark{opacity:1}.cal .cd.mark::after,.legend .cd.mark::after{content:'';position:absolute;right:6px;top:6px;width:7px;height:7px;border-radius:50%;background:var(--ink)}
-.cal .cd.cover,.legend .cd.cover{background:repeating-linear-gradient(45deg,#C9C3B6 0 6px,#B9B3A6 6px 12px);opacity:1}
-.cal .cd.fut,.legend .cd.fut{border-style:dashed;border-width:2px;background:transparent;opacity:1}
-.cal .cd.today{outline:2px solid var(--blue);outline-offset:1px}
-.legend{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:8px;color:var(--muted)}
-.legend .cd{display:inline-block;min-height:14px;width:18px;height:14px;padding:0;cursor:default}
+/* 日曆紙：一格一天；底色照磚（成交越多越亮）、沒成錯過小記號、還約著虛線框、蓋布、今天紅框、創角色以前空著 */
+.page .fields .tot{font-size:calc(var(--mm)*3.3);color:var(--muted)}
+.page .calp th{text-align:center;font-size:calc(var(--mm)*3.6);padding:calc(var(--mm)*1.2) 0}
+.page .calp td{vertical-align:top;position:relative;padding:calc(var(--mm)*1) calc(var(--mm)*1.2);font-family:var(--serif);color:var(--ink);overflow:hidden}
+.page .calp td.pad,.page .calp td.none{background:#F3F1EA}
+.page .calp td.day::after{content:"";position:absolute;right:0;top:0;border-style:solid;border-width:0 calc(var(--mm)*5) calc(var(--mm)*5) 0;border-color:transparent #DDD9CF transparent transparent}
+.page .calp td.none::after{display:none}
+.page .calp td.day[data-act]{cursor:pointer}
+.page .calp td.day[data-act]:hover{box-shadow:inset 0 0 0 calc(var(--mm)*.4) var(--gold)}
+.page .calp .dn{display:inline-block;min-width:calc(var(--mm)*5);text-align:center;border:calc(var(--mm)*.25) solid #999;border-radius:calc(var(--mm)*.6);font-size:calc(var(--mm)*3);line-height:1.5;color:var(--pen);font-variant-numeric:tabular-nums}
+.page .calp td.none .dn{color:#BBB;border-color:#DDD}
+.page .calp .ev{margin-top:calc(var(--mm)*.8);font-family:var(--hand);color:var(--pen);font-size:calc(var(--mm)*2.9);line-height:1.3}
+.page .calp .more{font-size:calc(var(--mm)*2.5);color:#777;margin-top:calc(var(--mm)*.4)}
+.page .calp td.lit1{background:#FBF0D9}.page .calp td.lit2{background:#F7E2B0}.page .calp td.lit3{background:#F3D27C}
+.page .calp td.lit1::after,.page .calp td.lit2::after,.page .calp td.lit3::after{border-right-color:var(--pen)}
+.page .calp td.mark::before{content:"";position:absolute;right:calc(var(--mm)*1.6);top:calc(var(--mm)*1.6);width:calc(var(--mm)*1.6);height:calc(var(--mm)*1.6);border-radius:50%;background:var(--ink);z-index:1}
+.page .calp td.cover{background:repeating-linear-gradient(45deg,#C9C3B6 0 calc(var(--mm)*1.5),#B9B3A6 calc(var(--mm)*1.5) calc(var(--mm)*3))}
+.page .calp td.fut.bk,.page .calp td.bk{box-shadow:inset 0 0 0 calc(var(--mm)*.5) #FFF,inset 0 0 0 calc(var(--mm)*.9) var(--pen)}
+.page .calp td.fut.bk{box-shadow:none;outline:calc(var(--mm)*.5) dashed var(--pen);outline-offset:calc(var(--mm)*-1.2)}
+.page .calp td.today{box-shadow:inset 0 0 0 calc(var(--mm)*.7) var(--stamp)}
+.page .calp td.today.fut.bk{outline-color:var(--stamp)}
+#hcal .scroll{padding:0}
 .sw{display:inline-block;width:18px;height:18px;border-radius:4px;border:1px solid var(--line);vertical-align:middle;margin-right:6px}
 .ent{border-bottom:1px solid var(--grid);padding:6px 0}
 .ent-h{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
@@ -172,7 +177,7 @@ button.box{cursor:pointer}
 .hbar .who{flex:1 1 12em;min-width:0;font-size:.9rem}
 #hstage{position:absolute;inset:0}
 #hstage canvas{display:block}
-#hcal{position:absolute;inset:0;overflow:auto;padding:110px 10px 90px;background:var(--bg)}
+#hcal{position:absolute;inset:0;overflow:auto;padding:110px 10px 90px;background:var(--bg);container-type:normal}
 .hfoot{position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;flex-direction:column;gap:6px;padding:6px 10px calc(8px + env(safe-area-inset-bottom,0px));pointer-events:none}
 .hfoot>*{pointer-events:auto}
 .htut{display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:space-between;padding:6px 10px;background:var(--brass-soft);border:1px solid var(--line);border-radius:var(--r-m)}
@@ -203,7 +208,7 @@ button.box{cursor:pointer}
 </style>
 
 <main id="view-table">
-  <div class="tbar"><input type="text" id="serialIn" placeholder="序號或密鑰" aria-label="序號或密鑰" autocomplete="off" inputmode="text"><button type="button" class="btn sm pri" data-act="serialGo" id="serialGo">去</button><button type="button" class="btn sm dice" data-act="dice" id="diceBtn" aria-label="隨機骰一個序號" title="隨機骰一個序號"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="16" cy="8" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="8" cy="16" r="1.8" fill="currentColor"/><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg></button><nav class="ttabs" id="ttabs" aria-label="四張紙"></nav><span class="who" id="tother"></span></div>
+  <div class="tbar"><input type="text" id="serialIn" placeholder="序號或密鑰" aria-label="序號或密鑰" autocomplete="off" inputmode="text"><button type="button" class="btn sm pri" data-act="serialGo" id="serialGo">去</button><button type="button" class="btn sm dice" data-act="dice" id="diceBtn" aria-label="隨機骰一個序號" title="隨機骰一個序號"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="16" cy="8" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="8" cy="16" r="1.8" fill="currentColor"/><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg></button><nav class="ttabs" id="ttabs" aria-label="五張紙"></nav><span class="who" id="tother"></span></div>
   <div id="rotHint">轉橫看整張紙</div>
   <div class="tutbar" id="tutbar" hidden></div>
   <div class="scroll"><div class="stage" id="tmain"></div></div>

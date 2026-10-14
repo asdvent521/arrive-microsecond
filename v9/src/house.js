@@ -1,13 +1,13 @@
 /* ===== v9 達秒屋的畫面：外面整個畫面就是達秒屋 =====
  * 最上面一列：序號或密鑰框、去、骰子（骰一個序號進框裡）、誰的達秒屋、回我的四張紙。自己的屋多一個「蓋」；「看日曆」鏡頭轉回這個月那一塊日曆。
  * 點日曆上的磚看那天、點門到他的表格世界；蓋的時候：選方塊、點一個面加一塊、切到「拆」點一塊拿掉、點擺設轉方向、選門搬門、日曆往哪長、復原上一步、範本。
- * 3D 用不了就顯示成日曆。只呼叫 APP、CORE、KIT、WORLD。
+ * 3D 用不了就顯示成日曆紙（一個月一張）。只呼叫 APP、CORE、KIT、WORLD。
  */
 var HOUSE = (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var esc = APP.esc;
-  var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], month: 0, shown: false, ready: false };
+  var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], cal: null, shown: false, ready: false };   // cal：3D 用不了時日曆紙翻到哪個月
   function me() { return APP.me(); }
   function viewer() { return APP.isBlank() ? null : me().serial; }
   function data() { return CORE.viewHouse(APP.state(), st.serial, viewer(), APP.now()); }
@@ -40,12 +40,12 @@ var HOUSE = (function () {
       var pv = v.cal.preview, note = !pv ? '這一面放滿了，下一塊沒地方長' : pv.fallback ? '這個方向長不了，這次會放到最近的空位' : pv.dir !== v.cal.dir ? '這個方向長不了，這次會往' + CORE.CAL_DIRS[pv.dir] : '下個月長在框那裡';
       $('hDirNote').textContent = note + (pv && pv.removes ? '，會拆 ' + pv.removes + ' 塊' : '');
     }
-    $('hhint').textContent = st.building ? (st.mode === 'add' ? (st.kind === 'door' ? '選了門：點一個地方門就搬過去；點門轉方向。' : '選一種方塊，點一個面加一塊；點擺設或門轉方向。') : '拆：點一塊就拿掉（日曆和門拆不掉）。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點日曆上的磚看那天，點門進' + (own ? '我' : '他') + '的資源表' + (v.cal.preview && v.cal.preview.removes ? '；下個月的日曆會拆 ' + v.cal.preview.removes + ' 塊' : '') : '3D 用不了：達秒屋顯示成日曆，點一格跟點一塊磚一樣');
+    $('hhint').textContent = st.building ? (st.mode === 'add' ? (st.kind === 'door' ? '選了門：點一個地方門就搬過去；點門轉方向。' : '選一種方塊，點一個面加一塊；點擺設或門轉方向。') : '拆：點一塊就拿掉（日曆和門拆不掉）。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點日曆上的磚看那天，點門進' + (own ? '我' : '他') + '的資源表' + (v.cal.preview && v.cal.preview.removes ? '；下個月的日曆會拆 ' + v.cal.preview.removes + ' 塊' : '') : '3D 用不了：達秒屋顯示成日曆紙，點一格跟點一塊磚一樣');
     tutBar();
     if (WORLD.available) { var vb = $('view-house').getBoundingClientRect(), hb = document.querySelector('.hbar').getBoundingClientRect(), fb = document.querySelector('.hfoot').getBoundingClientRect(); WORLD.setInsets(hb.bottom - vb.top, vb.bottom - fb.top); }
     if (WORLD.available) WORLD.show(v, { building: st.building, resetCamera: opts && opts.resetCamera });
     if (own && v.calRemoved && !KIT.isOpen()) { var n = CORE.ackCalRemoved(APP.state(), me().serial); APP.changed(); KIT.pop('日曆長到這裡，拆了 ' + n + ' 塊', '日曆每個月長一塊，長到的地方和它正面前面的方塊會拆掉。在「蓋」裡可以改下一塊往哪長。'); }
-    if (!WORLD.available) { $('hcal').innerHTML = KIT.calendar(st.serial, viewer(), st.month); KIT.bindCalendar($('hcal'), function (m) { st.month = m; render(); }); }
+    if (!WORLD.available) { if (!st.cal) { var ym = KIT.ymOf(CORE.dayNum(APP.now())); st.cal = { y: ym.y, m: ym.m }; } $('hcal').innerHTML = '<div class="scroll"><div class="stage">' + KIT.calSheet(st.serial, viewer(), st.cal.y, st.cal.m) + '</div></div>'; }
   }
   function tutBar() {
     var on = APP.tutActive() && !APP.isBlank(), stp = on ? APP.steps() : null;
@@ -115,6 +115,8 @@ var HOUSE = (function () {
   $('view-house').addEventListener('click', function (e) {
     var blk = e.target.closest('[data-blk]'); if (blk) { st.kind = blk.dataset.blk; st.mode = 'add'; render(); return; }
     var dir = e.target.closest('[data-dir]'); if (dir) { act(function () { var old = CORE.setCalDir(APP.state(), me().serial, dir.dataset.dir); return function () { CORE.setCalDir(APP.state(), me().serial, old); }; }, '下一塊往' + CORE.CAL_DIRS[dir.dataset.dir]); return; }
+    var c = e.target.closest('#hcal [data-act]');
+    if (c) { if (c.dataset.act === 'calMonth') { var d = new Date(st.cal.y, st.cal.m + +c.dataset.n, 1); st.cal = { y: d.getFullYear(), m: d.getMonth() }; render(); } else if (c.dataset.act === 'calDay') { if (data().closed) { msg('只給鄰居看：點不開'); return; } KIT.dayPop(st.serial, +c.dataset.day, function () { render(); }); } return; }
     var b = e.target.closest('[data-hact]'); if (!b) return;
     var a = b.dataset.hact;
     if (a === 'go') goSerial();
@@ -135,7 +137,7 @@ var HOUSE = (function () {
   /* ---------- 事件 ---------- */
   APP.on('view', function (v) {
     if (v.name === 'house') {
-      var changedHouse = st.serial !== v.serial; st.serial = v.serial; if (changedHouse) { st.building = false; st.undo = []; st.month = 0; }
+      var changedHouse = st.serial !== v.serial; st.serial = v.serial; if (changedHouse) { st.building = false; st.undo = []; st.cal = null; }
       if (v.build && mine()) st.building = true;
       st.shown = true; $('view-house').hidden = false; document.body.classList.add('in-house'); ensure();
       if (WORLD.available) { WORLD.resume(); WORLD.resize(); }

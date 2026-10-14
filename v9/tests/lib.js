@@ -1,10 +1,10 @@
-// v9 瀏覽器測試共用：開頁、重置、手指按、換到四張紙或更多裡的一張、序號或密鑰框、骰子、斷言
+// v9 瀏覽器測試共用：開頁、重置、手指按、換到五張紙或更多裡的一張、序號或密鑰框、骰子、斷言
 var { chromium } = require('/opt/node22/lib/node_modules/playwright');
 var path = require('path');
 var fails = 0;
 function assert(c, m) { if (!c) { console.error('FAIL: ' + m); fails++; process.exitCode = 1; } else console.log('ok: ' + m); }
-var TABS = { log: '事件簿', res: '資源表', find: '公告欄', more: '更多' };
-var NAME = { log: '事件簿', res: '資源表', find: '公告欄', more: '更多', rules: '規則表', together: '一起成交', greet: '打招呼密鑰', slots: '我開的時段', house: '我的達秒屋', village: '鄰居和村子', role: '角色設定', help: '說明', orules: '他的規則' };
+var TABS = { log: '事件簿', cal: '日曆', res: '資源表', find: '公告欄', more: '更多' };
+var NAME = { log: '事件簿', cal: '日曆', res: '資源表', find: '公告欄', more: '更多', rules: '規則表', together: '一起成交', greet: '打招呼密鑰', slots: '我開的時段', house: '我的達秒屋', village: '鄰居和村子', role: '角色設定', help: '說明', orules: '他的規則' };
 async function open(pagePath, opts) {
   opts = opts || {};
   var browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });

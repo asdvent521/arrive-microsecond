@@ -1,5 +1,5 @@
-// 四張紙：事件簿、資源表、公告欄、更多都是 A4 橫式（297:210），780×360 看整張、360×780 可以左右滑、有「轉橫看整張紙」；
-// 序號或密鑰框（簡寫、11 位數、找不到、自己）、回我自己；事件簿翻天、小日曆、空白那一行寫時間開時段；
+// 五張紙：事件簿、日曆、資源表、公告欄、更多都是 A4 橫式（297:210），一打開是今天的事件簿，780×360 看整張、360×780 可以左右滑、有「轉橫看整張紙」；
+// 序號或密鑰框（簡寫、11 位數、找不到、自己）、回我自己；事件簿翻天、點日期到日曆紙（前後一個月、每格跟磚一樣、點一格翻到那天、他的日曆照藏）、空白那一行寫時間開時段；
 // 用手指走一遍：公告欄約他 → 事件簿那一行選他的東西、會到、取消再約 → 那一微秒白光、那一行成交、紅字簽名、今天還剩 → 那一行兌現 → 下面那張（以前收到的）兌現；
 // 資源表：空白行加一樣、勾種類、價錢明天起、補／減、下架；更多 → 規則表每人最多給的預設；他的那張紙不能改、約他；讀 v8 存檔。
 // node v9/tests/t_sheets.js <test9.html> [截圖資料夾]
@@ -11,11 +11,13 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   var H = await lib.open(process.argv[2]), pg = H.pg;
   await H.fresh();
   assert((await H.ev("typeof GAME")) === 'undefined' && (await H.ev("typeof TABLE !== 'undefined' && TABLE === SHEETS")) && (await H.ev("document.getElementById('view-house').hidden")) === true, '做事都在四張紙上：沒有裡世界；3D 只畫達秒屋（沒打開）');
-  assert((await H.ev("Array.from(document.querySelectorAll('#ttabs .tab')).map(b=>b.textContent).join(',')")) === '事件簿,資源表,公告欄,更多' && (await H.ev("document.getElementById('serialIn').placeholder")) === '序號或密鑰' && (await H.ev("document.getElementById('diceBtn').title")) === '隨機骰一個序號', '最上面一列：「序號或密鑰」框、去、骰子（隨機骰一個序號）、四張紙的分頁');
-  // 1. 四張紙都是 A4 橫式，780×360 整張放得下
+  assert((await H.ev("Array.from(document.querySelectorAll('#ttabs .tab')).map(b=>b.textContent).join(',')")) === '事件簿,日曆,資源表,公告欄,更多' && (await H.ev("document.getElementById('serialIn').placeholder")) === '序號或密鑰' && (await H.ev("document.getElementById('diceBtn').title")) === '隨機骰一個序號', '最上面一列：「序號或密鑰」框、去、骰子（隨機骰一個序號）、五張紙的分頁');
+  await pg.reload(); await pg.waitForTimeout(500);
+  assert((await H.sheetName()) === 'log' && (await H.ev("SHEETS.ui.day")) === null && (await H.main()).indexOf('事件簿') >= 0, '一打開是今天的事件簿');
+  // 1. 五張紙都是 A4 橫式，780×360 整張放得下
   await H.nav('log'); assert((await H.ev("Array.from(document.querySelectorAll('#tmain thead th')).map(function(t){return t.firstChild.textContent;}).join(',')")) === '時間,跟誰,我給他,我收到,結果,今天還剩,對方簽名,兌現,哪天收到的,誰的,什麼東西,兌現・對方簽名', '事件簿的欄位跟紙本一樣（主表八欄、下面那張四欄）');
   var ratios = {};
-  for (var k of ['log', 'res', 'find', 'more']) {
+  for (var k of ['log', 'cal', 'res', 'find', 'more']) {
     await H.nav(k); var a = await H.ev(ASPECT); ratios[k] = a;
     assert(a && a.fits && Math.abs(a.r - 297 / 210) < 0.06, '「' + H.NAME[k] + '」是一張 A4 橫式（' + a.w + '×' + a.h + '，比例 ' + a.r.toFixed(3) + '），780 寬整張放得下');
     await pg.screenshot({ path: OUT + '/v9_sheet_' + k + '.png', fullPage: true });
@@ -26,7 +28,7 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   var p = await H.ev(ASPECT);
   assert((await H.ev("document.getElementById('rotHint').offsetHeight")) > 0 && (await pg.textContent('#rotHint')) === '轉橫看整張紙', '直放時最上面一行小字「轉橫看整張紙」');
   assert(p.scroll && Math.abs(p.r - 297 / 210) < 0.06 && p.w >= 680, '直放時紙可以左右滑、比例不變（' + p.w + '×' + p.h + '）');
-  for (var k2 of ['log', 'res', 'find', 'more']) { await H.nav(k2); await pg.screenshot({ path: OUT + '/v9_sheet_' + k2 + '_portrait.png', fullPage: true }); }
+  for (var k2 of ['log', 'cal', 'res', 'find', 'more']) { await H.nav(k2); await pg.screenshot({ path: OUT + '/v9_sheet_' + k2 + '_portrait.png', fullPage: true }); }
   await pg.setViewportSize({ width: 780, height: 360 }); await pg.waitForTimeout(200); await H.nav('log');
   assert((await H.ev("document.getElementById('rotHint').offsetHeight")) === 0, '轉橫就沒有那行字');
   // 3. 序號或密鑰框：簡寫、11 位數、找不到、自己；他的那張紙不能改
@@ -46,9 +48,16 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   await H.clickText('‹ 前一天', '#tmain'); assert((await dayOf()) === today - 1 && (await H.main()).indexOf(await H.ev("CORE.dayLabel(" + (today - 1) + ").slice(8,10).replace(/^0/,'')+' 日'")) >= 0, '前一天：日期欄換成昨天');
   await H.clickText('後一天 ›', '#tmain'); await H.clickText('後一天 ›', '#tmain'); assert((await dayOf()) === today + 1, '後一天：明天');
   await H.clickText('今天', '#tmain'); assert((await dayOf()) === today, '「今天」回到今天');
-  await H.click('#tmain [data-act="pickDay"]'); assert((await H.popOpen()) && (await H.ev("document.querySelectorAll('#popBody .cal [data-jump]').length")) >= 28, '點日期：跳出一個月的小日曆');
-  await H.click('#popBody [data-mo]'); await H.click('#popBody .cal [data-jump]'); var jumped = await dayOf();
-  assert(!(await H.popOpen()) && jumped < today - 20, '小日曆換到上個月，點一格就翻到那天（' + (await H.ev("CORE.dayLabel(" + jumped + ")")) + '）');
+  // 點日期：到日曆紙的那個月；前一個月／後一個月；點一格翻到那天的事件簿（還沒到的日子也能點）
+  await H.clickText('‹ 前一天', '#tmain'); await H.click('#tmain [data-act="pickDay"]');
+  var ymT = await H.ev("JSON.stringify(KIT.ymOf(" + (today - 1) + "))"), calYM = function () { return H.ev("(function(){var t=document.querySelector('#tmain table.calp');return JSON.stringify({y:+t.dataset.y,m:+t.dataset.m});})()"); };
+  assert((await H.sheetName()) === 'cal' && (await calYM()) === ymT && (await H.ev("document.querySelectorAll('#tmain table.calp td.day').length")) >= 28, '事件簿點日期：到日曆紙，翻在那一天的那個月（一格一天）');
+  await H.clickText('‹ 前一個月', '#tmain'); var prevYM = JSON.parse(await calYM()); var tY = JSON.parse(ymT);
+  assert(prevYM.m === (tY.m + 11) % 12 && (await H.ev("document.querySelectorAll('#tmain table.calp td.day').length")) >= 28, '前一個月：' + (prevYM.m + 1) + ' 月');
+  await H.clickText('後一個月 ›', '#tmain'); assert((await calYM()) === ymT, '後一個月回來');
+  assert((await H.ev("document.querySelector('#tmain table.calp td.today').dataset.day")) === String(today) && (await H.ev("document.querySelectorAll('#tmain table.calp td.none').length")) >= 0, '今天那格紅框');
+  await H.finger("function(){ return document.querySelector('#tmain table.calp td[data-act=\"calDay\"][data-day=\"" + (today + 1) + "\"]'); }", '明天那一格');
+  assert((await H.sheetName()) === 'log' && (await dayOf()) === today + 1 && (await H.ev("!!document.getElementById('addSlotTime')")), '點還沒到的那一格：翻到那天的事件簿，可以開時段');
   await H.clickText('今天', '#tmain');
   // 5. 空白那一行寫時間就開一個時段（名額可以改）；刪
   await H.clickText('後一天 ›', '#tmain'); await H.edit('#addSlotCap', 2); await H.edit('#addSlotTime', '12:00');
@@ -99,6 +108,18 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   assert(held.indexOf('1:') === 0 && held.indexOf('一小時諮詢') >= 0 && held.indexOf('阿澄') >= 0, '下面那張：以前收到、還沒兌現的一筆（阿澄的一小時諮詢）');
   await H.finger("function(){ return [...document.querySelectorAll('#tmain table')][1].querySelector('[data-act=\"redeem\"]'); }", '下面那張的兌現'); await H.popOk('換到了');
   assert((await H.ev("APP.state().holds.filter(function(h){return h.holder==='" + J1 + "'&&h.status==='redeemed';}).length")) === 2 && (await H.ev("[...document.querySelectorAll('#tmain table')][1].querySelector('.sig').textContent")) === '阿澄', '兌現了，簽名變紅字、還留在那張上');
+  // 8b. 日曆紙每格跟達秒屋的磚一樣（同一份 viewHouse）；他的日曆照藏的規則
+  await H.nav('cal');
+  var same = await H.ev("(function(){var v=CORE.viewHouse(APP.state(),'" + J1 + "','" + J1 + "',APP.now()),bad=[];v.bricks.forEach(function(b){var td=document.querySelector('#tmain table.calp td[data-day=\"'+b.day+'\"]');if(!td)return;var cls=KIT.cellCls(b).split(' ');cls.forEach(function(c){if(!td.classList.contains(c))bad.push(b.day+':'+c);});});var t=document.querySelector('#tmain table.calp td.today');return {bad:bad,today:t&&t.classList.contains('lit2'),ev:t?t.textContent:'',n:v.bricks.length};})()");
+  assert(same.bad.length === 0 && same.today && same.ev.indexOf('阿澄') >= 0 && same.ev.indexOf('約') < 0, '每格的亮度和小記號跟達秒屋的磚一樣（' + same.n + ' 塊）；今天兩筆成交亮兩級、寫幾點跟誰');
+  assert((await H.main()).indexOf('這個月成交 2 次') >= 0, '這個月的合計：成交 2 次');
+  await H.serial('J2'); await H.clickText('看他的日曆', '#tmain');
+  assert((await H.sheetName()) === 'other:cal' && (await pg.textContent('#tother')).indexOf('J2 阿澄 的日曆') >= 0 && (await H.ev("document.querySelector('#tmain table.calp td.today').textContent")).indexOf('我') >= 0, '他的那張紙「看他的日曆」：阿澄的日曆，今天那格寫跟我的那幾筆');
+  await H.ev("(function(){var S=APP.state();CORE.entriesOf(S).filter(function(e){return e.status==='traded'&&(e.a==='" + J2 + "'||e.b==='" + J2 + "');}).forEach(function(e){CORE.setVis(S,'" + J2 + "',e.id,'hidden');});APP.changed();})()");
+  var otherView = await H.ev("(function(){var td=document.querySelector('#tmain table.calp td.today');return td.className+'|'+td.textContent;})()");
+  assert(otherView.indexOf('蓋著') >= 0 || otherView.indexOf('lit') >= 0, '阿澄把那幾筆全藏：對接的人照樣看得到（' + otherView.replace(/\s+/g, ' ') + '）');
+  await H.finger("function(){ return document.querySelector('#tmain table.calp td.today'); }", '他的日曆今天那一格'); assert((await H.popOpen()) && (await H.popTitle()).indexOf('阿澄') >= 0, '點他的一格：看那天的明細'); await H.popOk();
+  await H.clickText('回我自己', '#tother');
   // 9. 資源表：空白行加一樣、勾種類、價錢明天起、補／減、下架
   await H.nav('res'); var n0 = await H.ev("CORE.version(APP.me(),APP.now()).resources.length");
   await H.edit('#tmain input[data-new="res"]', '修水管');

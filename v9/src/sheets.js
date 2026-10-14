@@ -1,6 +1,6 @@
-/* ===== v9 表格世界：四張紙（DESIGN 7-1、補十五） =====
+/* ===== v9 表格世界：五張紙（DESIGN 7-1、補十五、補十六） =====
  * 每一頁就是紙本那張 A4 橫式（297×210），整張照畫面寬等比例縮放；欄位、格線、底下的說明跟印出來的一樣，格子裡多了按鈕。
- * 最上面一列：「序號或密鑰」框、去、骰子、四張紙的分頁（事件簿、資源表、公告欄、更多）、現在是誰。
+ * 最上面一列：「序號或密鑰」框、去、骰子、五張紙的分頁（事件簿、日曆、資源表、公告欄、更多）、現在是誰。一打開是今天的事件簿。
  * 寫進去的是藍字、簽名是紅字（系統簽）。只呼叫 APP、CORE 和共用的 KIT；要去達秒屋就叫 APP.goHouse。
  */
 var SHEETS = (function () {
@@ -9,11 +9,11 @@ var SHEETS = (function () {
   var esc = APP.esc, opt = APP.opt, now = APP.now;
   var S = function () { return APP.state(); }, me = function () { return APP.me(); };
   var roleOf = APP.roleOf, ver = APP.ver, pend = APP.pend;
-  var TABS = [['log', '事件簿'], ['res', '資源表'], ['find', '公告欄'], ['more', '更多']];
+  var TABS = [['log', '事件簿'], ['cal', '日曆'], ['res', '資源表'], ['find', '公告欄'], ['more', '更多']];
   var MORE = [['rules', '規則表', '用途、對接條件、兩個開關、家規和家規網站、每人最多給的預設'], ['together', '一起成交', '幾個人湊成一圈一起換：開時段時勾「一起成交」'], ['greet', '打招呼密鑰', '常見面的人：在框裡輸入密鑰當場換一次'], ['slots', '我開的時段', '整理全部時段、刪掉沒人約的'], ['house', '我的達秒屋', '門牌、整間屋給誰看、新的一筆預設、去蓋房子'], ['village', '鄰居和村子', '第 6 輪才有'], ['role', '角色設定', '聯絡方式、不玩了（最下面是測試用的換人）'], ['help', '說明', '每個字是什麼意思']];
-  var NAMES = { log: '事件簿', res: '資源表', find: '公告欄', more: '更多', orules: '他的規則' };
+  var NAMES = { log: '事件簿', cal: '日曆', res: '資源表', find: '公告欄', more: '更多', orules: '他的規則' };
   MORE.forEach(function (m) { NAMES[m[0]] = m[1]; });
-  var UI = { sheet: 'log', other: null, osheet: 'res', day: null, kw: '', msg: '', focus: null, page: 0, dice: null };
+  var UI = { sheet: 'log', other: null, osheet: 'res', day: null, kw: '', msg: '', focus: null, page: 0, dice: null, cal: null };   // cal：日曆紙翻到哪個月 {y, m}，null＝這個月
   if (APP.isBlank()) UI.sheet = 'res';
   var MM = function (n) { return 'calc(var(--mm)*' + n + ')'; };
 
@@ -34,10 +34,7 @@ var SHEETS = (function () {
   function pad(n, cols, h) { var s = ''; for (var i = 0; i < n; i++) s += '<tr class="blank"' + rowH(h) + '>' + '<td></td>'.repeat(cols) + '</tr>'; return s; }
   function cols(ws) { return '<colgroup>' + ws.map(function (w) { return '<col style="width:' + w + '%">'; }).join('') + '</colgroup>'; }
   function th(list) { return '<thead><tr>' + list.map(function (c) { return '<th>' + c[0] + (c[1] ? '<small>' + c[1] + '</small>' : '') + '</th>'; }).join('') + '</tr></thead>'; }
-  // 一張紙：標題、副標、上面的欄位、表、底下的說明
-  function page(key, title, sub, fields, body, foot, grow) {
-    return '<section class="page' + (grow ? ' grow' : '') + '" data-sheet="' + key + '"><header><div><h1>' + esc(title) + '</h1></div><div class="sub">' + sub + '</div></header>' + (fields ? '<div class="fields">' + fields + '</div>' : '') + body + (foot ? '<p class="foot">' + foot + '</p>' : '') + '</section>';
-  }
+  var page = KIT.page;   // 一張紙：標題、副標、上面的欄位、表、底下的說明
   function ln(html, cls) { return '<span class="ln' + (cls ? ' ' + cls : '') + '">' + html + '</span>'; }
   function inp(attrs, value, ph) { return '<input type="text" class="w"' + attrs + ' value="' + esc(value == null ? '' : value) + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>'; }
   function eligTag(e) { return e.self ? '<span class="tagp off">自己</span>' : e.ok ? '<span class="tagp">通</span>' : '<span class="tagp bad" title="' + esc(e.reason) + '">不通：' + esc(e.reason) + '</span>'; }
@@ -92,7 +89,7 @@ var SHEETS = (function () {
     var held = S().holds.filter(function (h) { return h.holder === m.serial && CORE.dayNum(h.atUs) !== dn && (CORE.holdStatus(h, t) === 'held' || (h.status === 'redeemed' && CORE.dayNum(h.redeemedAt) === dn)); }).sort(function (a, b) { return a.atUs - b.atUs; });
     var trs2 = held.slice(0, 3).map(function (h) { return '<tr data-row data-id="' + h.id + '"' + rowH(8.6) + '><td>' + md(CORE.dayNum(h.atUs)) + '</td><td>' + lk(h.issuer) + ' ' + esc(nameOf(h.issuer)) + '</td><td>' + esc(h.name) + '<small>' + (h.untilDay == null ? '一直留' : '留到 ' + md(h.untilDay)) + '</small></td><td>' + (h.status === 'redeemed' ? hhmm(h.redeemedAt) + ' ' + sig(nameOf(h.issuer)) : btn('redeem', '兌現', ' data-id="' + h.id + '"')) + '</td></tr>'; }).join('') + pad(Math.max(0, 3 - held.length), 4, 8.6) + (held.length > 3 ? '<tr' + rowH(6) + '><td colspan="4" class="dim">還有 ' + (held.length - 3) + ' 筆，在「更多」裡看</td></tr>' : '');
     var remind = reminders(m);
-    var sub = btn('prevDay', '‹ 前一天', '', 'o') + btn('nextDay', '後一天 ›', '', 'o') + (isToday ? '' : btn('today', '今天', '', 'o')) + '　一天一張・照時間往下寫・舊的收在一起就是日曆' + (pages > 1 ? '　' + btn('pagePrev', '‹', UI.page ? '' : ' disabled', 'o') + ' 第 ' + (UI.page + 1) + '／' + pages + ' 張 ' + btn('pageNext', '›', UI.page < pages - 1 ? '' : ' disabled', 'o') : '');
+    var sub = btn('prevDay', '‹ 前一天', '', 'o') + btn('nextDay', '後一天 ›', '', 'o') + (isToday ? '' : btn('today', '今天', '', 'o')) + '　一天一張・照時間往下寫・點日期到日曆紙' + (pages > 1 ? '　' + btn('pagePrev', '‹', UI.page ? '' : ' disabled', 'o') + ' 第 ' + (UI.page + 1) + '／' + pages + ' 張 ' + btn('pageNext', '›', UI.page < pages - 1 ? '' : ' disabled', 'o') : '');
     var fields = '<span>日期 ' + ln('<button type="button" class="lk" data-act="pickDay">' + esc(dayText(dn)) + '</button>') + '</span><span>名字 ' + ln(esc(m.name) + '（' + esc(CORE.abbrev(m.serial)) + '）') + '</span><span>今天最多給 ' + ln(String(daily), 's') + ' 點</span>' + (isToday ? '<span>現在還能給 ' + ln('<b id="energyText">' + CORE.remainingToday(S(), m, t) + '</b>', 's') + ' 點</span>' : '');
     var body = (remind ? '<div class="remind">' + remind + '</div>' : '') + '<table>' + cols([8, 12, 17, 20, 9, 8, 11, 15]) + th([['時間'], ['跟誰'], ['我給他', '他選了我的什麼・價錢'], ['我收到', '我選了他的什麼・保留到哪天'], ['結果', '成交／沒成／沒來'], ['今天還剩', '點'], ['對方簽名', '成交就自動簽'], ['兌現', '哪天・對方簽名']]) + '<tbody>' + trs + '</tbody></table>' +
       '<div class="lab">以前收到、還沒兌現的（今天去換）</div><table>' + cols([16, 16, 40, 28]) + th([['哪天收到的'], ['誰的'], ['什麼東西'], ['兌現・對方簽名']]) + '<tbody>' + trs2 + '</tbody></table>';
@@ -107,18 +104,12 @@ var SHEETS = (function () {
     m.slots.forEach(function (s) { if (!s.judged && s.together && s.bookings.length) out.push('你開的 ' + hhmm(s.atUs) + ' 是一起成交的時段：' + esc(CORE.togetherStatus(S(), s))); });
     return out.join('；');
   }
-  // 點日期：跳出一個月的小日曆，點一格就翻到那天
-  function pickDay(offset) {
-    var base = new Date(now() / 1000), d = new Date(base.getFullYear(), base.getMonth() + (offset || 0), 1, 12), y = d.getFullYear(), mo = d.getMonth();
-    var first = CORE.dayNum(new Date(y, mo, 1, 12).getTime() * 1000), days = new Date(y, mo + 1, 0).getDate(), lead = new Date(y, mo, 1).getDay(), m = me();
-    var v = CORE.viewHouse(S(), m.serial, m.serial, now()), byDay = {}; v.bricks.forEach(function (b) { byDay[b.day] = b; });
-    var cells = ''; for (var i = 0; i < lead; i++) cells += '<span class="cd pad"></span>';
-    for (var k = 0; k < days; k++) { var dn = first + k, b = byDay[dn]; cells += '<button type="button" class="cd ' + KIT.cellCls(b) + (dn === today() ? ' today' : '') + '" data-jump="' + dn + '"><span class="dn">' + (k + 1) + '</span>' + (b && b.lit > 1 ? '<span class="cnt">' + b.lit + '</span>' : '') + '</button>'; }
-    var html = '<div class="cal"><div class="calhead"><button type="button" class="btn sm" data-mo="' + ((offset || 0) - 1) + '">‹ 上個月</button><b class="num">' + y + ' 年 ' + (mo + 1) + ' 月</b><button type="button" class="btn sm" data-mo="' + ((offset || 0) + 1) + '">下個月 ›</button></div><div class="wk"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div><div class="grid">' + cells + '</div><div class="small muted">點一格就翻到那天；亮的是有成交的日子</div></div>';
-    KIT.pop('翻到哪一天', { html: html }, [{ label: '不要', pri: true }]);
-    $('popBody').querySelectorAll('[data-mo]').forEach(function (b) { b.onclick = function () { pickDay(+b.dataset.mo); }; });
-    $('popBody').querySelectorAll('[data-jump]').forEach(function (b) { b.onclick = function () { KIT.close(); UI.day = +b.dataset.jump; UI.page = 0; render(); }; });
-  }
+  /* ---------- 日曆紙：一個月一張（共用 KIT.calSheet；自己的點一格翻到那天的事件簿，他的點一格看那天） ---------- */
+  function calYM() { if (!UI.cal) { var ym = KIT.ymOf(today()); UI.cal = { y: ym.y, m: ym.m }; } return UI.cal; }
+  function calPage() { var r = view(), ym = calYM(), html = KIT.calSheet(r.serial, APP.isBlank() ? null : me().serial, ym.y, ym.m); return mine() ? html : html.replace('<div class="sub">', '<div class="sub">' + btn('visit', '‹ 他的資源表', ' data-id="' + r.serial + '"', 'o') + '　'); }
+  function calMonth(n) { var ym = calYM(), d = new Date(ym.y, ym.m + n, 1); UI.cal = { y: d.getFullYear(), m: d.getMonth() }; render(); }
+  // 事件簿點日期：到日曆紙的那個月
+  function pickDay() { var ym = KIT.ymOf(dayOf()); UI.cal = { y: ym.y, m: ym.m }; UI.sheet = 'cal'; UI.other = null; UI.msg = ''; render(); }
   // 選他的東西：每樣東西一行，點了就選（可以多樣）
   function pickItems(slotId, other) {
     var x = CORE.slotOf(S(), slotId); if (!x || x.slot.judged) { msg('那一微秒已經過了'); return; }
@@ -177,7 +168,7 @@ var SHEETS = (function () {
       return '<tr data-row data-id="' + s.id + '"' + rowH(8) + '><td>' + CORE.dayLabel(CORE.dayNum(s.atUs)).slice(5) + ' ' + hhmm(s.atUs) + '<small>' + CORE.fmtUs(s.atUs).slice(17) + '</small>' + (s.together ? '<span class="cd">一起成交 ' + esc(CORE.togetherStatus(S(), s)) + '</span>' : '') + '</td><td>' + s.bookings.length + '／' + s.capacity + '</td><td>' + act + '</td></tr>';
     }).join('') + pad(Math.max(0, 3 - up.length), 3, 8) + (up.length > 3 ? '<tr' + rowH(5) + '><td colspan="3" class="dim">還有 ' + (up.length - 3) + ' 個時段</td></tr>' : '');
     return '<div class="lab">他的時段（' + (up.length ? up.length + ' 個' : '沒有開放的時段') + '）</div><table>' + cols([46, 14, 40]) + th([['那一微秒'], ['名額'], ['約他', '會到預設勾著：約的時候就確認到達']]) + '<tbody>' + trs + '</tbody></table>' +
-      '<div class="acts">' + btn('orules', '看他的規則', ' data-id="' + r.serial + '"') + btn('house', '看他的達秒屋', ' data-id="' + r.serial + '"') + btn('greetSet', '跟他設打招呼密鑰', ' data-id="' + r.serial + '"') + btn('home', '回我自己', '', 'o') + '</div>';
+      '<div class="acts">' + btn('orules', '看他的規則', ' data-id="' + r.serial + '"') + btn('ocal', '看他的日曆', ' data-id="' + r.serial + '"') + btn('house', '看他的達秒屋', ' data-id="' + r.serial + '"') + btn('greetSet', '跟他設打招呼密鑰', ' data-id="' + r.serial + '"') + btn('home', '回我自己', '', 'o') + '</div>';
   }
   // 還沒創角色：資源表那張紙已經寫好第一行「空的」，填名字和每天的點就好
   function createPage() {
@@ -284,9 +275,10 @@ var SHEETS = (function () {
     return page('role', '角色設定', back() + '聯絡方式、不玩了', '', kv(rows), '', true);
   }
   var HELP = [
-    ['四張紙', '事件簿、資源表、公告欄、更多，跟紙本一模一樣的 A4 橫式。手機轉橫看整張；直放可以左右滑。寫進去的是藍字，簽名是紅字（系統簽）。'],
+    ['五張紙', '事件簿、日曆、資源表、公告欄、更多，跟紙本一模一樣的 A4 橫式。手機轉橫看整張；直放可以左右滑。寫進去的是藍字，簽名是紅字（系統簽）。'],
+    ['日曆', '一個月一張，一格一天：底色跟達秒屋的磚一樣，成交越多越亮，沒成、錯過有小記號，還約著的是虛線框，今天紅框；一格裡寫那天幾點跟誰。點一格翻到那天的事件簿。他的日曆在他的那張紙「看他的日曆」，照藏的規則。'],
     ['序號或密鑰框和骰子', '最上面的框輸入序號（例如 J2）按「去」就到那個人的資源表；輸入打招呼密鑰就跟配對的人當場換一次（等對方 1 分鐘）。按骰子骰一個還在玩的人的序號進框裡，按「去」才過去，不喜歡可以再骰。'],
-    ['事件簿', '一天一張，一行一次見面：時間、跟誰、我給他、我收到、結果、今天還剩、對方簽名、兌現。還沒到的那一行淡黃：倒數、選他的東西、會到的勾（預設勾著）、取消。在空白那一行的時間格寫時間就開了一個時段。下面一小張是以前收到、還沒兌現的（就是背包）。點日期跳出小日曆翻到那天。'],
+    ['事件簿', '一天一張，一行一次見面：時間、跟誰、我給他、我收到、結果、今天還剩、對方簽名、兌現。還沒到的那一行淡黃：倒數、選他的東西、會到的勾（預設勾著）、取消。在空白那一行的時間格寫時間就開了一個時段。下面一小張是以前收到、還沒兌現的（就是背包）。點日期到日曆紙的那個月。'],
     ['資源表', '一行一樣東西：東西、種類（訊息／行為／物質，必選一個）、怎樣算給到了（寫到對方確定收到沒）、價錢、保留幾天、有幾份（小格子，被選走的劃掉）。直接在格子裡打字就是改，明天起算；在空白那一行寫名字就是加；「…」裡可以下架。不能寫錢和違法的東西。'],
     ['公告欄', '上面的框打一個詞，公告和別人的資源表一起找。第一行是自己的公告，寫好按「掛上去」；別人的旁邊「約他」約他下一個時段。下半張是誰的資源表裡有東西，標你通不通他的條件。'],
     ['那一微秒', '成交那一刻整個畫面白光一閃，跳出成交結果：我給他、我收到；那一行變成交、對方簽名變紅字。沒開著的話，下次打開跳出「你不在的時候」。成交結果裡可以勾「以後每天這個時間自動約」，兩邊都勾就成固定約，事件簿每天那一行標「每天」，按「停」結束。'],
@@ -324,14 +316,14 @@ var SHEETS = (function () {
   function render() {
     var m = me(), o = UI.other ? roleOf(UI.other) : null;
     if (UI.other && !o) UI.other = null;
-    $('tother').innerHTML = o ? '<b>' + esc(CORE.abbrev(o.serial) + ' ' + o.name) + '</b> 的那張紙 ' + btn('home', '回我自己', '', 'o') : '<span class="small muted">' + (APP.isBlank() ? '還沒創角色' : '我是 <b>' + esc(CORE.abbrev(m.serial) + ' ' + m.name) + '</b>') + '</span>';
+    $('tother').innerHTML = o ? '<b>' + esc(CORE.abbrev(o.serial) + ' ' + o.name) + '</b> 的' + (UI.osheet === 'cal' ? '日曆 ' : '那張紙 ') + btn('home', '回我自己', '', 'o') : '<span class="small muted">' + (APP.isBlank() ? '還沒創角色' : '我是 <b>' + esc(CORE.abbrev(m.serial) + ' ' + m.name) + '</b>') + '</span>';
     var st = APP.tutActive() && !APP.isBlank() ? APP.steps() : null;
     $('tutbar').hidden = !APP.tutActive();
     if (APP.tutActive()) $('tutbar').innerHTML = '<span class="small">' + esc(APP.isBlank() ? '新手教學 ① 創角色：資源表那張紙已經寫好「空的」，填名字和每天的點，按「建立」' : st.hint) + '</span>' + (APP.tut().step === 6 ? btn('myHouse', '去我的達秒屋', '', 'go') : '') + (APP.isBlank() ? '' : btn('tutSkip', '跳過教學', '', 'o'));
     var cur = o ? null : (MORE.some(function (x) { return x[0] === UI.sheet; }) ? 'more' : UI.sheet);
     $('ttabs').innerHTML = TABS.map(function (t) { return '<button type="button" class="tab' + (cur === t[0] ? ' on' : '') + '" data-act="tab" data-s="' + t[0] + '"' + (cur === t[0] ? ' aria-current="page"' : '') + '>' + esc(t[1]) + '</button>'; }).join('');
     var key = o ? UI.osheet : UI.sheet, scroll = window.scrollY, same = render.last === (o ? o.serial + ':' : '') + key;
-    var P = { log: logPage, res: resPage, find: findPage, more: morePage, rules: rulesPage, together: togetherPage, greet: greetPage, slots: slotsPage, house: housePage, village: villagePage, role: rolePage, help: helpPage, orules: orulesPage };
+    var P = { log: logPage, cal: calPage, res: resPage, find: findPage, more: morePage, rules: rulesPage, together: togetherPage, greet: greetPage, slots: slotsPage, house: housePage, village: villagePage, role: rolePage, help: helpPage, orules: orulesPage };
     if (!P[key]) key = o ? 'res' : 'log';
     $('tmain').innerHTML = '<div class="msg" id="tmsg"' + (UI.msg ? '' : ' hidden') + '>' + esc(UI.msg) + '</div>' + P[key]();
     if (!same) window.scrollTo(0, 0); else if (window.scrollY !== scroll) window.scrollTo(0, scroll);
@@ -343,13 +335,14 @@ var SHEETS = (function () {
   function tab(sheet, id) {
     UI.other = null; UI.sheet = NAMES[sheet] ? sheet : 'log'; UI.focus = id || null; UI.msg = ''; UI.page = 0;
     if (sheet === 'log' && !id) UI.day = null;
+    if (sheet === 'cal') UI.cal = null;
     render();
   }
   // 到他的那張紙（how：從哪裡來的，教學用）
   function visit(serial, sheet, how) {
     var r = roleOf(serial); if (!r) { msg('找不到這個序號'); return false; }
     if (r === me()) { UI.other = null; tab(NAMES[sheet] && sheet !== 'orules' ? sheet : 'res'); return true; }
-    UI.other = serial; UI.osheet = sheet === 'orules' || sheet === 'rules' ? 'orules' : 'res'; UI.msg = ''; UI.page = 0;
+    UI.other = serial; UI.osheet = sheet === 'orules' || sheet === 'rules' ? 'orules' : sheet === 'cal' ? 'cal' : 'res'; UI.msg = ''; UI.page = 0; if (sheet === 'cal') UI.cal = null;
     if (how === 'serial') APP.tutEvent('go', serial);
     if (serial === APP.GUIDE && (how === 'serial' || how === 'notice')) APP.tutEvent('foundGuide');
     render(); return true;
@@ -406,13 +399,16 @@ var SHEETS = (function () {
     open: function (b) { tab(b.dataset.s); },
     visit: function (b) { visit(b.dataset.id, 'res', b.closest('[data-sheet="find"]') ? 'notice' : 'link'); },
     home: home,
-    orules: function (b) { visit(b.dataset.id, 'orules', 'link'); if (b.dataset.id === APP.GUIDE) APP.tutEvent('sawGuideRules'); },
+    orules: function (b) { visit(b.dataset.id, 'orules', 'link'); },
     house: function (b) { APP.goHouse(b.dataset.id); },
     build: function () { APP.goHouse(me().serial, true); },
     myHouse: function () { APP.goHouse(me().serial); },
     serialGo: goSerial, dice: dice,
     prevDay: function () { UI.day = dayOf() - 1; UI.page = 0; render(); }, nextDay: function () { UI.day = dayOf() + 1; UI.page = 0; render(); }, today: function () { UI.day = null; UI.page = 0; render(); },
-    pickDay: function () { pickDay(0); },
+    pickDay: pickDay,
+    calMonth: function (b) { calMonth(+b.dataset.n); },
+    calDay: function (b) { var dn = +b.dataset.day; if (mine()) { UI.day = dn === today() ? null : dn; UI.page = 0; UI.sheet = 'log'; UI.msg = ''; render(); } else KIT.dayPop(UI.other, dn, function () { render(); }); },
+    ocal: function (b) { visit(b.dataset.id, 'cal', 'link'); },
     pagePrev: function () { UI.page = Math.max(0, UI.page - 1); render(); }, pageNext: function () { UI.page++; render(); },
     goLog: function (b) { UI.other = null; UI.sheet = 'log'; UI.day = +b.dataset.day; UI.page = 0; UI.focus = (CORE.entriesOf(S()).find(function (e) { return e.slot === b.dataset.id && (e.a === me().serial || e.b === me().serial); }) || { id: b.dataset.id }).id; render(); },
     pick: function (b) { pickItems(b.dataset.id, b.dataset.other); },

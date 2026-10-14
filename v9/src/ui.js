@@ -1,5 +1,5 @@
-/* ===== v9 表格世界和達秒屋共用的小畫面：彈出框、白光、日曆（一格一天）、那天的明細、輸入格自動寬度 =====
- * 日曆和明細只拿 CORE.viewHouse／CORE.dayDetail 的結果來畫（看不到的東西根本不在回傳裡）。只呼叫 APP 和 CORE。
+/* ===== v9 五張紙和達秒屋共用的小畫面：彈出框、白光、一張紙的外殼、日曆紙（一個月一張、一格一天）、那天的明細、輸入格自動寬度 =====
+ * 日曆紙和明細只拿 CORE.viewHouse／CORE.dayDetail 的結果來畫（看不到的東西根本不在回傳裡）。只呼叫 APP 和 CORE。
  */
 var KIT = (function () {
   'use strict';
@@ -23,7 +23,12 @@ var KIT = (function () {
   function isOpen() { return !$('pop').hidden; }
   function flash() { var el = $('flash'); el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
 
-  /* ---------- 日曆：一個月一張，一格一天；每一格畫出跟磚一樣的狀態 ---------- */
+  /* ---------- 一張紙的外殼（四張紙和日曆紙共用）：標題、副標、上面的欄位、表、底下的說明 ---------- */
+  function page(key, title, sub, fields, body, foot, grow) {
+    return '<section class="page' + (grow ? ' grow' : '') + '" data-sheet="' + key + '"><header><div><h1>' + esc(title) + '</h1></div><div class="sub">' + sub + '</div></header>' + (fields ? '<div class="fields">' + fields + '</div>' : '') + body + (foot ? '<p class="foot">' + foot + '</p>' : '') + '</section>';
+  }
+
+  /* ---------- 日曆紙：一個月一張 A4 橫式，一格一天；底色、小記號、虛線框、蓋布照達秒屋的磚（同一份 viewHouse），一格裡寫那天的見面 ---------- */
   function cellCls(b) {
     if (!b) return 'none';
     var c = [];
@@ -33,22 +38,35 @@ var KIT = (function () {
   }
   // 那個月 1 號的 dayNum（本機日期）
   function monthStart(year, month) { var d = new Date(year, month, 1, 12); return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000); }
-  function calendar(ownerSerial, viewerSerial, offset) {
-    var v = CORE.viewHouse(APP.state(), ownerSerial, viewerSerial, APP.now()), byDay = {};
+  function ymOf(dn) { var l = CORE.dayLabel(dn); return { y: +l.slice(0, 4), m: +l.slice(5, 7) - 1 }; }
+  // owner 的日曆紙，viewer 看（藏的規則在 viewHouse／dayDetail 裡）；y、m（0 起）是哪個月
+  function calSheet(ownerSerial, viewerSerial, y, m) {
+    var S = APP.state(), now = APP.now(), owner = APP.roleOf(ownerSerial), v = CORE.viewHouse(S, ownerSerial, viewerSerial, now), byDay = {};
     v.bricks.forEach(function (b) { byDay[b.day] = b; });
-    var now = new Date(APP.now() / 1000), base = new Date(now.getFullYear(), now.getMonth() + (offset || 0), 1, 12);
-    var y = base.getFullYear(), m = base.getMonth(), first = monthStart(y, m), days = new Date(y, m + 1, 0).getDate(), lead = new Date(y, m, 1).getDay();
-    var cells = '';
-    for (var i = 0; i < lead; i++) cells += '<span class="cd pad"></span>';
-    for (var d = 0; d < days; d++) {
-      var dn = first + d, b = byDay[dn], cls = cellCls(b), canOpen = b && !v.closed && (b.n || b.cover);
-      cells += '<button type="button" class="cd ' + cls + (dn === v.today ? ' today' : '') + '" data-day="' + dn + '"' + (canOpen ? '' : ' disabled') + ' aria-label="' + (m + 1) + ' 月 ' + (d + 1) + ' 日"><span class="dn">' + (d + 1) + '</span>' + (b && b.lit > 1 ? '<span class="cnt">' + b.lit + '</span>' : '') + '</button>';
+    var first = monthStart(y, m), days = new Date(y, m + 1, 0).getDate(), lead = new Date(y, m, 1).getDay(), rows = Math.ceil((lead + days) / 7), mine = viewerSerial === ownerSerial;
+    var cnt = { traded: 0, nodock: 0, miss: 0, booked: 0 }, cells = [], h = rows >= 6 ? 22.5 : 27;
+    for (var i = 0; i < lead; i++) cells.push('<td class="pad"></td>');
+    for (var k = 0; k < days; k++) {
+      var dn = first + k, b = byDay[dn], lines = [], more = '', cls = dn < v.born ? 'none' : b ? cellCls(b) : 'empty';
+      if (!v.closed && dn >= v.born && b && (b.n || b.cover)) {
+        var d = CORE.dayDetail(S, ownerSerial, viewerSerial, dn, now);
+        if (!d.closed) {
+          d.entries.forEach(function (e) { var st = e.status === 'traded' ? 'traded' : e.status === 'booked' ? 'booked' : e.status === 'miss' ? 'miss' : 'nodock'; cnt[st]++; lines.push(esc(e.time + ' ' + e.other.name + (st === 'booked' ? '（約）' : st === 'miss' ? '（錯過）' : st === 'nodock' ? '（沒成）' : ''))); });
+          if (lines.length > 3) { more = '還有 ' + (lines.length - 3) + ' 筆'; lines = lines.slice(0, 3); }
+          if (d.covered) more += (more ? '・' : '') + d.covered + ' 筆蓋著';
+        }
+      }
+      var can = !v.closed && dn >= v.born;
+      cells.push('<td class="day ' + cls + (dn === v.today ? ' today' : '') + '"' + (can ? ' data-act="calDay" data-day="' + dn + '" tabindex="0" role="button"' : ' data-day="' + dn + '"') + '><span class="dn">' + (k + 1) + '</span>' + (lines.length ? '<div class="ev">' + lines.join('<br>') + '</div>' : '') + (more ? '<div class="more">' + esc(more) + '</div>' : '') + '</td>');
     }
-    var head = '<div class="calhead"><button type="button" class="btn sm" data-cal="-1" aria-label="上個月">‹ 上個月</button><b class="num">' + y + ' 年 ' + (m + 1) + ' 月</b><button type="button" class="btn sm" data-cal="1" aria-label="下個月">下個月 ›</button></div>';
-    var legend = v.closed ? '<div class="small muted">只給鄰居看：看不出亮暗，也點不開。</div>' : '<div class="legend small"><span class="cd lit1"></span>有成交（越多越亮）<span class="cd mark"></span>只有不成交或錯過<span class="cd cover"></span>蓋著<span class="cd fut bk"></span>未來的預約</div>';
-    return '<div class="cal" data-owner="' + esc(ownerSerial) + '" data-month="' + (offset || 0) + '">' + head + '<div class="wk"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div><div class="grid">' + cells + '</div>' + legend + '</div>';
+    while (cells.length % 7) cells.push('<td class="pad"></td>');
+    var trs = ''; for (var r = 0; r < cells.length / 7; r++) trs += '<tr style="height:calc(var(--mm)*' + h + ')">' + cells.slice(r * 7, r * 7 + 7).join('') + '</tr>';
+    var sub = '<button type="button" class="mini o" data-act="calMonth" data-n="-1">‹ 前一個月</button><button type="button" class="mini o" data-act="calMonth" data-n="1">後一個月 ›</button>　一個月一張・一格一天' + (v.closed ? '・<span class="tagp off">只給鄰居看</span>' : '');
+    var fields = '<span><span class="ln s">' + y + '</span> 年 <span class="ln s">' + (m + 1) + '</span> 月</span><span>名字 <span class="ln">' + esc(owner ? owner.name : CORE.abbrev(ownerSerial)) + (mine ? '（我）' : '') + '</span></span><span class="tot">這個月成交 <b class="num">' + cnt.traded + '</b> 次・沒成 <b class="num">' + cnt.nodock + '</b> 次・錯過 <b class="num">' + cnt.miss + '</b> 次・還約著 <b class="num">' + cnt.booked + '</b> 次</span>';
+    var body = '<table class="calp" data-y="' + y + '" data-m="' + m + '"><colgroup>' + '<col style="width:14.28%">'.repeat(7) + '</colgroup><thead><tr><th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th></tr></thead><tbody>' + trs + '</tbody></table>';
+    var foot = mine ? '<b>一格一天</b>：底色跟達秒屋的磚一樣，成交越多越亮，沒成、錯過有小記號，還約著的是虛線框；創角色以前的日子空著，今天紅框。<b>點一格</b>翻到那天的事件簿，還沒到的日子也能點，進去可以開時段。' : '<b>' + esc(owner ? owner.name : '') + ' 的日曆</b>：跟看他的達秒屋一樣，他藏起來的那幾筆看不到（蓋布）；點一格看那天。';
+    return page('cal', '日曆', sub, fields, body, foot);
   }
-
   /* ---------- 那天的明細：點一格或點一塊磚 ---------- */
   function itemsText(items) { return items.length ? items.map(function (it) { return it.name + '（' + it.price + ' 點）' + (it.state ? '［' + it.state + '］' : ''); }).join('、') : '（沒有）'; }
   function dayPop(ownerSerial, day, onChange) {
@@ -74,12 +92,6 @@ var KIT = (function () {
   }
   function tagFor(e) { var cls = { traded: '', nodock: 'bad', invalid: 'bad', miss: 'bad', booked: 'wait' }[e.status]; return '<span class="tag ' + (cls == null ? 'off' : cls) + '">' + esc(e.result) + '</span>'; }
   function alertMsg(t) { var el = document.createElement('div'); el.className = 'small warn'; el.textContent = t; $('popBody').prepend(el); }
-  // 日曆的事件：換月、點一格（container 裡的 .cal）
-  function bindCalendar(container, rerender) {
-    container.querySelectorAll('.cal [data-cal]').forEach(function (b) { b.onclick = function () { rerender(+b.closest('.cal').dataset.month + +b.dataset.cal); }; });
-    container.querySelectorAll('.cal [data-day]').forEach(function (b) { b.onclick = function () { if (b.disabled) return; dayPop(b.closest('.cal').dataset.owner, +b.dataset.day, function () { rerender(+b.closest('.cal').dataset.month); }); }; });
-  }
-
   /* ---------- 輸入格自動寬度：提示字和內容都不能被切掉 ---------- */
   var ctx = null;
   function textWidth(t, font) { if (!ctx) ctx = document.createElement('canvas').getContext('2d'); ctx.font = font; return ctx.measureText(t).width; }
@@ -94,5 +106,5 @@ var KIT = (function () {
   }
   document.addEventListener('input', function (e) { if (e.target && e.target.matches && e.target.matches('input')) fitInputs(e.target.parentNode); });
 
-  return { pop: pop, close: close, isOpen: isOpen, flash: flash, calendar: calendar, bindCalendar: bindCalendar, dayPop: dayPop, cellCls: cellCls, fitInputs: fitInputs, textWidth: textWidth };
+  return { pop: pop, close: close, isOpen: isOpen, flash: flash, page: page, calSheet: calSheet, ymOf: ymOf, dayPop: dayPop, cellCls: cellCls, fitInputs: fitInputs, textWidth: textWidth };
 })();

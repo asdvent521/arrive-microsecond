@@ -120,10 +120,10 @@ var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){
   await N.fresh({ history: true });
   assert((await N.ev("WORLD.available")) === false, '擋掉 WebGL：3D 用不了');
   await N.ev("APP.goHouse('" + J2 + "')"); await np.waitForTimeout(300);
-  assert(!(await N.ev("document.getElementById('hcal').hidden")) && (await N.ev("document.querySelectorAll('#hcal .cal .cd[data-day]').length")) >= 28, '達秒屋顯示成日曆（一格一天）');
-  var cell = await N.ev("(function(){var b=[...document.querySelectorAll('#hcal .cd[data-day]')].find(function(x){return !x.disabled&&/lit/.test(x.className);});return b?b.dataset.day:null;})()");
-  if (cell == null) { await N.hclick('#hcal [data-cal="-1"]'); cell = await N.ev("(function(){var b=[...document.querySelectorAll('#hcal .cd[data-day]')].find(function(x){return !x.disabled&&/lit/.test(x.className);});return b?b.dataset.day:null;})()"); }
-  await N.hclick('#hcal .cd[data-day="' + cell + '"]');
+  assert(!(await N.ev("document.getElementById('hcal').hidden")) && (await N.ev("document.querySelectorAll('#hcal section.page[data-sheet=cal] td.day').length")) >= 28, '達秒屋顯示成日曆紙（一個月一張、一格一天）');
+  var cell = await N.ev("(function(){var b=[...document.querySelectorAll('#hcal td[data-act=calDay]')].find(function(x){return /lit/.test(x.className);});return b?b.dataset.day:null;})()");
+  if (cell == null) { await N.hclick('#hcal [data-act="calMonth"][data-n="-1"]'); cell = await N.ev("(function(){var b=[...document.querySelectorAll('#hcal td[data-act=calDay]')].find(function(x){return /lit/.test(x.className);});return b?b.dataset.day:null;})()"); }
+  await N.hclick('#hcal td[data-act="calDay"][data-day="' + cell + '"]');
   assert((await N.popOpen()) && (await N.popBody()).indexOf('成交') >= 0, '點日曆的一格跟點一塊磚一樣：跳出那天的明細');
   assert(N.errs.length === 0, '3D 用不了也沒有頁面錯誤' + (N.errs.length ? '：' + N.errs.join(' | ') : ''));
   await N.close();

@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
-/* v9 表格世界：四張紙（A4 橫式等比例縮放）；最上面序號或密鑰框、去、骰子、四張紙的分頁、現在是誰 */
+/* v9 表格世界：五張紙（A4 橫式等比例縮放）；最上面序號或密鑰框、去、骰子、五張紙的分頁、現在是誰 */
 :root{
   --bg:#E6ECF1; --panel:#F7F9FB; --panel2:#EEF2F6; --ink:#16212D; --muted:#586676; --line:#C7D1DB; --grid:#D5DDE5;
   --brass:#A2731F; --brass-soft:#F1E4C8; --teal:#1C7A73; --teal-soft:#D5ECE9; --rose:#9C4450; --rose-soft:#F3DDE0; --blue:#2D5A86; --blue-soft:#DCE7F2;
@@ -43,7 +43,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .view{position:absolute;inset:0;overflow:hidden}
 
 
-/* ===== 表格世界：四張紙。每一頁就是紙本那張 A4 橫式（297×210），整張照畫面寬等比例縮放（1mm = 頁寬/297）；
+/* ===== 表格世界：五張紙。每一頁就是紙本那張 A4 橫式（297×210），整張照畫面寬等比例縮放（1mm = 頁寬/297）；
    欄位、格線、底下的說明跟印出來的一樣；寫進去的是藍墨、簽名是紅字（系統簽）。紙永遠是淺的，桌面跟著深淺模式 ===== */
 :root{--paper:#FDFCF8;--pen:#1F4A8A;--stamp:#A2392B;--gold:#9A6A12;--gold-ink:#FFFAF0;--hi:#FBF0D9;--rule:#999;--head:#EFECE4;--hand:"LXGW WenKai TC","Kaiti TC","DFKai-SB",serif}
 #view-table{background:var(--bg);min-height:100vh;padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
@@ -143,23 +143,28 @@ button.box{cursor:pointer}
 .whiteflash{position:fixed;inset:0;pointer-events:none;background:#fff;opacity:0;z-index:60}
 .whiteflash.go{animation:whiteflash .9s ease-out forwards}
 @keyframes whiteflash{0%{opacity:1}100%{opacity:0}}
-/* 日曆（彈出框裡的小日曆、3D 用不了時的達秒屋）：一格一天，跟磚一樣的狀態 */
-.cal{max-width:30em;margin:8px 2px}
-.calhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
-.cal .wk,.cal .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.cal .wk span{text-align:center;font-size:.76rem;color:var(--muted)}
-.cal .cd,.legend .cd{display:block;position:relative;min-height:42px;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:2px 4px;text-align:left;font-size:.78rem;cursor:pointer;color:var(--ink);font-family:var(--sans)}
-.cal .cd:disabled{cursor:default;opacity:.55}
-.cal .cd.pad,.cal .cd.none{border:0;background:transparent}
-.cal .cd .dn{font-variant-numeric:tabular-nums}
-.cal .cd .cnt{position:absolute;right:4px;bottom:2px;font-weight:700;font-size:.72rem}
-.cal .cd.lit1,.legend .cd.lit1{background:#F3D27C;border-color:#D6A93C;opacity:1}.cal .cd.lit2{background:#F7C33C;border-color:#C9951D;opacity:1}.cal .cd.lit3{background:#FFE58A;border-color:#B8860B;box-shadow:0 0 0 2px #FFD54A inset;opacity:1}
-.cal .cd.mark,.legend .cd.mark{opacity:1}.cal .cd.mark::after,.legend .cd.mark::after{content:'';position:absolute;right:6px;top:6px;width:7px;height:7px;border-radius:50%;background:var(--ink)}
-.cal .cd.cover,.legend .cd.cover{background:repeating-linear-gradient(45deg,#C9C3B6 0 6px,#B9B3A6 6px 12px);opacity:1}
-.cal .cd.fut,.legend .cd.fut{border-style:dashed;border-width:2px;background:transparent;opacity:1}
-.cal .cd.today{outline:2px solid var(--blue);outline-offset:1px}
-.legend{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:8px;color:var(--muted)}
-.legend .cd{display:inline-block;min-height:14px;width:18px;height:14px;padding:0;cursor:default}
+/* 日曆紙：一格一天；底色照磚（成交越多越亮）、沒成錯過小記號、還約著虛線框、蓋布、今天紅框、創角色以前空著 */
+.page .fields .tot{font-size:calc(var(--mm)*3.3);color:var(--muted)}
+.page .calp th{text-align:center;font-size:calc(var(--mm)*3.6);padding:calc(var(--mm)*1.2) 0}
+.page .calp td{vertical-align:top;position:relative;padding:calc(var(--mm)*1) calc(var(--mm)*1.2);font-family:var(--serif);color:var(--ink);overflow:hidden}
+.page .calp td.pad,.page .calp td.none{background:#F3F1EA}
+.page .calp td.day::after{content:"";position:absolute;right:0;top:0;border-style:solid;border-width:0 calc(var(--mm)*5) calc(var(--mm)*5) 0;border-color:transparent #DDD9CF transparent transparent}
+.page .calp td.none::after{display:none}
+.page .calp td.day[data-act]{cursor:pointer}
+.page .calp td.day[data-act]:hover{box-shadow:inset 0 0 0 calc(var(--mm)*.4) var(--gold)}
+.page .calp .dn{display:inline-block;min-width:calc(var(--mm)*5);text-align:center;border:calc(var(--mm)*.25) solid #999;border-radius:calc(var(--mm)*.6);font-size:calc(var(--mm)*3);line-height:1.5;color:var(--pen);font-variant-numeric:tabular-nums}
+.page .calp td.none .dn{color:#BBB;border-color:#DDD}
+.page .calp .ev{margin-top:calc(var(--mm)*.8);font-family:var(--hand);color:var(--pen);font-size:calc(var(--mm)*2.9);line-height:1.3}
+.page .calp .more{font-size:calc(var(--mm)*2.5);color:#777;margin-top:calc(var(--mm)*.4)}
+.page .calp td.lit1{background:#FBF0D9}.page .calp td.lit2{background:#F7E2B0}.page .calp td.lit3{background:#F3D27C}
+.page .calp td.lit1::after,.page .calp td.lit2::after,.page .calp td.lit3::after{border-right-color:var(--pen)}
+.page .calp td.mark::before{content:"";position:absolute;right:calc(var(--mm)*1.6);top:calc(var(--mm)*1.6);width:calc(var(--mm)*1.6);height:calc(var(--mm)*1.6);border-radius:50%;background:var(--ink);z-index:1}
+.page .calp td.cover{background:repeating-linear-gradient(45deg,#C9C3B6 0 calc(var(--mm)*1.5),#B9B3A6 calc(var(--mm)*1.5) calc(var(--mm)*3))}
+.page .calp td.fut.bk,.page .calp td.bk{box-shadow:inset 0 0 0 calc(var(--mm)*.5) #FFF,inset 0 0 0 calc(var(--mm)*.9) var(--pen)}
+.page .calp td.fut.bk{box-shadow:none;outline:calc(var(--mm)*.5) dashed var(--pen);outline-offset:calc(var(--mm)*-1.2)}
+.page .calp td.today{box-shadow:inset 0 0 0 calc(var(--mm)*.7) var(--stamp)}
+.page .calp td.today.fut.bk{outline-color:var(--stamp)}
+#hcal .scroll{padding:0}
 .sw{display:inline-block;width:18px;height:18px;border-radius:4px;border:1px solid var(--line);vertical-align:middle;margin-right:6px}
 .ent{border-bottom:1px solid var(--grid);padding:6px 0}
 .ent-h{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
@@ -173,7 +178,7 @@ button.box{cursor:pointer}
 .hbar .who{flex:1 1 12em;min-width:0;font-size:.9rem}
 #hstage{position:absolute;inset:0}
 #hstage canvas{display:block}
-#hcal{position:absolute;inset:0;overflow:auto;padding:110px 10px 90px;background:var(--bg)}
+#hcal{position:absolute;inset:0;overflow:auto;padding:110px 10px 90px;background:var(--bg);container-type:normal}
 .hfoot{position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;flex-direction:column;gap:6px;padding:6px 10px calc(8px + env(safe-area-inset-bottom,0px));pointer-events:none}
 .hfoot>*{pointer-events:auto}
 .htut{display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:space-between;padding:6px 10px;background:var(--brass-soft);border:1px solid var(--line);border-radius:var(--r-m)}
@@ -204,7 +209,7 @@ button.box{cursor:pointer}
 </style>
 
 <main id="view-table">
-  <div class="tbar"><input type="text" id="serialIn" placeholder="序號或密鑰" aria-label="序號或密鑰" autocomplete="off" inputmode="text"><button type="button" class="btn sm pri" data-act="serialGo" id="serialGo">去</button><button type="button" class="btn sm dice" data-act="dice" id="diceBtn" aria-label="隨機骰一個序號" title="隨機骰一個序號"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="16" cy="8" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="8" cy="16" r="1.8" fill="currentColor"/><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg></button><nav class="ttabs" id="ttabs" aria-label="四張紙"></nav><span class="who" id="tother"></span></div>
+  <div class="tbar"><input type="text" id="serialIn" placeholder="序號或密鑰" aria-label="序號或密鑰" autocomplete="off" inputmode="text"><button type="button" class="btn sm pri" data-act="serialGo" id="serialGo">去</button><button type="button" class="btn sm dice" data-act="dice" id="diceBtn" aria-label="隨機骰一個序號" title="隨機骰一個序號"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="16" cy="8" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="8" cy="16" r="1.8" fill="currentColor"/><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg></button><nav class="ttabs" id="ttabs" aria-label="五張紙"></nav><span class="who" id="tother"></span></div>
   <div id="rotHint">轉橫看整張紙</div>
   <div class="tutbar" id="tutbar" hidden></div>
   <div class="scroll"><div class="stage" id="tmain"></div></div>
@@ -1966,8 +1971,8 @@ var APP = (function () {
   };
 })();
 
-/* ===== v9 表格世界和達秒屋共用的小畫面：彈出框、白光、日曆（一格一天）、那天的明細、輸入格自動寬度 =====
- * 日曆和明細只拿 CORE.viewHouse／CORE.dayDetail 的結果來畫（看不到的東西根本不在回傳裡）。只呼叫 APP 和 CORE。
+/* ===== v9 五張紙和達秒屋共用的小畫面：彈出框、白光、一張紙的外殼、日曆紙（一個月一張、一格一天）、那天的明細、輸入格自動寬度 =====
+ * 日曆紙和明細只拿 CORE.viewHouse／CORE.dayDetail 的結果來畫（看不到的東西根本不在回傳裡）。只呼叫 APP 和 CORE。
  */
 var KIT = (function () {
   'use strict';
@@ -1991,7 +1996,12 @@ var KIT = (function () {
   function isOpen() { return !$('pop').hidden; }
   function flash() { var el = $('flash'); el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
 
-  /* ---------- 日曆：一個月一張，一格一天；每一格畫出跟磚一樣的狀態 ---------- */
+  /* ---------- 一張紙的外殼（四張紙和日曆紙共用）：標題、副標、上面的欄位、表、底下的說明 ---------- */
+  function page(key, title, sub, fields, body, foot, grow) {
+    return '<section class="page' + (grow ? ' grow' : '') + '" data-sheet="' + key + '"><header><div><h1>' + esc(title) + '</h1></div><div class="sub">' + sub + '</div></header>' + (fields ? '<div class="fields">' + fields + '</div>' : '') + body + (foot ? '<p class="foot">' + foot + '</p>' : '') + '</section>';
+  }
+
+  /* ---------- 日曆紙：一個月一張 A4 橫式，一格一天；底色、小記號、虛線框、蓋布照達秒屋的磚（同一份 viewHouse），一格裡寫那天的見面 ---------- */
   function cellCls(b) {
     if (!b) return 'none';
     var c = [];
@@ -2001,22 +2011,35 @@ var KIT = (function () {
   }
   // 那個月 1 號的 dayNum（本機日期）
   function monthStart(year, month) { var d = new Date(year, month, 1, 12); return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000); }
-  function calendar(ownerSerial, viewerSerial, offset) {
-    var v = CORE.viewHouse(APP.state(), ownerSerial, viewerSerial, APP.now()), byDay = {};
+  function ymOf(dn) { var l = CORE.dayLabel(dn); return { y: +l.slice(0, 4), m: +l.slice(5, 7) - 1 }; }
+  // owner 的日曆紙，viewer 看（藏的規則在 viewHouse／dayDetail 裡）；y、m（0 起）是哪個月
+  function calSheet(ownerSerial, viewerSerial, y, m) {
+    var S = APP.state(), now = APP.now(), owner = APP.roleOf(ownerSerial), v = CORE.viewHouse(S, ownerSerial, viewerSerial, now), byDay = {};
     v.bricks.forEach(function (b) { byDay[b.day] = b; });
-    var now = new Date(APP.now() / 1000), base = new Date(now.getFullYear(), now.getMonth() + (offset || 0), 1, 12);
-    var y = base.getFullYear(), m = base.getMonth(), first = monthStart(y, m), days = new Date(y, m + 1, 0).getDate(), lead = new Date(y, m, 1).getDay();
-    var cells = '';
-    for (var i = 0; i < lead; i++) cells += '<span class="cd pad"></span>';
-    for (var d = 0; d < days; d++) {
-      var dn = first + d, b = byDay[dn], cls = cellCls(b), canOpen = b && !v.closed && (b.n || b.cover);
-      cells += '<button type="button" class="cd ' + cls + (dn === v.today ? ' today' : '') + '" data-day="' + dn + '"' + (canOpen ? '' : ' disabled') + ' aria-label="' + (m + 1) + ' 月 ' + (d + 1) + ' 日"><span class="dn">' + (d + 1) + '</span>' + (b && b.lit > 1 ? '<span class="cnt">' + b.lit + '</span>' : '') + '</button>';
+    var first = monthStart(y, m), days = new Date(y, m + 1, 0).getDate(), lead = new Date(y, m, 1).getDay(), rows = Math.ceil((lead + days) / 7), mine = viewerSerial === ownerSerial;
+    var cnt = { traded: 0, nodock: 0, miss: 0, booked: 0 }, cells = [], h = rows >= 6 ? 22.5 : 27;
+    for (var i = 0; i < lead; i++) cells.push('<td class="pad"></td>');
+    for (var k = 0; k < days; k++) {
+      var dn = first + k, b = byDay[dn], lines = [], more = '', cls = dn < v.born ? 'none' : b ? cellCls(b) : 'empty';
+      if (!v.closed && dn >= v.born && b && (b.n || b.cover)) {
+        var d = CORE.dayDetail(S, ownerSerial, viewerSerial, dn, now);
+        if (!d.closed) {
+          d.entries.forEach(function (e) { var st = e.status === 'traded' ? 'traded' : e.status === 'booked' ? 'booked' : e.status === 'miss' ? 'miss' : 'nodock'; cnt[st]++; lines.push(esc(e.time + ' ' + e.other.name + (st === 'booked' ? '（約）' : st === 'miss' ? '（錯過）' : st === 'nodock' ? '（沒成）' : ''))); });
+          if (lines.length > 3) { more = '還有 ' + (lines.length - 3) + ' 筆'; lines = lines.slice(0, 3); }
+          if (d.covered) more += (more ? '・' : '') + d.covered + ' 筆蓋著';
+        }
+      }
+      var can = !v.closed && dn >= v.born;
+      cells.push('<td class="day ' + cls + (dn === v.today ? ' today' : '') + '"' + (can ? ' data-act="calDay" data-day="' + dn + '" tabindex="0" role="button"' : ' data-day="' + dn + '"') + '><span class="dn">' + (k + 1) + '</span>' + (lines.length ? '<div class="ev">' + lines.join('<br>') + '</div>' : '') + (more ? '<div class="more">' + esc(more) + '</div>' : '') + '</td>');
     }
-    var head = '<div class="calhead"><button type="button" class="btn sm" data-cal="-1" aria-label="上個月">‹ 上個月</button><b class="num">' + y + ' 年 ' + (m + 1) + ' 月</b><button type="button" class="btn sm" data-cal="1" aria-label="下個月">下個月 ›</button></div>';
-    var legend = v.closed ? '<div class="small muted">只給鄰居看：看不出亮暗，也點不開。</div>' : '<div class="legend small"><span class="cd lit1"></span>有成交（越多越亮）<span class="cd mark"></span>只有不成交或錯過<span class="cd cover"></span>蓋著<span class="cd fut bk"></span>未來的預約</div>';
-    return '<div class="cal" data-owner="' + esc(ownerSerial) + '" data-month="' + (offset || 0) + '">' + head + '<div class="wk"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div><div class="grid">' + cells + '</div>' + legend + '</div>';
+    while (cells.length % 7) cells.push('<td class="pad"></td>');
+    var trs = ''; for (var r = 0; r < cells.length / 7; r++) trs += '<tr style="height:calc(var(--mm)*' + h + ')">' + cells.slice(r * 7, r * 7 + 7).join('') + '</tr>';
+    var sub = '<button type="button" class="mini o" data-act="calMonth" data-n="-1">‹ 前一個月</button><button type="button" class="mini o" data-act="calMonth" data-n="1">後一個月 ›</button>　一個月一張・一格一天' + (v.closed ? '・<span class="tagp off">只給鄰居看</span>' : '');
+    var fields = '<span><span class="ln s">' + y + '</span> 年 <span class="ln s">' + (m + 1) + '</span> 月</span><span>名字 <span class="ln">' + esc(owner ? owner.name : CORE.abbrev(ownerSerial)) + (mine ? '（我）' : '') + '</span></span><span class="tot">這個月成交 <b class="num">' + cnt.traded + '</b> 次・沒成 <b class="num">' + cnt.nodock + '</b> 次・錯過 <b class="num">' + cnt.miss + '</b> 次・還約著 <b class="num">' + cnt.booked + '</b> 次</span>';
+    var body = '<table class="calp" data-y="' + y + '" data-m="' + m + '"><colgroup>' + '<col style="width:14.28%">'.repeat(7) + '</colgroup><thead><tr><th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th></tr></thead><tbody>' + trs + '</tbody></table>';
+    var foot = mine ? '<b>一格一天</b>：底色跟達秒屋的磚一樣，成交越多越亮，沒成、錯過有小記號，還約著的是虛線框；創角色以前的日子空著，今天紅框。<b>點一格</b>翻到那天的事件簿，還沒到的日子也能點，進去可以開時段。' : '<b>' + esc(owner ? owner.name : '') + ' 的日曆</b>：跟看他的達秒屋一樣，他藏起來的那幾筆看不到（蓋布）；點一格看那天。';
+    return page('cal', '日曆', sub, fields, body, foot);
   }
-
   /* ---------- 那天的明細：點一格或點一塊磚 ---------- */
   function itemsText(items) { return items.length ? items.map(function (it) { return it.name + '（' + it.price + ' 點）' + (it.state ? '［' + it.state + '］' : ''); }).join('、') : '（沒有）'; }
   function dayPop(ownerSerial, day, onChange) {
@@ -2042,12 +2065,6 @@ var KIT = (function () {
   }
   function tagFor(e) { var cls = { traded: '', nodock: 'bad', invalid: 'bad', miss: 'bad', booked: 'wait' }[e.status]; return '<span class="tag ' + (cls == null ? 'off' : cls) + '">' + esc(e.result) + '</span>'; }
   function alertMsg(t) { var el = document.createElement('div'); el.className = 'small warn'; el.textContent = t; $('popBody').prepend(el); }
-  // 日曆的事件：換月、點一格（container 裡的 .cal）
-  function bindCalendar(container, rerender) {
-    container.querySelectorAll('.cal [data-cal]').forEach(function (b) { b.onclick = function () { rerender(+b.closest('.cal').dataset.month + +b.dataset.cal); }; });
-    container.querySelectorAll('.cal [data-day]').forEach(function (b) { b.onclick = function () { if (b.disabled) return; dayPop(b.closest('.cal').dataset.owner, +b.dataset.day, function () { rerender(+b.closest('.cal').dataset.month); }); }; });
-  }
-
   /* ---------- 輸入格自動寬度：提示字和內容都不能被切掉 ---------- */
   var ctx = null;
   function textWidth(t, font) { if (!ctx) ctx = document.createElement('canvas').getContext('2d'); ctx.font = font; return ctx.measureText(t).width; }
@@ -2062,7 +2079,7 @@ var KIT = (function () {
   }
   document.addEventListener('input', function (e) { if (e.target && e.target.matches && e.target.matches('input')) fitInputs(e.target.parentNode); });
 
-  return { pop: pop, close: close, isOpen: isOpen, flash: flash, calendar: calendar, bindCalendar: bindCalendar, dayPop: dayPop, cellCls: cellCls, fitInputs: fitInputs, textWidth: textWidth };
+  return { pop: pop, close: close, isOpen: isOpen, flash: flash, page: page, calSheet: calSheet, ymOf: ymOf, dayPop: dayPop, cellCls: cellCls, fitInputs: fitInputs, textWidth: textWidth };
 })();
 
 /* ===== v9 達秒屋（3D）：只畫 CORE.viewHouse 回傳的資料 =====
@@ -2457,9 +2474,9 @@ var WORLD = (function () {
   return api;
 })();
 
-/* ===== v9 表格世界：四張紙（DESIGN 7-1、補十五） =====
+/* ===== v9 表格世界：五張紙（DESIGN 7-1、補十五、補十六） =====
  * 每一頁就是紙本那張 A4 橫式（297×210），整張照畫面寬等比例縮放；欄位、格線、底下的說明跟印出來的一樣，格子裡多了按鈕。
- * 最上面一列：「序號或密鑰」框、去、骰子、四張紙的分頁（事件簿、資源表、公告欄、更多）、現在是誰。
+ * 最上面一列：「序號或密鑰」框、去、骰子、五張紙的分頁（事件簿、日曆、資源表、公告欄、更多）、現在是誰。一打開是今天的事件簿。
  * 寫進去的是藍字、簽名是紅字（系統簽）。只呼叫 APP、CORE 和共用的 KIT；要去達秒屋就叫 APP.goHouse。
  */
 var SHEETS = (function () {
@@ -2468,11 +2485,11 @@ var SHEETS = (function () {
   var esc = APP.esc, opt = APP.opt, now = APP.now;
   var S = function () { return APP.state(); }, me = function () { return APP.me(); };
   var roleOf = APP.roleOf, ver = APP.ver, pend = APP.pend;
-  var TABS = [['log', '事件簿'], ['res', '資源表'], ['find', '公告欄'], ['more', '更多']];
+  var TABS = [['log', '事件簿'], ['cal', '日曆'], ['res', '資源表'], ['find', '公告欄'], ['more', '更多']];
   var MORE = [['rules', '規則表', '用途、對接條件、兩個開關、家規和家規網站、每人最多給的預設'], ['together', '一起成交', '幾個人湊成一圈一起換：開時段時勾「一起成交」'], ['greet', '打招呼密鑰', '常見面的人：在框裡輸入密鑰當場換一次'], ['slots', '我開的時段', '整理全部時段、刪掉沒人約的'], ['house', '我的達秒屋', '門牌、整間屋給誰看、新的一筆預設、去蓋房子'], ['village', '鄰居和村子', '第 6 輪才有'], ['role', '角色設定', '聯絡方式、不玩了（最下面是測試用的換人）'], ['help', '說明', '每個字是什麼意思']];
-  var NAMES = { log: '事件簿', res: '資源表', find: '公告欄', more: '更多', orules: '他的規則' };
+  var NAMES = { log: '事件簿', cal: '日曆', res: '資源表', find: '公告欄', more: '更多', orules: '他的規則' };
   MORE.forEach(function (m) { NAMES[m[0]] = m[1]; });
-  var UI = { sheet: 'log', other: null, osheet: 'res', day: null, kw: '', msg: '', focus: null, page: 0, dice: null };
+  var UI = { sheet: 'log', other: null, osheet: 'res', day: null, kw: '', msg: '', focus: null, page: 0, dice: null, cal: null };   // cal：日曆紙翻到哪個月 {y, m}，null＝這個月
   if (APP.isBlank()) UI.sheet = 'res';
   var MM = function (n) { return 'calc(var(--mm)*' + n + ')'; };
 
@@ -2493,10 +2510,7 @@ var SHEETS = (function () {
   function pad(n, cols, h) { var s = ''; for (var i = 0; i < n; i++) s += '<tr class="blank"' + rowH(h) + '>' + '<td></td>'.repeat(cols) + '</tr>'; return s; }
   function cols(ws) { return '<colgroup>' + ws.map(function (w) { return '<col style="width:' + w + '%">'; }).join('') + '</colgroup>'; }
   function th(list) { return '<thead><tr>' + list.map(function (c) { return '<th>' + c[0] + (c[1] ? '<small>' + c[1] + '</small>' : '') + '</th>'; }).join('') + '</tr></thead>'; }
-  // 一張紙：標題、副標、上面的欄位、表、底下的說明
-  function page(key, title, sub, fields, body, foot, grow) {
-    return '<section class="page' + (grow ? ' grow' : '') + '" data-sheet="' + key + '"><header><div><h1>' + esc(title) + '</h1></div><div class="sub">' + sub + '</div></header>' + (fields ? '<div class="fields">' + fields + '</div>' : '') + body + (foot ? '<p class="foot">' + foot + '</p>' : '') + '</section>';
-  }
+  var page = KIT.page;   // 一張紙：標題、副標、上面的欄位、表、底下的說明
   function ln(html, cls) { return '<span class="ln' + (cls ? ' ' + cls : '') + '">' + html + '</span>'; }
   function inp(attrs, value, ph) { return '<input type="text" class="w"' + attrs + ' value="' + esc(value == null ? '' : value) + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>'; }
   function eligTag(e) { return e.self ? '<span class="tagp off">自己</span>' : e.ok ? '<span class="tagp">通</span>' : '<span class="tagp bad" title="' + esc(e.reason) + '">不通：' + esc(e.reason) + '</span>'; }
@@ -2551,7 +2565,7 @@ var SHEETS = (function () {
     var held = S().holds.filter(function (h) { return h.holder === m.serial && CORE.dayNum(h.atUs) !== dn && (CORE.holdStatus(h, t) === 'held' || (h.status === 'redeemed' && CORE.dayNum(h.redeemedAt) === dn)); }).sort(function (a, b) { return a.atUs - b.atUs; });
     var trs2 = held.slice(0, 3).map(function (h) { return '<tr data-row data-id="' + h.id + '"' + rowH(8.6) + '><td>' + md(CORE.dayNum(h.atUs)) + '</td><td>' + lk(h.issuer) + ' ' + esc(nameOf(h.issuer)) + '</td><td>' + esc(h.name) + '<small>' + (h.untilDay == null ? '一直留' : '留到 ' + md(h.untilDay)) + '</small></td><td>' + (h.status === 'redeemed' ? hhmm(h.redeemedAt) + ' ' + sig(nameOf(h.issuer)) : btn('redeem', '兌現', ' data-id="' + h.id + '"')) + '</td></tr>'; }).join('') + pad(Math.max(0, 3 - held.length), 4, 8.6) + (held.length > 3 ? '<tr' + rowH(6) + '><td colspan="4" class="dim">還有 ' + (held.length - 3) + ' 筆，在「更多」裡看</td></tr>' : '');
     var remind = reminders(m);
-    var sub = btn('prevDay', '‹ 前一天', '', 'o') + btn('nextDay', '後一天 ›', '', 'o') + (isToday ? '' : btn('today', '今天', '', 'o')) + '　一天一張・照時間往下寫・舊的收在一起就是日曆' + (pages > 1 ? '　' + btn('pagePrev', '‹', UI.page ? '' : ' disabled', 'o') + ' 第 ' + (UI.page + 1) + '／' + pages + ' 張 ' + btn('pageNext', '›', UI.page < pages - 1 ? '' : ' disabled', 'o') : '');
+    var sub = btn('prevDay', '‹ 前一天', '', 'o') + btn('nextDay', '後一天 ›', '', 'o') + (isToday ? '' : btn('today', '今天', '', 'o')) + '　一天一張・照時間往下寫・點日期到日曆紙' + (pages > 1 ? '　' + btn('pagePrev', '‹', UI.page ? '' : ' disabled', 'o') + ' 第 ' + (UI.page + 1) + '／' + pages + ' 張 ' + btn('pageNext', '›', UI.page < pages - 1 ? '' : ' disabled', 'o') : '');
     var fields = '<span>日期 ' + ln('<button type="button" class="lk" data-act="pickDay">' + esc(dayText(dn)) + '</button>') + '</span><span>名字 ' + ln(esc(m.name) + '（' + esc(CORE.abbrev(m.serial)) + '）') + '</span><span>今天最多給 ' + ln(String(daily), 's') + ' 點</span>' + (isToday ? '<span>現在還能給 ' + ln('<b id="energyText">' + CORE.remainingToday(S(), m, t) + '</b>', 's') + ' 點</span>' : '');
     var body = (remind ? '<div class="remind">' + remind + '</div>' : '') + '<table>' + cols([8, 12, 17, 20, 9, 8, 11, 15]) + th([['時間'], ['跟誰'], ['我給他', '他選了我的什麼・價錢'], ['我收到', '我選了他的什麼・保留到哪天'], ['結果', '成交／沒成／沒來'], ['今天還剩', '點'], ['對方簽名', '成交就自動簽'], ['兌現', '哪天・對方簽名']]) + '<tbody>' + trs + '</tbody></table>' +
       '<div class="lab">以前收到、還沒兌現的（今天去換）</div><table>' + cols([16, 16, 40, 28]) + th([['哪天收到的'], ['誰的'], ['什麼東西'], ['兌現・對方簽名']]) + '<tbody>' + trs2 + '</tbody></table>';
@@ -2566,18 +2580,12 @@ var SHEETS = (function () {
     m.slots.forEach(function (s) { if (!s.judged && s.together && s.bookings.length) out.push('你開的 ' + hhmm(s.atUs) + ' 是一起成交的時段：' + esc(CORE.togetherStatus(S(), s))); });
     return out.join('；');
   }
-  // 點日期：跳出一個月的小日曆，點一格就翻到那天
-  function pickDay(offset) {
-    var base = new Date(now() / 1000), d = new Date(base.getFullYear(), base.getMonth() + (offset || 0), 1, 12), y = d.getFullYear(), mo = d.getMonth();
-    var first = CORE.dayNum(new Date(y, mo, 1, 12).getTime() * 1000), days = new Date(y, mo + 1, 0).getDate(), lead = new Date(y, mo, 1).getDay(), m = me();
-    var v = CORE.viewHouse(S(), m.serial, m.serial, now()), byDay = {}; v.bricks.forEach(function (b) { byDay[b.day] = b; });
-    var cells = ''; for (var i = 0; i < lead; i++) cells += '<span class="cd pad"></span>';
-    for (var k = 0; k < days; k++) { var dn = first + k, b = byDay[dn]; cells += '<button type="button" class="cd ' + KIT.cellCls(b) + (dn === today() ? ' today' : '') + '" data-jump="' + dn + '"><span class="dn">' + (k + 1) + '</span>' + (b && b.lit > 1 ? '<span class="cnt">' + b.lit + '</span>' : '') + '</button>'; }
-    var html = '<div class="cal"><div class="calhead"><button type="button" class="btn sm" data-mo="' + ((offset || 0) - 1) + '">‹ 上個月</button><b class="num">' + y + ' 年 ' + (mo + 1) + ' 月</b><button type="button" class="btn sm" data-mo="' + ((offset || 0) + 1) + '">下個月 ›</button></div><div class="wk"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div><div class="grid">' + cells + '</div><div class="small muted">點一格就翻到那天；亮的是有成交的日子</div></div>';
-    KIT.pop('翻到哪一天', { html: html }, [{ label: '不要', pri: true }]);
-    $('popBody').querySelectorAll('[data-mo]').forEach(function (b) { b.onclick = function () { pickDay(+b.dataset.mo); }; });
-    $('popBody').querySelectorAll('[data-jump]').forEach(function (b) { b.onclick = function () { KIT.close(); UI.day = +b.dataset.jump; UI.page = 0; render(); }; });
-  }
+  /* ---------- 日曆紙：一個月一張（共用 KIT.calSheet；自己的點一格翻到那天的事件簿，他的點一格看那天） ---------- */
+  function calYM() { if (!UI.cal) { var ym = KIT.ymOf(today()); UI.cal = { y: ym.y, m: ym.m }; } return UI.cal; }
+  function calPage() { var r = view(), ym = calYM(), html = KIT.calSheet(r.serial, APP.isBlank() ? null : me().serial, ym.y, ym.m); return mine() ? html : html.replace('<div class="sub">', '<div class="sub">' + btn('visit', '‹ 他的資源表', ' data-id="' + r.serial + '"', 'o') + '　'); }
+  function calMonth(n) { var ym = calYM(), d = new Date(ym.y, ym.m + n, 1); UI.cal = { y: d.getFullYear(), m: d.getMonth() }; render(); }
+  // 事件簿點日期：到日曆紙的那個月
+  function pickDay() { var ym = KIT.ymOf(dayOf()); UI.cal = { y: ym.y, m: ym.m }; UI.sheet = 'cal'; UI.other = null; UI.msg = ''; render(); }
   // 選他的東西：每樣東西一行，點了就選（可以多樣）
   function pickItems(slotId, other) {
     var x = CORE.slotOf(S(), slotId); if (!x || x.slot.judged) { msg('那一微秒已經過了'); return; }
@@ -2636,7 +2644,7 @@ var SHEETS = (function () {
       return '<tr data-row data-id="' + s.id + '"' + rowH(8) + '><td>' + CORE.dayLabel(CORE.dayNum(s.atUs)).slice(5) + ' ' + hhmm(s.atUs) + '<small>' + CORE.fmtUs(s.atUs).slice(17) + '</small>' + (s.together ? '<span class="cd">一起成交 ' + esc(CORE.togetherStatus(S(), s)) + '</span>' : '') + '</td><td>' + s.bookings.length + '／' + s.capacity + '</td><td>' + act + '</td></tr>';
     }).join('') + pad(Math.max(0, 3 - up.length), 3, 8) + (up.length > 3 ? '<tr' + rowH(5) + '><td colspan="3" class="dim">還有 ' + (up.length - 3) + ' 個時段</td></tr>' : '');
     return '<div class="lab">他的時段（' + (up.length ? up.length + ' 個' : '沒有開放的時段') + '）</div><table>' + cols([46, 14, 40]) + th([['那一微秒'], ['名額'], ['約他', '會到預設勾著：約的時候就確認到達']]) + '<tbody>' + trs + '</tbody></table>' +
-      '<div class="acts">' + btn('orules', '看他的規則', ' data-id="' + r.serial + '"') + btn('house', '看他的達秒屋', ' data-id="' + r.serial + '"') + btn('greetSet', '跟他設打招呼密鑰', ' data-id="' + r.serial + '"') + btn('home', '回我自己', '', 'o') + '</div>';
+      '<div class="acts">' + btn('orules', '看他的規則', ' data-id="' + r.serial + '"') + btn('ocal', '看他的日曆', ' data-id="' + r.serial + '"') + btn('house', '看他的達秒屋', ' data-id="' + r.serial + '"') + btn('greetSet', '跟他設打招呼密鑰', ' data-id="' + r.serial + '"') + btn('home', '回我自己', '', 'o') + '</div>';
   }
   // 還沒創角色：資源表那張紙已經寫好第一行「空的」，填名字和每天的點就好
   function createPage() {
@@ -2743,9 +2751,10 @@ var SHEETS = (function () {
     return page('role', '角色設定', back() + '聯絡方式、不玩了', '', kv(rows), '', true);
   }
   var HELP = [
-    ['四張紙', '事件簿、資源表、公告欄、更多，跟紙本一模一樣的 A4 橫式。手機轉橫看整張；直放可以左右滑。寫進去的是藍字，簽名是紅字（系統簽）。'],
+    ['五張紙', '事件簿、日曆、資源表、公告欄、更多，跟紙本一模一樣的 A4 橫式。手機轉橫看整張；直放可以左右滑。寫進去的是藍字，簽名是紅字（系統簽）。'],
+    ['日曆', '一個月一張，一格一天：底色跟達秒屋的磚一樣，成交越多越亮，沒成、錯過有小記號，還約著的是虛線框，今天紅框；一格裡寫那天幾點跟誰。點一格翻到那天的事件簿。他的日曆在他的那張紙「看他的日曆」，照藏的規則。'],
     ['序號或密鑰框和骰子', '最上面的框輸入序號（例如 J2）按「去」就到那個人的資源表；輸入打招呼密鑰就跟配對的人當場換一次（等對方 1 分鐘）。按骰子骰一個還在玩的人的序號進框裡，按「去」才過去，不喜歡可以再骰。'],
-    ['事件簿', '一天一張，一行一次見面：時間、跟誰、我給他、我收到、結果、今天還剩、對方簽名、兌現。還沒到的那一行淡黃：倒數、選他的東西、會到的勾（預設勾著）、取消。在空白那一行的時間格寫時間就開了一個時段。下面一小張是以前收到、還沒兌現的（就是背包）。點日期跳出小日曆翻到那天。'],
+    ['事件簿', '一天一張，一行一次見面：時間、跟誰、我給他、我收到、結果、今天還剩、對方簽名、兌現。還沒到的那一行淡黃：倒數、選他的東西、會到的勾（預設勾著）、取消。在空白那一行的時間格寫時間就開了一個時段。下面一小張是以前收到、還沒兌現的（就是背包）。點日期到日曆紙的那個月。'],
     ['資源表', '一行一樣東西：東西、種類（訊息／行為／物質，必選一個）、怎樣算給到了（寫到對方確定收到沒）、價錢、保留幾天、有幾份（小格子，被選走的劃掉）。直接在格子裡打字就是改，明天起算；在空白那一行寫名字就是加；「…」裡可以下架。不能寫錢和違法的東西。'],
     ['公告欄', '上面的框打一個詞，公告和別人的資源表一起找。第一行是自己的公告，寫好按「掛上去」；別人的旁邊「約他」約他下一個時段。下半張是誰的資源表裡有東西，標你通不通他的條件。'],
     ['那一微秒', '成交那一刻整個畫面白光一閃，跳出成交結果：我給他、我收到；那一行變成交、對方簽名變紅字。沒開著的話，下次打開跳出「你不在的時候」。成交結果裡可以勾「以後每天這個時間自動約」，兩邊都勾就成固定約，事件簿每天那一行標「每天」，按「停」結束。'],
@@ -2783,14 +2792,14 @@ var SHEETS = (function () {
   function render() {
     var m = me(), o = UI.other ? roleOf(UI.other) : null;
     if (UI.other && !o) UI.other = null;
-    $('tother').innerHTML = o ? '<b>' + esc(CORE.abbrev(o.serial) + ' ' + o.name) + '</b> 的那張紙 ' + btn('home', '回我自己', '', 'o') : '<span class="small muted">' + (APP.isBlank() ? '還沒創角色' : '我是 <b>' + esc(CORE.abbrev(m.serial) + ' ' + m.name) + '</b>') + '</span>';
+    $('tother').innerHTML = o ? '<b>' + esc(CORE.abbrev(o.serial) + ' ' + o.name) + '</b> 的' + (UI.osheet === 'cal' ? '日曆 ' : '那張紙 ') + btn('home', '回我自己', '', 'o') : '<span class="small muted">' + (APP.isBlank() ? '還沒創角色' : '我是 <b>' + esc(CORE.abbrev(m.serial) + ' ' + m.name) + '</b>') + '</span>';
     var st = APP.tutActive() && !APP.isBlank() ? APP.steps() : null;
     $('tutbar').hidden = !APP.tutActive();
     if (APP.tutActive()) $('tutbar').innerHTML = '<span class="small">' + esc(APP.isBlank() ? '新手教學 ① 創角色：資源表那張紙已經寫好「空的」，填名字和每天的點，按「建立」' : st.hint) + '</span>' + (APP.tut().step === 6 ? btn('myHouse', '去我的達秒屋', '', 'go') : '') + (APP.isBlank() ? '' : btn('tutSkip', '跳過教學', '', 'o'));
     var cur = o ? null : (MORE.some(function (x) { return x[0] === UI.sheet; }) ? 'more' : UI.sheet);
     $('ttabs').innerHTML = TABS.map(function (t) { return '<button type="button" class="tab' + (cur === t[0] ? ' on' : '') + '" data-act="tab" data-s="' + t[0] + '"' + (cur === t[0] ? ' aria-current="page"' : '') + '>' + esc(t[1]) + '</button>'; }).join('');
     var key = o ? UI.osheet : UI.sheet, scroll = window.scrollY, same = render.last === (o ? o.serial + ':' : '') + key;
-    var P = { log: logPage, res: resPage, find: findPage, more: morePage, rules: rulesPage, together: togetherPage, greet: greetPage, slots: slotsPage, house: housePage, village: villagePage, role: rolePage, help: helpPage, orules: orulesPage };
+    var P = { log: logPage, cal: calPage, res: resPage, find: findPage, more: morePage, rules: rulesPage, together: togetherPage, greet: greetPage, slots: slotsPage, house: housePage, village: villagePage, role: rolePage, help: helpPage, orules: orulesPage };
     if (!P[key]) key = o ? 'res' : 'log';
     $('tmain').innerHTML = '<div class="msg" id="tmsg"' + (UI.msg ? '' : ' hidden') + '>' + esc(UI.msg) + '</div>' + P[key]();
     if (!same) window.scrollTo(0, 0); else if (window.scrollY !== scroll) window.scrollTo(0, scroll);
@@ -2802,13 +2811,14 @@ var SHEETS = (function () {
   function tab(sheet, id) {
     UI.other = null; UI.sheet = NAMES[sheet] ? sheet : 'log'; UI.focus = id || null; UI.msg = ''; UI.page = 0;
     if (sheet === 'log' && !id) UI.day = null;
+    if (sheet === 'cal') UI.cal = null;
     render();
   }
   // 到他的那張紙（how：從哪裡來的，教學用）
   function visit(serial, sheet, how) {
     var r = roleOf(serial); if (!r) { msg('找不到這個序號'); return false; }
     if (r === me()) { UI.other = null; tab(NAMES[sheet] && sheet !== 'orules' ? sheet : 'res'); return true; }
-    UI.other = serial; UI.osheet = sheet === 'orules' || sheet === 'rules' ? 'orules' : 'res'; UI.msg = ''; UI.page = 0;
+    UI.other = serial; UI.osheet = sheet === 'orules' || sheet === 'rules' ? 'orules' : sheet === 'cal' ? 'cal' : 'res'; UI.msg = ''; UI.page = 0; if (sheet === 'cal') UI.cal = null;
     if (how === 'serial') APP.tutEvent('go', serial);
     if (serial === APP.GUIDE && (how === 'serial' || how === 'notice')) APP.tutEvent('foundGuide');
     render(); return true;
@@ -2865,13 +2875,16 @@ var SHEETS = (function () {
     open: function (b) { tab(b.dataset.s); },
     visit: function (b) { visit(b.dataset.id, 'res', b.closest('[data-sheet="find"]') ? 'notice' : 'link'); },
     home: home,
-    orules: function (b) { visit(b.dataset.id, 'orules', 'link'); if (b.dataset.id === APP.GUIDE) APP.tutEvent('sawGuideRules'); },
+    orules: function (b) { visit(b.dataset.id, 'orules', 'link'); },
     house: function (b) { APP.goHouse(b.dataset.id); },
     build: function () { APP.goHouse(me().serial, true); },
     myHouse: function () { APP.goHouse(me().serial); },
     serialGo: goSerial, dice: dice,
     prevDay: function () { UI.day = dayOf() - 1; UI.page = 0; render(); }, nextDay: function () { UI.day = dayOf() + 1; UI.page = 0; render(); }, today: function () { UI.day = null; UI.page = 0; render(); },
-    pickDay: function () { pickDay(0); },
+    pickDay: pickDay,
+    calMonth: function (b) { calMonth(+b.dataset.n); },
+    calDay: function (b) { var dn = +b.dataset.day; if (mine()) { UI.day = dn === today() ? null : dn; UI.page = 0; UI.sheet = 'log'; UI.msg = ''; render(); } else KIT.dayPop(UI.other, dn, function () { render(); }); },
+    ocal: function (b) { visit(b.dataset.id, 'cal', 'link'); },
     pagePrev: function () { UI.page = Math.max(0, UI.page - 1); render(); }, pageNext: function () { UI.page++; render(); },
     goLog: function (b) { UI.other = null; UI.sheet = 'log'; UI.day = +b.dataset.day; UI.page = 0; UI.focus = (CORE.entriesOf(S()).find(function (e) { return e.slot === b.dataset.id && (e.a === me().serial || e.b === me().serial); }) || { id: b.dataset.id }).id; render(); },
     pick: function (b) { pickItems(b.dataset.id, b.dataset.other); },
@@ -2976,13 +2989,13 @@ var TABLE = SHEETS;
 /* ===== v9 達秒屋的畫面：外面整個畫面就是達秒屋 =====
  * 最上面一列：序號或密鑰框、去、骰子（骰一個序號進框裡）、誰的達秒屋、回我的四張紙。自己的屋多一個「蓋」；「看日曆」鏡頭轉回這個月那一塊日曆。
  * 點日曆上的磚看那天、點門到他的表格世界；蓋的時候：選方塊、點一個面加一塊、切到「拆」點一塊拿掉、點擺設轉方向、選門搬門、日曆往哪長、復原上一步、範本。
- * 3D 用不了就顯示成日曆。只呼叫 APP、CORE、KIT、WORLD。
+ * 3D 用不了就顯示成日曆紙（一個月一張）。只呼叫 APP、CORE、KIT、WORLD。
  */
 var HOUSE = (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var esc = APP.esc;
-  var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], month: 0, shown: false, ready: false };
+  var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], cal: null, shown: false, ready: false };   // cal：3D 用不了時日曆紙翻到哪個月
   function me() { return APP.me(); }
   function viewer() { return APP.isBlank() ? null : me().serial; }
   function data() { return CORE.viewHouse(APP.state(), st.serial, viewer(), APP.now()); }
@@ -3015,12 +3028,12 @@ var HOUSE = (function () {
       var pv = v.cal.preview, note = !pv ? '這一面放滿了，下一塊沒地方長' : pv.fallback ? '這個方向長不了，這次會放到最近的空位' : pv.dir !== v.cal.dir ? '這個方向長不了，這次會往' + CORE.CAL_DIRS[pv.dir] : '下個月長在框那裡';
       $('hDirNote').textContent = note + (pv && pv.removes ? '，會拆 ' + pv.removes + ' 塊' : '');
     }
-    $('hhint').textContent = st.building ? (st.mode === 'add' ? (st.kind === 'door' ? '選了門：點一個地方門就搬過去；點門轉方向。' : '選一種方塊，點一個面加一塊；點擺設或門轉方向。') : '拆：點一塊就拿掉（日曆和門拆不掉）。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點日曆上的磚看那天，點門進' + (own ? '我' : '他') + '的資源表' + (v.cal.preview && v.cal.preview.removes ? '；下個月的日曆會拆 ' + v.cal.preview.removes + ' 塊' : '') : '3D 用不了：達秒屋顯示成日曆，點一格跟點一塊磚一樣');
+    $('hhint').textContent = st.building ? (st.mode === 'add' ? (st.kind === 'door' ? '選了門：點一個地方門就搬過去；點門轉方向。' : '選一種方塊，點一個面加一塊；點擺設或門轉方向。') : '拆：點一塊就拿掉（日曆和門拆不掉）。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點日曆上的磚看那天，點門進' + (own ? '我' : '他') + '的資源表' + (v.cal.preview && v.cal.preview.removes ? '；下個月的日曆會拆 ' + v.cal.preview.removes + ' 塊' : '') : '3D 用不了：達秒屋顯示成日曆紙，點一格跟點一塊磚一樣');
     tutBar();
     if (WORLD.available) { var vb = $('view-house').getBoundingClientRect(), hb = document.querySelector('.hbar').getBoundingClientRect(), fb = document.querySelector('.hfoot').getBoundingClientRect(); WORLD.setInsets(hb.bottom - vb.top, vb.bottom - fb.top); }
     if (WORLD.available) WORLD.show(v, { building: st.building, resetCamera: opts && opts.resetCamera });
     if (own && v.calRemoved && !KIT.isOpen()) { var n = CORE.ackCalRemoved(APP.state(), me().serial); APP.changed(); KIT.pop('日曆長到這裡，拆了 ' + n + ' 塊', '日曆每個月長一塊，長到的地方和它正面前面的方塊會拆掉。在「蓋」裡可以改下一塊往哪長。'); }
-    if (!WORLD.available) { $('hcal').innerHTML = KIT.calendar(st.serial, viewer(), st.month); KIT.bindCalendar($('hcal'), function (m) { st.month = m; render(); }); }
+    if (!WORLD.available) { if (!st.cal) { var ym = KIT.ymOf(CORE.dayNum(APP.now())); st.cal = { y: ym.y, m: ym.m }; } $('hcal').innerHTML = '<div class="scroll"><div class="stage">' + KIT.calSheet(st.serial, viewer(), st.cal.y, st.cal.m) + '</div></div>'; }
   }
   function tutBar() {
     var on = APP.tutActive() && !APP.isBlank(), stp = on ? APP.steps() : null;
@@ -3090,6 +3103,8 @@ var HOUSE = (function () {
   $('view-house').addEventListener('click', function (e) {
     var blk = e.target.closest('[data-blk]'); if (blk) { st.kind = blk.dataset.blk; st.mode = 'add'; render(); return; }
     var dir = e.target.closest('[data-dir]'); if (dir) { act(function () { var old = CORE.setCalDir(APP.state(), me().serial, dir.dataset.dir); return function () { CORE.setCalDir(APP.state(), me().serial, old); }; }, '下一塊往' + CORE.CAL_DIRS[dir.dataset.dir]); return; }
+    var c = e.target.closest('#hcal [data-act]');
+    if (c) { if (c.dataset.act === 'calMonth') { var d = new Date(st.cal.y, st.cal.m + +c.dataset.n, 1); st.cal = { y: d.getFullYear(), m: d.getMonth() }; render(); } else if (c.dataset.act === 'calDay') { if (data().closed) { msg('只給鄰居看：點不開'); return; } KIT.dayPop(st.serial, +c.dataset.day, function () { render(); }); } return; }
     var b = e.target.closest('[data-hact]'); if (!b) return;
     var a = b.dataset.hact;
     if (a === 'go') goSerial();
@@ -3110,7 +3125,7 @@ var HOUSE = (function () {
   /* ---------- 事件 ---------- */
   APP.on('view', function (v) {
     if (v.name === 'house') {
-      var changedHouse = st.serial !== v.serial; st.serial = v.serial; if (changedHouse) { st.building = false; st.undo = []; st.month = 0; }
+      var changedHouse = st.serial !== v.serial; st.serial = v.serial; if (changedHouse) { st.building = false; st.undo = []; st.cal = null; }
       if (v.build && mine()) st.building = true;
       st.shown = true; $('view-house').hidden = false; document.body.classList.add('in-house'); ensure();
       if (WORLD.available) { WORLD.resume(); WORLD.resize(); }

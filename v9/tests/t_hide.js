@@ -1,5 +1,5 @@
 // 藏：換人看公開、只給鄰居看、全藏、整間屋只給鄰居看，各自看到什麼（磚都在日曆方塊上）；「還有 N 筆蓋著」；全藏旁邊的小字；
-// 看別人的屋，明細寫屋主的名字（不寫「我」）；門牌一句話、換人看得到；事件簿點日期的小日曆一格一天、換月；點自己屋上今天那塊磚，在明細裡改藏。
+// 看別人的屋，明細寫屋主的名字（不寫「我」）；門牌一句話、換人看得到；日曆紙一格一天、換月、今天最亮，他的日曆照藏（蓋布）；點自己屋上今天那塊磚，在明細裡改藏。
 // node v9/tests/t_hide.js <test9.html>
 var lib = require('./lib'), assert = lib.assert;
 var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
@@ -12,15 +12,14 @@ var FIND = "(function(){var v=HOUSE.data(),t=v.today;var s=WORLD.screenOf({day:t
   // 今天 J1 跟阿澄成交三次
   var ids = await H.ev("(function(){var S=APP.state(),t=APP.now(),out=[];for(var k=0;k<3;k++){var s=CORE.addSlot(S,'" + J1 + "',t+(1.5+k*0.2)*1e6,1,null,t);CORE.book(S,'" + J2 + "',s.id,t);CORE.setWants(S,s.id,'" + J2 + "','" + J1 + "',['r1b']);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2b']);out.push(s.id);}APP.changed();return out;})()");
   await pg.waitForFunction("APP.state().entries.filter(function(e){return e.status==='traded';}).length===3", null, { timeout: 15000 }); await pg.waitForTimeout(300); if (await H.popOpen()) await H.popOk();
-  // 1. 小日曆（事件簿點日期）：一格一天、換月、今天最亮；點自己屋上今天那塊磚，在明細裡改藏（第二筆只給鄰居看、第三筆全藏）
-  await H.nav('log'); await H.click('#tmain [data-act="pickDay"]');
-  var cal = await H.ev("JSON.stringify({cells:document.querySelectorAll('#popBody .cal [data-jump]').length,month:document.querySelector('#popBody .calhead b').textContent})"); cal = JSON.parse(cal);
-  assert(cal.cells >= 28 && cal.cells <= 31, '小日曆一個月一張、一格一天：' + cal.month + ' ' + cal.cells + ' 格');
-  await H.click('#popBody [data-mo="-1"]'); var prev = await pg.textContent('#popBody .calhead b'); await H.click('#popBody [data-mo="0"]');
-  assert(prev !== cal.month && (await pg.textContent('#popBody .calhead b')) === cal.month, '換月：上個月 ' + prev + '，再回來');
+  // 1. 日曆紙：一格一天、換月、今天最亮；點自己屋上今天那塊磚，在明細裡改藏（第二筆只給鄰居看、第三筆全藏）
+  await H.nav('cal');
+  var cal = JSON.parse(await H.ev("JSON.stringify({cells:document.querySelectorAll('#tmain table.calp td.day').length,y:+document.querySelector('#tmain table.calp').dataset.y,m:+document.querySelector('#tmain table.calp').dataset.m})"));
+  assert(cal.cells >= 28 && cal.cells <= 31, '日曆紙一個月一張、一格一天：' + cal.y + ' 年 ' + (cal.m + 1) + ' 月 ' + cal.cells + ' 格');
+  await H.clickText('‹ 前一個月', '#tmain'); var prevM = +(await H.ev("document.querySelector('#tmain table.calp').dataset.m")); await H.clickText('後一個月 ›', '#tmain');
+  assert(prevM === (cal.m + 11) % 12 && +(await H.ev("document.querySelector('#tmain table.calp').dataset.m")) === cal.m, '換月：上個月 ' + (prevM + 1) + ' 月，再回來');
   var today = await H.ev("CORE.dayNum(APP.now())");
-  assert((await H.ev("document.querySelector('#popBody .cal [data-jump=\"" + today + "\"]').className")).indexOf('lit3') >= 0, '今天那一格三筆成交：最亮');
-  await H.popOk('不要');
+  assert((await H.ev("document.querySelector('#tmain table.calp td[data-day=\"" + today + "\"]').className")).indexOf('lit3') >= 0, '今天那一格三筆成交：最亮');
   await lookToday(J1);
   var ents = await H.ev("Array.from(document.querySelectorAll('#popBody select[data-vis]')).map(function(s){return s.dataset.vis;})");
   assert(ents.length === 3 && (await H.popBody()).indexOf('我給了') >= 0, '點自己屋上今天那塊磚：那天的明細三筆，每一筆都能改給誰看');
@@ -32,6 +31,10 @@ var FIND = "(function(){var v=HOUSE.data(),t=v.today;var s=WORLD.screenOf({day:t
   await becomeMe(J3); await lookToday(J1);
   assert((await H.ev("document.querySelectorAll('#popBody .ent-h').length")) === 1 && (await H.popBody()).indexOf('還有 2 筆蓋著') >= 0, '陌生人：公開的一筆看得到，只給鄰居看和全藏的「還有 2 筆蓋著」（這一輪沒有鄰居）');
   assert((await H.ev("document.querySelectorAll('#popBody select').length")) === 0, '別人的屋不能改藏'); await H.popOk();
+  await H.ev("APP.goTable(null,'log')"); await H.serial('J1'); await H.clickText('看他的日曆', '#tmain');
+  var oc = await H.ev("(function(){var td=document.querySelector('#tmain table.calp td[data-day=\"" + today + "\"]');return {cls:td.className,txt:td.textContent};})()");
+  assert((await H.sheetName()) === 'other:cal' && oc.cls.indexOf('lit1') >= 0 && oc.txt.indexOf('2 筆蓋著') >= 0 && (oc.txt.match(/阿澄/g) || []).length === 1, '小樂看 J1 的日曆紙：今天亮一級、寫一筆、「2 筆蓋著」');
+  await H.clickText('回我自己', '#tother');
   await lookToday(J2);
   assert((await H.popBody()).indexOf('阿澄給了') >= 0 && (await H.popBody()).indexOf('阿澄拿到') >= 0 && (await H.popBody()).indexOf('我給了') < 0, '看別人的屋：明細寫屋主的名字「阿澄給了／阿澄拿到」，不寫「我」'); await H.popOk();
   // 3. 換人成阿澄（對接的人）看：三筆都看得到
@@ -42,6 +45,8 @@ var FIND = "(function(){var v=HOUSE.data(),t=v.today;var s=WORLD.screenOf({day:t
   await becomeMe(J1); await lookToday(J1); await H.edit('#popBody select[data-vis="' + ents[0] + '"]', 'hidden'); await H.edit('#popBody select[data-vis="' + ents[1] + '"]', 'hidden'); await H.popOk();
   await becomeMe(J3); await lookToday(J1);
   assert((await H.ev("document.querySelectorAll('#popBody .ent-h').length")) === 0 && (await H.popBody()).indexOf('還有 3 筆蓋著') >= 0 && (await H.ev("WORLD.info().cover")) === 1, '全藏：陌生人只看到蓋布，「還有 3 筆蓋著」'); await H.popOk();
+  await H.ev("APP.goTable(null,'log')"); await H.serial('J1'); await H.clickText('看他的日曆', '#tmain');
+  assert((await H.ev("document.querySelector('#tmain table.calp td[data-day=\"" + today + "\"]').className")).indexOf('cover') >= 0, '日曆紙上今天那格也是蓋布'); await H.clickText('回我自己', '#tother');
   assert((await H.ev("CORE.dockCount(APP.state(),'" + J1 + "')")) === 3, '藏了，對接過幾次照算（3 次）');
   // 5. 整間屋只給鄰居看：陌生人只看得到外觀和牌子，磚點不開，門照樣打得開
   await becomeMe(J1); await lookToday(J1); await H.edit('#popBody select[data-vis="' + ents[0] + '"]', 'public'); await H.popOk();
