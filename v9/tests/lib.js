@@ -42,7 +42,7 @@ async function open(pagePath, opts) {
     // 改格子（input/select/checkbox）並觸發 change；勾選框用手指按
     edit: async function (sel, value) { var ok = await pg.evaluate(function (a) { var el = document.querySelector(a[0]); if (!el) return false; el.value = a[1]; el.dispatchEvent(new Event('change', { bubbles: true })); return true; }, [sel, String(value)]); if (!ok) throw new Error('找不到格子 ' + sel); await pg.waitForTimeout(150); },
     check: async function (sel, on) { var cur = await pg.evaluate(function (s) { var el = document.querySelector(s); return el ? el.checked : null; }, sel); if (cur === null) throw new Error('找不到勾選框 ' + sel); if (cur !== on) await H.click(sel); },
-    // 換到某一張紙：四張紙按最上面的分頁；更多裡的一張，先按「更多」再按那一列的「打開」（都用手指）
+    // 換到某一張紙：五張紙按最上面的分頁；更多裡的一張，先按「更多」再按那一列的「打開」（都用手指）
     nav: async function (sheet) {
       if (TABS[sheet]) await H.clickText(TABS[sheet], '#ttabs');
       else { await H.clickText('更多', '#ttabs'); await H.finger("function(){ return document.querySelector('#tmain tr[data-id=" + JSON.stringify(sheet) + "] [data-act=\"open\"]'); }", '更多裡的「' + NAME[sheet] + '」'); }
@@ -76,10 +76,10 @@ async function open(pagePath, opts) {
     // 在事件簿那一行選他的東西（可以多樣）
     pick: async function (slotId, other, resIds) { await H.finger("function(){ var tr=" + H.entryRow(slotId, other) + "; return tr && tr.querySelector('[data-act=\"pick\"]'); }", '選他的東西'); for (var r of resIds) await H.click('#popBody [data-add="' + r + '"]'); await H.popOk('選好了'); },
     // 把時段的那一微秒拉到幾秒後（資料層直接改，省得等）
-    // 達秒屋：點 3D 裡的東西（'door'、'gate'、{day}、{block:[x,y,z], n:[0,1,0]}、{block, prop:true}、{ground:[x,z]}），先確認那一點是畫布、打到的就是它，再點座標
+    // 達秒屋：點 3D 裡的東西（'door'、{day}、{block:[x,y,z], n:[0,1,0]}、{block, prop:true}、{ground:[x,z]}、{house: 序號}（村裡別間屋）、{spot:[gx,gz]}（挑地）），，先確認那一點是畫布、打到的就是它，再點座標
     tap3d: async function (target, what) {
       await pg.waitForTimeout(200);
-      var p = await pg.evaluate(function (t) { var s = WORLD.screenOf(t); if (!s) return { err: '不在畫面上' }; var el = document.elementFromPoint(Math.round(s.x), Math.round(s.y)); if (!el || el.tagName !== 'CANVAS') return { err: '那一點不是畫布：' + (el ? el.tagName + '#' + el.id : '空的') }; s.x = Math.round(s.x); s.y = Math.round(s.y); var h = WORLD.hitAt(s.x, s.y); s.hit = h; if (!h) return { err: '那一點什麼都沒打到' }; if (t === 'door' ? h.kind !== 'door' : t === 'gate' ? h.kind !== 'gate' : t.day != null ? h.day !== t.day : t.block ? !(h.kind === 'block' && h.x === t.block[0] && h.y === t.block[1] && h.z === t.block[2] && (t.prop || !t.n || h.n.join() === t.n.join())) : t.ground ? !(h.kind === 'ground' && h.x === t.ground[0] && h.z === t.ground[1]) : false) return { err: '那一點打到的是 ' + JSON.stringify(h) }; return s; }, target);
+      var p = await pg.evaluate(function (t) { var s = WORLD.screenOf(t); if (!s) return { err: '不在畫面上' }; var el = document.elementFromPoint(Math.round(s.x), Math.round(s.y)); if (!el || el.tagName !== 'CANVAS') return { err: '那一點不是畫布：' + (el ? el.tagName + '#' + el.id : '空的') }; s.x = Math.round(s.x); s.y = Math.round(s.y); var h = WORLD.hitAt(s.x, s.y); s.hit = h; if (!h) return { err: '那一點什麼都沒打到' }; if (t === 'door' ? h.kind !== 'door' : t === 'gate' ? h.kind !== 'gate' : t.day != null ? h.day !== t.day : t.block ? !(h.kind === 'block' && h.x === t.block[0] && h.y === t.block[1] && h.z === t.block[2] && (t.prop || !t.n || h.n.join() === t.n.join())) : t.ground ? !(h.kind === 'ground' && h.x === t.ground[0] && h.z === t.ground[1]) : t.house ? !(h.kind === 'house' && h.serial === t.house) : t.spot ? !(h.kind === 'spot' && h.pos.join() === t.spot.join()) : false) return { err: '那一點打到的是 ' + JSON.stringify(h) }; return s; }, target);
       if (p.err) throw new Error('點不到 ' + (what || JSON.stringify(target)) + '：' + p.err);
       await pg.mouse.click(p.x, p.y); await pg.waitForTimeout(250);
     },

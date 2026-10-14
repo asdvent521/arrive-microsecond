@@ -47,7 +47,7 @@ var APP = (function () {
     var r = CORE.createPlayer(state, f, now());
     me = r;
     if (skip) { tut().step = 'done'; tut().skipped = true; }
-    changed(); emit('me'); tutTick();   // 創完角色留在四張紙上，教學第 2 步：按骰子
+    changed(); emit('me'); tutTick();   // 創完角色留在表格世界，教學第 2 步：按骰子
     return r;
   }
   // 測試和示範用：放一個示範的「我」（J1），教學算跳過
@@ -84,7 +84,7 @@ var APP = (function () {
     return { rows: out, next: next, hint: hint };
   }
 
-  /* ---------- 新手教學（DESIGN 7-4）：六步，都在四張紙上做；最後一步看自己的達秒屋 ---------- */
+  /* ---------- 新手教學（DESIGN 7-4）：六步，都在表格世界做；最後一步看自己的達秒屋 ---------- */
   var GUIDE = CORE.GUIDE, TUT_SLOT_US = 60e6;   // 引路人的時段：走到約他那一步才開，大約一分鐘後
   function tut() { return state.tutorial; }
   function tutActive() { return tut().step !== 'done'; }
@@ -155,7 +155,8 @@ var APP = (function () {
 
   /* ---------- 表格世界和達秒屋之間的切換（兩邊都只聽事件） ---------- */
   var view = { name: 'table', serial: null };
-  function goHouse(serial, build) { view = { name: 'house', serial: serial || me.serial, build: !!build }; emit('view', view); if (view.serial === me.serial) tutEvent('myHouse'); }
+  // extra：travel（從村裡別間滑過去）、pick（挑地：{ village, pending }，pending 空的就是換位置）
+  function goHouse(serial, build, extra) { extra = extra || {}; view = { name: 'house', serial: serial || me.serial, build: !!build, travel: !!extra.travel, pick: extra.pick || null }; emit('view', view); if (view.serial === me.serial && !extra.pick) tutEvent('myHouse'); }
   function goTable(serial, sheet, how) { view = { name: 'table', serial: serial && serial !== me.serial ? serial : null, sheet: sheet || null, how: how || null }; emit('view', view); }
 
   return {

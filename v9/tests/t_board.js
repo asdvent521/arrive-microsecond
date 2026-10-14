@@ -24,7 +24,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   await H.setIn('ntNeed', ''); await H.clickText('掛上去', '#tmain'); assert((await H.msg()).indexOf('寫一句你需要什麼') >= 0, '沒寫需要就掛不上去');
   // 別人也掛（阿澄、小樂），看通不通：跟約的判斷用同一個
   await H.ev("(function(){var S=APP.state();CORE.postNotice(S,'" + J2 + "',{need:'想學跑步',kind:'運動',give:['r2b'],cap:2},APP.now());CORE.postNotice(S,'" + J3 + "',{need:'有人幫我搬書嗎',kind:'',give:['r3a'],cap:3},APP.now());APP.changed();})()");
-  assert((await nrows()) === 4, '全部的公告：四張（引路人、我、阿澄、小樂）');
+  assert((await nrows()) === 7, '全部的公告：七張（引路人、我、阿澄、小樂，加示範那條鏈的三張）');
   var row3 = await H.ev("Array.from(document.querySelectorAll('#tmain tr[data-row]')).find(function(t){return t.textContent.indexOf('搬書')>=0;}).textContent");
   var e3 = await H.ev("CORE.eligible(APP.state(),CORE.roleOf(APP.state(),'" + J3 + "'),APP.me(),APP.now())");
   assert(!e3.ok && row3.indexOf('不通：' + e3.reason) >= 0 && row3.indexOf('家規') >= 0, '小樂的公告標「不通」，原因跟約的判斷一樣：' + e3.reason);
@@ -36,7 +36,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   await H.setIn('kwIn', '修理'); await H.clickText('找', '#tmain'); assert((await nrows()) === 1 && (await H.main()).indexOf('修腳踏車') >= 0, '找種類「修理」');
   await H.setIn('kwIn', '借'); await H.clickText('找', '#tmain');
   assert((await nrows()) === 1 && (await prow()) === 1 && (await H.main()).indexOf('誰的資源表裡有「借」') >= 0 && (await H.main()).indexOf('借一本書') >= 0 && (await H.main()).indexOf('公告 1 張・資源表 1 人') >= 0, '找「借」：小樂的公告（可以給借一本書）、下半張小樂的資源表裡有借一本書；寫公告 1 張・資源表 1 人');
-  await H.clickText('清掉', '#tmain'); assert((await H.ev("document.getElementById('kwIn').value")) === '' && (await prow()) === 3 && (await H.main()).indexOf('誰的資源表裡有東西') >= 0, '清掉：下半張列全部的人（不含自己）三個');
+  await H.clickText('清掉', '#tmain'); assert((await H.ev("document.getElementById('kwIn').value")) === '' && (await prow()) === 3 && (await H.main()).indexOf('還有 1 人') >= 0 && (await H.main()).indexOf('誰的資源表裡有東西') >= 0, '清掉：下半張列全部的人（公告多的時候列三個、寫還有 1 人）');
   var people = await H.ev("Array.from(document.querySelectorAll('#tmain table:nth-of-type(2) tr[data-row]')).map(function(t){return t.textContent;})");
   assert(people.some(function (t) { return t.indexOf('阿澄') >= 0 && t.indexOf('改履歷・100') >= 0 && t.indexOf('通') >= 0; }) && people.some(function (t) { return t.indexOf('小樂') >= 0 && t.indexOf('不通') >= 0; }), '每個人：他有什麼（東西・價錢）、下一個時段、約他、通不通');
   // 3. 點序號到他的那張紙（引路人）
@@ -49,8 +49,8 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   assert((await H.ev("APP.state().notices.filter(function(n){return n.owner==='" + J1 + "';}).length")) === 0 && (await H.msg()) === '撤掉了', '撤掉自己的公告');
   assert((await H.ev("document.querySelectorAll('#tmain tr[data-row] [data-act=\"unpost\"]').length")) === 0, '別人的公告沒有撤掉鈕');
   // 5. 過了期限自動拿掉
-  await H.ev("(function(){var S=APP.state();var n=S.notices.find(function(x){return x.owner==='" + J2 + "';});n.untilDay=CORE.dayNum(APP.now())-1;APP.changed();})()");
-  await pg.waitForTimeout(200); assert((await H.ev("APP.state().notices.some(function(x){return x.owner==='" + J2 + "';})")) === false, '過了期限自動拿掉');
+  await H.ev("(function(){var S=APP.state();var n=S.notices.find(function(x){return x.owner==='" + J2 + "'&&x.need==='想學跑步';});n.untilDay=CORE.dayNum(APP.now())-1;APP.changed();})()");
+  await pg.waitForTimeout(200); assert((await H.ev("APP.state().notices.some(function(x){return x.owner==='" + J2 + "'&&x.need==='想學跑步';})")) === false, '過了期限自動拿掉');
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');
 })().catch(function (e) { console.error(e); process.exit(1); });

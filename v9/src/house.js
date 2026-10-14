@@ -1,17 +1,19 @@
 /* ===== v9 達秒屋的畫面：外面整個畫面就是達秒屋 =====
- * 最上面一列：序號或密鑰框、去、骰子（骰一個序號進框裡）、誰的達秒屋、回我的四張紙。自己的屋多一個「蓋」；「看日曆」鏡頭轉回這個月那一塊日曆。
- * 點日曆上的磚看那天、點門到他的表格世界；蓋的時候：選方塊、點一個面加一塊、切到「拆」點一塊拿掉、點擺設轉方向、選門搬門、日曆往哪長、復原上一步、範本。
+ * 最上面一列：序號或密鑰框、去、骰子（骰一個序號進框裡）、誰的達秒屋、回我的表格世界。自己的屋多一個「蓋」；「看日曆」鏡頭轉回這個月那一塊日曆。
+ * 點日曆上的磚看那天、點門到他的資源表；村子裡點別間屋，畫面滑過去（約一秒）；「看村子」拉遠從上面看；挑地時點一塊框起來的地就放。蓋的時候：選方塊、點一個面加一塊、切到「拆」點一塊拿掉、點擺設轉方向、選門搬門、日曆往哪長、復原上一步、範本。
  * 3D 用不了就顯示成日曆紙（一個月一張）。只呼叫 APP、CORE、KIT、WORLD。
  */
 var HOUSE = (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var esc = APP.esc;
-  var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], cal: null, shown: false, ready: false };   // cal：3D 用不了時日曆紙翻到哪個月
+  var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], cal: null, shown: false, ready: false, travel: false, pick: null, rot: 0 };   // cal：3D 用不了時日曆紙翻到哪個月；pick：挑地（{ village, pending }）；rot：挑地選的朝向
   function me() { return APP.me(); }
   function viewer() { return APP.isBlank() ? null : me().serial; }
   function data() { return CORE.viewHouse(APP.state(), st.serial, viewer(), APP.now()); }
   function mine() { return !APP.isBlank() && st.serial === me().serial; }
+  function village() { return CORE.viewVillage(APP.state(), st.serial, viewer(), APP.now()); }
+  function spots() { if (!st.pick) return null; try { return CORE.freeSpots(APP.state(), st.pick.village, st.pick.pending ? null : me().serial); } catch (e) { return null; } }
 
   function ensure() {
     if (st.ready) return;
@@ -20,16 +22,20 @@ var HOUSE = (function () {
     else { WORLD.available = false; $('hstage').hidden = true; $('hcal').hidden = false; }
     $('hblk').innerHTML = Object.keys(CORE.BLOCKS).map(function (k) { var b = CORE.BLOCKS[k]; return '<button type="button" data-blk="' + k + '" aria-label="' + esc(b.name) + '"><span class="sw" style="background:' + b.hex + (b.type === 'glass' ? ';opacity:.6' : '') + '"></span>' + esc(b.name) + '</button>'; }).join('');
     $('hDirs').innerHTML = Object.keys(CORE.CAL_DIRS).map(function (d) { return '<button type="button" class="btn sm" data-dir="' + d + '">' + CORE.CAL_DIRS[d] + '</button>'; }).join('');
+    $('hRots').innerHTML = [0, 90, 180, 270].map(function (r) { return '<button type="button" class="btn sm" data-rot="' + r + '">' + r + '°</button>'; }).join('');
   }
   function render(opts) {
     if (!st.shown) return;
     var r = APP.roleOf(st.serial); if (!r) { st.serial = me().serial; r = APP.roleOf(st.serial); }
     if (!r) return;
-    var v = data(), own = mine();
+    var v = data(), own = mine(), vv = WORLD.available ? village() : null, inVillage = vv && vv.houses.length > 1;
     if (!own || !WORLD.available) st.building = false;
-    $('hwho').innerHTML = '<b>' + esc(CORE.abbrev(r.serial) + ' ' + r.name) + '</b> 的達秒屋' + (v.closed ? ' <span class="tag off">只給鄰居看</span>' : '<span class="small muted"> ' + esc(v.age.text + (v.sign ? '・「' + v.sign + '」' : '')) + '</span>');
-    $('hBuild').hidden = !own || !WORLD.available; $('hBuild').textContent = st.building ? '蓋好了' : '蓋'; $('hBuild').classList.toggle('pri', st.building);
-    $('hDoor').hidden = st.building;
+    $('hwho').innerHTML = '<b>' + esc(CORE.abbrev(r.serial) + ' ' + r.name) + '</b> 的達秒屋' + (v.closed ? ' <span class="tag off">只給鄰居看</span>' : '<span class="small muted"> ' + esc(v.age.text + (v.sign ? '・「' + v.sign + '」' : '')) + '</span>') + (inVillage ? ' <span class="tag">村子 ' + vv.houses.length + ' 間</span>' : '');
+    $('hVillage').hidden = !inVillage || !!st.pick;
+    $('hpick').hidden = !st.pick;
+    if (st.pick) { $('hRots').querySelectorAll('[data-rot]').forEach(function (b) { b.classList.toggle('on', +b.dataset.rot === st.rot); }); $('hpickText').textContent = (st.pick.pending ? '點一塊框起來的地，把你的房子放進村子' : '點一塊框起來的地換位置') + '（朝向 ' + st.rot + '°）'; }
+    $('hBuild').hidden = !own || !WORLD.available || !!st.pick; $('hBuild').textContent = st.building ? '蓋好了' : '蓋'; $('hBuild').classList.toggle('pri', st.building);
+    $('hDoor').hidden = st.building || !!st.pick; $('hLook').hidden = !!st.pick;
     $('hDoor').textContent = own ? '進門（我的資源表）' : '進門（他的資源表）';
     $('hbuild').hidden = !st.building;
     if (st.building) {
@@ -40,10 +46,10 @@ var HOUSE = (function () {
       var pv = v.cal.preview, note = !pv ? '這一面放滿了，下一塊沒地方長' : pv.fallback ? '這個方向長不了，這次會放到最近的空位' : pv.dir !== v.cal.dir ? '這個方向長不了，這次會往' + CORE.CAL_DIRS[pv.dir] : '下個月長在框那裡';
       $('hDirNote').textContent = note + (pv && pv.removes ? '，會拆 ' + pv.removes + ' 塊' : '');
     }
-    $('hhint').textContent = st.building ? (st.mode === 'add' ? (st.kind === 'door' ? '選了門：點一個地方門就搬過去；點門轉方向。' : '選一種方塊，點一個面加一塊；點擺設或門轉方向。') : '拆：點一塊就拿掉（日曆和門拆不掉）。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點日曆上的磚看那天，點門進' + (own ? '我' : '他') + '的資源表' + (v.cal.preview && v.cal.preview.removes ? '；下個月的日曆會拆 ' + v.cal.preview.removes + ' 塊' : '') : '3D 用不了：達秒屋顯示成日曆紙，點一格跟點一塊磚一樣');
+    $('hhint').textContent = st.pick ? '從上面看整個村子：框起來的是能放的地' : st.building ? (st.mode === 'add' ? (st.kind === 'door' ? '選了門：點一個地方門就搬過去；點門轉方向。' : '選一種方塊，點一個面加一塊；點擺設或門轉方向。') : '拆：點一塊就拿掉（日曆和門拆不掉）。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點日曆上的磚看那天，點門進' + (own ? '我' : '他') + '的資源表' + (inVillage ? '；點村裡別間屋走過去' : '') + (v.cal.preview && v.cal.preview.removes ? '；下個月的日曆會拆 ' + v.cal.preview.removes + ' 塊' : '') : '3D 用不了：達秒屋顯示成日曆紙，點一格跟點一塊磚一樣');
     tutBar();
     if (WORLD.available) { var vb = $('view-house').getBoundingClientRect(), hb = document.querySelector('.hbar').getBoundingClientRect(), fb = document.querySelector('.hfoot').getBoundingClientRect(); WORLD.setInsets(hb.bottom - vb.top, vb.bottom - fb.top); }
-    if (WORLD.available) WORLD.show(v, { building: st.building, resetCamera: opts && opts.resetCamera });
+    if (WORLD.available) { WORLD.show(v, { building: st.building, resetCamera: opts && opts.resetCamera, village: vv, travel: st.travel, spots: spots() }); st.travel = false; }
     if (own && v.calRemoved && !KIT.isOpen()) { var n = CORE.ackCalRemoved(APP.state(), me().serial); APP.changed(); KIT.pop('日曆長到這裡，拆了 ' + n + ' 塊', '日曆每個月長一塊，長到的地方和它正面前面的方塊會拆掉。在「蓋」裡可以改下一塊往哪長。'); }
     if (!WORLD.available) { if (!st.cal) { var ym = KIT.ymOf(CORE.dayNum(APP.now())); st.cal = { y: ym.y, m: ym.m }; } $('hcal').innerHTML = '<div class="scroll"><div class="stage">' + KIT.calSheet(st.serial, viewer(), st.cal.y, st.cal.m) + '</div></div>'; }
   }
@@ -54,6 +60,8 @@ var HOUSE = (function () {
   }
   function onTap(hit) {
     if (!hit) return;
+    if (st.pick) { if (hit.kind === 'spot') pickSpot(hit.pos); return; }
+    if (hit.kind === 'house') { st.travel = true; APP.goHouse(hit.serial, false, { travel: true }); return; }   // 點村裡別間屋：畫面滑過去
     if (st.building) { buildTap(hit); return; }
     var v = data();
     if (hit.kind === 'door') { goDoor(); return; }
@@ -96,13 +104,21 @@ var HOUSE = (function () {
   function confirmReplace(n, what, list) {
     KIT.pop(what + '？', '現在蓋的 ' + n + ' 塊會被換掉（之後可以按「復原上一步」換回來）。', [{ label: '換掉', warn: true, fn: function () { act(function () { var S = APP.state(), s = me().serial, old = CORE.setBlocks(S, s, list(), APP.now(), true); return function () { CORE.setBlocks(S, s, old, APP.now(), true); }; }, what + '了'); } }, { label: '不要', pri: true }]);
   }
+  // 挑地：點了一塊地 → 問一下 → 搬進去或換位置
+  function pickSpot(pos) {
+    var p = st.pick, S = APP.state(), s = me().serial;
+    KIT.pop(p.pending ? '放在這裡？' : '換到這裡？', '這塊地 [' + pos[0] + ', ' + pos[1] + ']，朝向 ' + st.rot + '°。' + (p.pending ? '搬進去以後隨時可以換位置或搬走。' : ''), [{ label: '不要' }, { label: p.pending ? '放這裡' : '換過來', pri: true, fn: function () {
+      var r = APP.run(function () { if (p.pending) CORE.joinVillage(S, s, p.village, p.pending, pos, st.rot, APP.now()); else CORE.moveHouse(S, s, pos, st.rot); }, p.pending ? '搬進村子了' : '換好位置了');
+      if (r.ok) { st.pick = null; msg(r.msg); APP.goHouse(s); } else KIT.pop('放不了', r.msg);
+    } }]);
+  }
   function msg(t) { var el = $('hmsg'); el.textContent = t || ''; el.hidden = !t; clearTimeout(msg.t); if (t) msg.t = setTimeout(function () { el.hidden = true; }, 3500); }
   // 點門：到他的資源表那張紙（自己的門就是自己的資源表）
   function goDoor() { APP.goTable(st.serial, 'res', 'door'); }
-  // 序號就到他的達秒屋外面；密鑰要在四張紙那邊輸入
+  // 序號就到他的達秒屋外面；密鑰要在表格世界輸入
   function goSerial() {
     var code = $('hSerialIn').value.trim(); if (!code) { msg('先輸入序號，例如 J2'); return; }
-    var r = CORE.findRole(APP.state(), code); if (!r) { msg(APP.isBlank() ? '找不到序號 ' + code : '找不到序號 ' + code + '；密鑰要回四張紙那邊的框輸入'); return; }
+    var r = CORE.findRole(APP.state(), code); if (!r) { msg(APP.isBlank() ? '找不到序號 ' + code : '找不到序號 ' + code + '；密鑰要回表格世界的框輸入'); return; }
     APP.tutEvent('go', r.serial);
     APP.goHouse(r.serial);
   }
@@ -114,6 +130,7 @@ var HOUSE = (function () {
   }
   $('view-house').addEventListener('click', function (e) {
     var blk = e.target.closest('[data-blk]'); if (blk) { st.kind = blk.dataset.blk; st.mode = 'add'; render(); return; }
+    var rot = e.target.closest('[data-rot]'); if (rot) { st.rot = +rot.dataset.rot; render(); return; }
     var dir = e.target.closest('[data-dir]'); if (dir) { act(function () { var old = CORE.setCalDir(APP.state(), me().serial, dir.dataset.dir); return function () { CORE.setCalDir(APP.state(), me().serial, old); }; }, '下一塊往' + CORE.CAL_DIRS[dir.dataset.dir]); return; }
     var c = e.target.closest('#hcal [data-act]');
     if (c) { if (c.dataset.act === 'calMonth') { var d = new Date(st.cal.y, st.cal.m + +c.dataset.n, 1); st.cal = { y: d.getFullYear(), m: d.getMonth() }; render(); } else if (c.dataset.act === 'calDay') { if (data().closed) { msg('只給鄰居看：點不開'); return; } KIT.dayPop(st.serial, +c.dataset.day, function () { render(); }); } return; }
@@ -129,6 +146,8 @@ var HOUSE = (function () {
     else if (a === 'tpl') templates();
     else if (a === 'door') goDoor();
     else if (a === 'look') { if (WORLD.available) WORLD.lookCalendar(); }
+    else if (a === 'village') { if (WORLD.available) WORLD.lookVillage(); }
+    else if (a === 'pickCancel') { st.pick = null; APP.goTable(null, 'village'); }
     else if (a === 'myHouse') APP.goHouse(me().serial);
     else if (a === 'tutSkip') { APP.tutSkip(); msg('跳過了教學。想只收不給，記得要有 0 點的空物件。'); tutBar(); }
   });
@@ -139,6 +158,7 @@ var HOUSE = (function () {
     if (v.name === 'house') {
       var changedHouse = st.serial !== v.serial; st.serial = v.serial; if (changedHouse) { st.building = false; st.undo = []; st.cal = null; }
       if (v.build && mine()) st.building = true;
+      st.travel = !!v.travel; st.pick = v.pick || null; if (st.pick) { st.building = false; st.rot = 0; }
       st.shown = true; $('view-house').hidden = false; document.body.classList.add('in-house'); ensure();
       if (WORLD.available) { WORLD.resume(); WORLD.resize(); }
       render({ resetCamera: changedHouse });
@@ -155,5 +175,5 @@ var HOUSE = (function () {
   });
   // 成交那一刻正好開著：白光一閃，今天那塊磚亮起來（重畫就亮）
   APP.on('dock', function (res) { if (!st.shown) return; var hit = res.some(function (x) { return x.docking && x.docking.traded && (x.docking.a === st.serial || x.docking.b === st.serial); }); render(); if (hit) KIT.flash(); });
-  return { st: st, render: render, data: data };
+  return { st: st, render: render, data: data, village: village };
 })();

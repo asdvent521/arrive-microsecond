@@ -31,9 +31,9 @@ ok('10. 預設每天 2000 點', function () {
   var r = C.createRole(s, { name: '丁' }, T0);
   assert.strictEqual(C.dailyPoints(r, T0), 2000); assert.strictEqual(C.DEFAULT_DAILY, 2000);
 });
-ok('1. 一人一個角色：示範資料三個角色，沒有新角色、週期、空窗這些東西', function () {
+ok('1. 一人一個角色：示範資料四個角色，沒有新角色、週期、空窗這些東西', function () {
   var s = fresh();
-  assert.strictEqual(s.roles.length, 4);
+  assert.strictEqual(s.roles.length, 5);
   assert.strictEqual(C.endEarly, undefined); assert.strictEqual(C.enterVacancy, undefined); assert.strictEqual(C.canRefuse, undefined); assert.strictEqual(C.recreate, undefined);
   assert.ok(!s.roles[0].life && !s.roles[0].state);
   assert.strictEqual(C.remainingToday(s, s.roles[0], C.nowUs()), 1800);
@@ -357,7 +357,7 @@ ok('一換一 (多人)：三人時段只成交兩邊都選了的那幾對；補�
 });
 ok('新手教學：示範版沒有「我」（me = -1）、引路人 J4 有一堆 0 點的「空的」；創角色放最前面當下生效；教學的對接不算進對接過幾次和換點比例，紀錄標「教學」', function () {
   var s = C.fresh({ history: false }), J4 = C.GUIDE;
-  assert.strictEqual(s.me, -1); assert.strictEqual(s.roles.length, 3); assert.strictEqual(s.tutorial.step, 1);
+  assert.strictEqual(s.me, -1); assert.strictEqual(s.roles.length, 4); assert.strictEqual(s.tutorial.step, 1);
   assert.ok(C.isGuide(J4) && C.roleOf(s, J4).name === '引路人'); assert.strictEqual(C.stockOf(C.roleOf(s, J4), 'r4e').avail, 99999); assert.strictEqual(C.version(C.roleOf(s, J4), T0).rules.conditions.length, 0);
   var b = C.blankRole(); assert.ok(b.blank && s.roles.indexOf(b) < 0);
   var me = C.createPlayer(s, { name: '小明', dailyPoints: '', firstItem: { name: '空的', price: 0, qty: 1 } }, T0);
@@ -370,11 +370,11 @@ ok('新手教學：示範版沒有「我」（me = -1）、引路人 J4 有一�
   C.judge(s, T0 + 60e6, {});
   var d = s.dockings[0]; assert.ok(d.traded && d.tutorial, '教學的對接成交、標教學'); assert.strictEqual(d.gaveA + d.gaveB, 0);
   assert.strictEqual(C.dockCount(s, J1), 0, '不算進對接過幾次'); assert.strictEqual(C.ratio(s, J1).text, '還沒對接過', '不算進換點比例');
-  assert.ok(/^（教學）/.test(s.records[0].text) && s.records[0].tutorial, '紀錄標「教學」');
+  var rec = s.records.find(function (r) { return r.kind === 'dock'; }); assert.ok(/^（教學）/.test(rec.text) && rec.tutorial, '紀錄標「教學」');
   assert.strictEqual(s.holds.length, 2); C.redeem(s, J1, s.holds.find(function (h) { return h.holder === J1; }).id, T0 + 61e6); C.redeem(s, J4, s.holds.find(function (h) { return h.holder === J4; }).id, T0 + 61e6);
   assert.strictEqual(C.stockOf(me, e.id).avail, 0, '空的換掉了，要再補');
   // 真的對接才算數
-  var s2 = fresh(); assert.strictEqual(s2.me, 0); assert.strictEqual(s2.roles[0].serial, J1); assert.strictEqual(s2.roles.length, 4);
+  var s2 = fresh(); assert.strictEqual(s2.me, 0); assert.strictEqual(s2.roles[0].serial, J1); assert.strictEqual(s2.roles.length, 5);
   var slot2 = meet(s2, J2, [J1]); C.setWants(s2, slot2.id, J1, J2, ['r2a']); C.setWants(s2, slot2.id, J2, J1, ['r1b']); C.judge(s2, T0 + 60e6, {});
   assert.strictEqual(C.dockCount(s2, J1), 1); assert.ok(!/^（教學）/.test(s2.records[0].text));
 });
@@ -473,12 +473,12 @@ ok('序號永遠不重複用：J1 不玩了再創一個拿到的不是 J1；新�
   C.accept(s, J1, J3, T0); C.judge(s, T0 + 60e6, {});
   C.quit(s, J1, T0 + 61e6, true); assert.strictEqual(s.records.filter(function (r) { return r.kind === 'quit'; })[0].serial, J1);
   var r2 = C.createPlayer(s, { name: '小華' }, T0 + 62e6);
-  assert.notStrictEqual(r2.serial, J1); assert.strictEqual(C.abbrev(r2.serial), 'J5');
+  assert.notStrictEqual(r2.serial, J1); assert.strictEqual(C.abbrev(r2.serial), 'J6');
   assert.strictEqual(C.dockCount(s, r2.serial), 0); assert.strictEqual(C.ratio(s, r2.serial).text, '還沒對接過'); assert.ok(!s.acceptances.some(function (x) { return x.who === r2.serial; }));
   assert.ok(s.dockings[0].a === J1 || s.dockings[0].b === J1, 'J1 的舊紀錄照舊寫 J1'); assert.ok(/^J1 /.test(s.records.find(function (r) { return r.kind === 'quit'; }).text));
   assert.ok(s.roles.indexOf(C.blankRole()) < 0 && C.blankRole().serial !== r2.serial && !/^0/.test(C.BLANK), '空殼的序號不會撞號');
   for (var i = 0; i < 8; i++) C.createRole(s, { name: 'x' + i }, T0);
-  assert.strictEqual(C.abbrev(s.roles[s.roles.length - 1].serial), 'I13'); assert.strictEqual(new Set(s.issued).size, s.issued.length);
+  assert.strictEqual(C.abbrev(s.roles[s.roles.length - 1].serial), 'I14'); assert.strictEqual(new Set(s.issued).size, s.issued.length);
   // 存檔讀回來：issued 留著；舊存檔沒 issued 也從出現過的序號補回來
   var saved = JSON.parse(JSON.stringify(s)); global.localStorage = { getItem: function () { return JSON.stringify(saved); }, setItem: function () {} };
   var back = C.load(); assert.deepStrictEqual(back.issued.slice().sort(), s.issued.slice().sort());
@@ -551,7 +551,7 @@ ok('公告欄：掛（需要、種類、可以給、上限、期限都存得住�
   throws(function () { C.postNotice(s, J1, { need: '修腳踏車', give: ['y'], cap: 3, untilDay: today - 1 }, T0); }, /過去/);
   var n = C.postNotice(s, J1, { need: '修腳踏車', kind: '修理', give: ['y', 'x', 'y'], cap: 3, untilDay: today + 2 }, T0);
   assert.deepStrictEqual([n.need, n.kind, n.give, n.cap, n.untilDay, n.owner], ['修腳踏車', '修理', ['y', 'x'], 3, today + 2, J1]);
-  assert.deepStrictEqual([n.links, n.noReport], [[], false], '接上去、不用回報先留位置');
+  assert.deepStrictEqual([n.parent, n.noReport], [null, false], '沒接在誰下面、不用回報預設關');
   var back = JSON.parse(JSON.stringify(s)); assert.deepStrictEqual(back.notices[0].cap, 3);
   var n2 = C.postNotice(s, J2, { need: '一杯茶', give: ['e2'], cap: 2 }, T0);
   throws(function () { C.removeNotice(s, J1, n2.id); }, /只有掛的人/);
@@ -594,7 +594,7 @@ ok('存檔：新的名字；第一次打開讀得到 v8 的存檔就搬過來（
   assert.strictEqual(st.notices.filter(function (n) { return n.owner === C.GUIDE; }).length, 1, '搬過來時補上引路人的公告'); assert.ok(store['arrive-v9'], '搬過來就存成新名字');
   st.notices.push(C.postNotice(st, '00000000001', { need: '借梯子', give: ['r1b'], cap: 4, untilDay: C.dayNum(T0) + 5 }, T0)); st.notices.pop();
   C.save(st); var st2 = C.load(); assert.strictEqual(st2.notices.length, 2); assert.strictEqual(st2.notices[1].cap, 4); assert.strictEqual(st2.notices[1].untilDay, C.dayNum(T0) + 5);
-  store = {}; store['arrive-v8'] = '{壞掉'; var st3 = C.load(); assert.strictEqual(st3.me, -1, '讀不了就從頭開始'); assert.strictEqual(st3.roles.length, 3);
+  store = {}; store['arrive-v8'] = '{壞掉'; var st3 = C.load(); assert.strictEqual(st3.me, -1, '讀不了就從頭開始'); assert.strictEqual(st3.roles.length, 4);
   delete global.localStorage;
 });
 /* ---------- 第 2 輪：每一筆、藏、看一間屋、外觀、存檔 ---------- */
@@ -1087,5 +1087,179 @@ ok('打招呼密鑰：要對方同意才成立；第三人找不到；不能像�
 ok('純資料檢查與存檔格式：角色洗過還是同一份資料', function () {
   var s = fresh(); var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['r1a']); C.judge(s, T0 + 60e6, {});
   s.roles.forEach(function (r) { var c = C.tryClean(r); assert.ok(c.role, c.error); assert.deepStrictEqual(c.role, JSON.parse(JSON.stringify(r))); });
+});
+
+ok('密鑰不能重複：同一個人跟第二個人設同一個密鑰擋下（待同意的也算）；對方同意時也擋；不分大小寫、頭尾空白不算', function () {
+  var s = base();
+  C.proposeGreet(s, J1, J2, { key: 'hello', give: ['y'], get: ['e2'] }, T0); C.agreeGreet(s, J2, C.greetPair(s, J1, J2).id);
+  throws(function () { C.proposeGreet(s, J1, J3, { key: ' Hello ', give: ['y'], get: ['e3'] }, T0); }, /這個密鑰你已經跟 乙 用了/);
+  C.proposeGreet(s, J1, J3, { key: 'bye', give: ['y'], get: ['e3'] }, T0);
+  throws(function () { C.proposeGreet(s, J3, J2, { key: 'BYE', give: ['q'], get: ['e2'] }, T0); }, /已經跟 甲 用了/);   // 丙那邊：甲提議的 bye 還在待同意，也算
+  throws(function () { C.proposeGreet(s, J2, J3, { key: 'hello', give: ['p'], get: ['e3'] }, T0); }, /已經跟 甲 用了/);   // 乙跟丙提議 hello：乙自己已經跟甲用 hello
+});
+ok('密鑰重複（續）：乙跟甲用著 hello，丙提議 hello 給乙，乙同意時擋下；輸入 HELLO 也配得到', function () {
+  var s = base();
+  C.proposeGreet(s, J1, J2, { key: 'hello', give: ['y'], get: ['e2'] }, T0); C.agreeGreet(s, J2, C.greetPair(s, J1, J2).id);
+  C.proposeGreet(s, J3, J2, { key: 'Hello', give: ['q'], get: ['e2'] }, T0);
+  throws(function () { C.agreeGreet(s, J2, C.greetPair(s, J2, J3).id); }, /已經跟 甲 用了/);
+  assert.strictEqual(C.enterKey(s, J1, 'HELLO ', T0).waiting, true); assert.strictEqual(C.enterKey(s, J2, 'hello', T0 + 1e6).docked, true, '不分大小寫、頭尾空白不算');
+});
+ok('村子：邀他當鄰居 → 他同意挑地就開了村子（兩人）；一人一村；搬進要村裡每個人同意；挑地要靠著別間、最多隔一塊；換位置；搬走；請人搬走要其他人都同意；剩一人就散；不玩了等於搬走；紀錄不變', function () {
+  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: 100, rules: {}, resources: [{ id: 'e4', name: '空的', price: 0, avail: 1 }] }, T0);
+  var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['y']); C.judge(s, T0 + 60e6); var before = JSON.stringify([s.entries, s.dockings, s.holds]);
+  assert.strictEqual(C.isNeighbor(s, J1, J2), false);
+  var inv = C.inviteNeighbor(s, J1, J2, T0); var v = C.villageOf(s, J1);
+  assert.ok(v && v.proposed && v.members.length === 1 && C.myInvites(s, J2)[0].ready, '我沒村子：提議一個新村子，等他同意');
+  throws(function () { C.inviteNeighbor(s, J1, J2, T0); }, /已經邀過了/);
+  throws(function () { C.joinVillage(s, J2, v.id, inv.id, [5, 5], 0, T0); }, /要靠著村裡某一間/);
+  throws(function () { C.joinVillage(s, J2, v.id, inv.id, [0, 0], 0, T0); }, /已經有人/);
+  throws(function () { C.joinVillage(s, J3, v.id, inv.id, [1, 0], 0, T0); }, /這不是你的/);
+  C.joinVillage(s, J2, v.id, inv.id, [2, 0], 90, T0);
+  assert.ok(!v.proposed && v.members.length === 2 && C.isNeighbor(s, J1, J2) && C.isNeighbor(s, J2, J1) && !C.isNeighbor(s, J1, J3), '他同意、挑了地（隔一塊）：村子開了，兩人是鄰居');
+  assert.deepStrictEqual(C.neighborsOf(s, J1), [J2]);
+  throws(function () { C.inviteNeighbor(s, J3, J2, T0); }, /已經住在村子裡了/);
+  // 丙申請搬進來：要甲乙都同意
+  var ap = C.applyVillage(s, J3, J1, T0); assert.deepStrictEqual(C.villageInfo(s, J1).pending[0].waiting, [J1, J2]);
+  throws(function () { C.joinVillage(s, J3, v.id, ap.id, [1, 1], 0, T0); }, /還有人沒同意：甲、乙/);
+  C.approveVillage(s, J1, v.id, ap.id); throws(function () { C.joinVillage(s, J3, v.id, ap.id, [1, 1], 0, T0); }, /還有人沒同意：乙/);
+  C.approveVillage(s, J2, v.id, ap.id);
+  var spots = C.freeSpots(s, v.id); assert.ok(spots.some(function (p) { return p[0] === 1 && p[1] === 1; }) && !spots.some(function (p) { return p[0] === 0 && p[1] === 0; }) && !spots.some(function (p) { return p[0] === 5; }), '能放的地：靠著某一間、沒人的');
+  C.joinVillage(s, J3, v.id, ap.id, [1, 1], 180, T0); assert.strictEqual(v.members.length, 3);
+  throws(function () { C.applyVillage(s, J3, J1, T0); }, /一個人只住一個村子/);
+  // 丁被乙邀：要甲乙丙都同意（乙邀的算同意了）
+  var i4 = C.inviteNeighbor(s, J2, J4, T0); assert.deepStrictEqual(C.villageInfo(s, J2).pending[0].waiting.sort(), [J1, J3]);
+  C.approveVillage(s, J1, v.id, i4.id); C.approveVillage(s, J3, v.id, i4.id); C.joinVillage(s, J4, v.id, i4.id, [2, 2], 0, T0);
+  // 換位置：要靠著別間、村子不能散
+  throws(function () { C.moveHouse(s, J4, [6, 6], 0); }, /要靠著村裡某一間/);
+  C.moveHouse(s, J4, [3, 1], 270); assert.deepStrictEqual(C.villageOf(s, J4).members.find(function (m) { return m.serial === J4; }).pos, [3, 1]);
+  // 請人搬走：其他人都同意才算
+  var r1 = C.askLeave(s, J1, J4, T0); assert.ok(!r1.done && r1.waiting.length === 2, '甲請丁走：還要乙丙同意');
+  C.approveVillage(s, J2, v.id, C.villageInfo(s, J1).pending[0].id); assert.strictEqual(v.members.length, 4);
+  C.approveVillage(s, J3, v.id, C.villageInfo(s, J1).pending[0].id); assert.strictEqual(v.members.length, 3); assert.strictEqual(C.villageOf(s, J4), null, '都同意了：丁走了');
+  // 搬走不用誰同意；剩一人就散；不玩了等於搬走
+  C.leaveVillage(s, J3); assert.strictEqual(v.members.length, 2);
+  assert.strictEqual(JSON.stringify([s.entries, s.dockings, s.holds]), before, '搬進、搬走、換位置都不改任何紀錄');
+  C.quit(s, J2, T0 + 1, true); assert.strictEqual(C.villageOf(s, J1), null, '乙不玩了＝搬走，剩甲一人，村子散了');
+  assert.strictEqual(C.villagesOf(s).length, 0);
+  // 不要：被邀的人拒絕，新村子的提議就沒了
+  var i2 = C.inviteNeighbor(s, J1, J3, T0); C.rejectVillage(s, J3, C.villageOf(s, J1).id, i2.id); assert.strictEqual(C.villagesOf(s).length, 0);
+});
+ok('村子（續）：換位置不能讓村子散掉', function () {
+  var s = base(); var inv = C.inviteNeighbor(s, J1, J2, T0); var v = C.villageOf(s, J1); C.joinVillage(s, J2, v.id, inv.id, [2, 0], 0, T0);
+  var ap = C.applyVillage(s, J3, J1, T0); C.approveVillage(s, J1, v.id, ap.id); C.approveVillage(s, J2, v.id, ap.id); C.joinVillage(s, J3, v.id, ap.id, [4, 0], 0, T0);
+  throws(function () { C.moveHouse(s, J2, [5, 1], 0); }, /村子會散掉/);   // 乙在中間：搬到丙旁邊 [5,1]，甲 [0,0] 就連不到大家
+  C.moveHouse(s, J2, [2, 1], 0); assert.ok(C.connected(v.members));
+});
+ok('鄰居：看得到彼此「只給鄰居看」的屋和那幾筆；非鄰居看不到；從只給鄰居看的那間看不顯示村子；從公開的那間看得到全村', function () {
+  var s = base(); var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['y']); C.judge(s, T0 + 60e6);
+  var e = s.entries.find(function (x) { return x.status === 'traded'; }); C.setVis(s, J1, e.id, 'neighbors'); C.setHouse(s, J1, { visibility: 'neighbors' });
+  assert.ok(C.viewHouse(s, J1, J3, T0 + 61e6).closed && C.dayDetail(s, J1, J3, C.dayNum(T0), T0 + 61e6).closed, '丙不是鄰居：整間屋只給鄰居看，看不到');
+  var inv = C.inviteNeighbor(s, J1, J3, T0); C.joinVillage(s, J3, C.villageOf(s, J1).id, inv.id, [1, 0], 0, T0);
+  var vh = C.viewHouse(s, J1, J3, T0 + 61e6);
+  assert.ok(!vh.closed && vh.bricks.find(function (b) { return b.day === C.dayNum(T0); }).lit === 1 && C.dayDetail(s, J1, J3, C.dayNum(T0), T0 + 61e6).entries.length === 1, '丙搬進來當鄰居：看得到整間屋和只給鄰居看的那一筆');
+  assert.strictEqual(C.viewVillage(s, J1, J2, T0).houses.length, 1, '乙不是鄰居：從只給鄰居看的那一間看，只看得到那一間');
+  var vv = C.viewVillage(s, J3, J2, T0); assert.strictEqual(vv.houses.length, 2); assert.ok(vv.houses.find(function (h) { return h.serial === J1; }).view.closed && !vv.houses.find(function (h) { return h.serial === J3; }).view.closed, '從公開的那一間看：看得到全村，只給鄰居看的那間只有外觀');
+  assert.strictEqual(C.viewVillage(s, J1, J3, T0).houses.length, 2, '鄰居從哪一間看都看得到全村');
+  C.leaveVillage(s, J3); assert.ok(C.viewHouse(s, J1, J3, T0 + 61e6).closed, '搬走就不是鄰居了');
+});
+ok('接上去：接到需要下面（我給他）、接到可以給下面（他給我）、岔路照順序；接成一圈的偵測；上限；圈主開時段、大家預約、平台先選好、那一微秒全部成交；需要拿掉、其他岔路提醒「已經有人做到了」', function () {
+  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: 100, rules: {}, resources: [{ id: 'd', name: '一束花', price: 20, avail: 5 }, { id: 'e4', name: '空的', price: 0, avail: 5 }] }, T0);
+  var nA = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0);
+  var lB = C.linkNotice(s, J2, nA.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1); assert.ok(lB.notice.parent.side === 'need' && lB.circle === null && lB.notice.cap === 4, '乙接到甲的需要下面：給一首歌，寫自己的需要借書；上限照上面那張');
+  throws(function () { C.linkNotice(s, J2, nA.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1); }, /已經接在這張公告上了/);
+  throws(function () { C.linkNotice(s, J2, lB.notice.id, { side: 'need', give: ['p'], need: 'x' }, T0 + 1); }, /不能接自己的公告/);
+  var lC = C.linkNotice(s, J3, lB.notice.id, { side: 'need', give: ['q'], need: '一束花' }, T0 + 2); assert.strictEqual(lC.circle, null);
+  var lD2 = C.linkNotice(s, J4, lB.notice.id, { side: 'need', give: ['d'], need: '畫一張圖' }, T0 + 3); assert.deepStrictEqual(C.linksUnder(s, lB.notice.id).map(function (n) { return n.owner; }), [J3, J4], '同一個需要兩個人接：岔路照接上去的順序');
+  assert.deepStrictEqual(C.chainOf(s, lC.notice.id).map(function (n) { return n.owner; }), [J1, J2, J3], '整條鏈：甲 ← 乙 ← 丙');
+  // 丁想要甲可以給的（畫一張圖）：接到甲的可以給下面 → 甲→丁；丁已經給乙（丁→乙），乙→甲：接成一圈 甲→丁→乙→甲（3 人）
+  var r = C.linkNotice(s, J4, nA.id, { side: 'give', item: 'x', give: ['d'], need: '畫一張圖' }, T0 + 4);
+  assert.ok(r.circle && r.circle.status === 'open' && r.circle.leader === J4 && r.circle.members.length === 3, '線接回起點：一圈（丁當圈主）' + JSON.stringify(r.circle && r.circle.members));
+  var c = r.circle; assert.deepStrictEqual(c.edges.map(function (e) { return e.from + '>' + e.to + ':' + e.item; }), [J1 + '>' + J4 + ':x', J4 + '>' + J2 + ':d', J2 + '>' + J1 + ':p'], '這一圈每個人給誰什麼');
+  assert.ok(C.myCircles(s, J2).length === 1 && C.myCircles(s, J3).length === 0, '圈裡的每個人都看得到提醒，丙不在圈裡');
+  throws(function () { C.openCircleSlot(s, J1, c.id, T0 + 600e6, T0); }, /只有圈主/);
+  var slot = C.openCircleSlot(s, J4, c.id, T0 + 600e6, T0); assert.ok(slot.together && slot.capacity === 2 && c.status === 'slotted');
+  C.bookCircle(s, J1, c.id, T0 + 10); C.bookCircle(s, J2, c.id, T0 + 11);
+  assert.ok(C.isPresent(s, J1, slot.id) && C.isPresent(s, J2, slot.id), '預約時就確認到達');
+  assert.deepStrictEqual([C.wantsOf(slot, J4, J1), C.wantsOf(slot, J1, J4), C.wantsOf(slot, J2, J4), C.wantsOf(slot, J4, J2), C.wantsOf(slot, J1, J2), C.wantsOf(slot, J2, J1)], [['x'], ['e4'], ['d'], ['e2'], ['p'], ['e1']], '平台先選好：拿的人選那樣東西，給的人選對方的空的');
+  C.setWants(s, slot.id, J4, J2, ['e2']);   // 各人還能改
+  var before = JSON.stringify([s.holds.length, C.remainingToday(s, C.roleOf(s, J1), T0)]);
+  assert.strictEqual(before, JSON.stringify([0, 1000]), '排隊不扣點、不留貨');
+  C.judge(s, T0 + 600e6);
+  assert.ok(c.status === 'done' && s.dockings.filter(function (d) { return d.slot === slot.id && d.traded; }).length === 3, '那一微秒照一起成交：全部成');
+  assert.ok(!C.noticeOf(s, nA.id) && !C.noticeOf(s, lB.notice.id) && !C.noticeOf(s, r.notice.id), '成交以後圈裡的需要都拿掉');
+  var left = C.noticeOf(s, lC.notice.id); assert.ok(left && left.parent === null && left.doneBy && left.doneBy.need === '借書', '丙那條岔路：公告留著、沒接在誰下面，提醒「已經有人做到了」');
+  assert.strictEqual(C.doneByOf(s, J3).length, 1); C.ackDoneBy(s, J3, left.id); assert.strictEqual(C.doneByOf(s, J3).length, 0);
+  assert.ok(!C.noticeOf(s, lD2.notice.id), '丁接在乙下面的那張在圈裡（丁給乙花），也拿掉了');
+});
+ok('一圈：人數超過圈裡任何一張公告的上限就不算接成；沒成交線留著、圈主可以再開；到期或撤掉線一起拿掉、圈散掉；不用回報的送禮鏈', function () {
+  var s = base();
+  var nA = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 2 }, T0);
+  var lB = C.linkNotice(s, J2, nA.id, { side: 'need', give: ['p'], need: '借書', cap: 5 }, T0 + 1);
+  var lC = C.linkNotice(s, J3, lB.notice.id, { side: 'need', give: ['q'], need: '畫一張圖', cap: 5 }, T0 + 2);
+  var r = C.linkNotice(s, J1, lC.notice.id, { side: 'need', give: ['x'], need: '一首歌', cap: 5 }, T0 + 3);
+  assert.ok(r.circle && r.circle.tooMany && r.circle.cap === 2 && C.circlesOf(s).length === 0, '三個人超過甲那張的上限 2：不算接成，線留著');
+  C.removeNotice(s, J1, r.notice.id); nA.cap = 3; var r2 = C.linkNotice(s, J1, lC.notice.id, { side: 'need', give: ['x'], need: '一首歌', cap: 5 }, T0 + 4);
+  assert.ok(r2.circle && !r2.circle.tooMany && r2.circle.members.length === 3, '上限夠就接成');
+  var c = r2.circle, slot = C.openCircleSlot(s, J1, c.id, T0 + 300e6, T0); C.bookCircle(s, J2, c.id, T0); C.bookCircle(s, J3, c.id, T0);
+  C.restock(s, J3, 'q', -C.stockOf(C.roleOf(s, J3), 'q').avail);   // 丙的書在那一微秒前被換光
+  C.judge(s, T0 + 300e6);
+  assert.ok(c.status === 'open' && c.slot === null && C.noticeOf(s, nA.id) && C.noticeOf(s, lB.notice.id), '中間貨被換走：那一圈不成交，線留著，圈主可以再開');
+  C.restock(s, J3, 'q', 5); var slot2 = C.openCircleSlot(s, J1, c.id, T0 + 400e6, T0); assert.strictEqual(c.status, 'slotted');
+  C.removeNotice(s, J2, lB.notice.id);
+  assert.ok(C.noticeOf(s, lC.notice.id).parent === null && c.status === 'slotted', '撤掉乙那張：接在上面的線拿掉；已經開了時段的圈留到判完');
+  C.judge(s, T0 + 400e6); assert.strictEqual(c.status, 'open');
+  // 到期：線一起拿掉、還沒開時段的圈散掉
+  var s2 = base(); var a2 = C.postNotice(s2, J1, { need: '一首歌', give: ['x'], cap: 3, untilDay: C.dayNum(T0) }, T0);
+  var far = C.dayNum(T0) + 30, b2 = C.linkNotice(s2, J2, a2.id, { side: 'need', give: ['p'], need: '借書', untilDay: far }, T0 + 1); var c2 = C.linkNotice(s2, J3, b2.notice.id, { side: 'need', give: ['q'], need: '畫一張圖', untilDay: far }, T0 + 2);
+  assert.strictEqual(b2.notice.untilDay, far); var g = C.linkNotice(s2, J1, c2.notice.id, { side: 'need', give: ['x'], need: '一首歌', untilDay: far }, T0 + 3); assert.ok(g.circle && g.circle.status === 'open');
+  C.expire(s2, T0 + DAY); assert.ok(!C.noticeOf(s2, a2.id) && C.noticeOf(s2, b2.notice.id).parent === null && g.circle.status === 'void', '到期：公告拿掉、線拿掉、圈散掉');
+  // 不用回報：鏈的起頭當送禮，由他開時段，照一起成交先換
+  var s3 = base(); var a3 = C.postNotice(s3, J1, { need: '一首歌', give: ['x'], cap: 3 }, T0);
+  var b3 = C.linkNotice(s3, J2, a3.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1); var c3 = C.linkNotice(s3, J3, b3.notice.id, { side: 'need', give: ['q'], need: '畫一張圖' }, T0 + 2);
+  throws(function () { C.giftChain(s3, J2, b3.notice.id, T0); }, /不是鏈的起頭/);
+  var gc = C.giftChain(s3, J3, c3.notice.id, T0); assert.ok(gc.gift && gc.leader === J3 && gc.members.length === 3 && c3.notice.noReport, '丙（只給不收的那一端）選不用回報：送禮鏈，丙當圈主');
+  var gs = C.openCircleSlot(s3, J3, gc.id, T0 + 300e6, T0); C.bookCircle(s3, J2, gc.id, T0); C.bookCircle(s3, J1, gc.id, T0);
+  assert.deepStrictEqual([C.wantsOf(gs, J2, J3), C.wantsOf(gs, J3, J2), C.wantsOf(gs, J1, J2), C.wantsOf(gs, J2, J1)], [['q'], ['e2'], ['p'], ['e1']]);
+  C.judge(s3, T0 + 300e6); assert.ok(gc.status === 'done' && !C.noticeOf(s3, a3.id) && !C.noticeOf(s3, b3.notice.id), '送禮鏈成交：需要都拿掉');
+});
+ok('一圈：同一張公告好幾條岔路都接成一圈，掛公告的人選一條，其他排隊', function () {
+  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: 100, rules: {}, resources: [{ id: 'd', name: '一束花', price: 20, avail: 5 }, { id: 'e4', name: '空的', price: 0, avail: 5 }] }, T0);
+  var nA = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0);
+  var lB = C.linkNotice(s, J2, nA.id, { side: 'need', give: ['p'], need: '畫一張圖' }, T0 + 1);
+  var c1 = C.linkNotice(s, J1, lB.notice.id, { side: 'need', give: ['x'], need: '一首歌' }, T0 + 2).circle; assert.ok(c1 && c1.status === 'open', '甲 ↔ 乙 接成一圈');
+  var lC = C.linkNotice(s, J3, nA.id, { side: 'need', give: ['q'], need: '畫一張圖' }, T0 + 3);
+  var c2 = C.linkNotice(s, J1, lC.notice.id, { side: 'need', give: ['x'], need: '一首歌' }, T0 + 4).circle;
+  assert.ok(c2 && c2.status === 'queued' && C.myCircles(s, J1).some(function (x) { return x.id === c2.id && x.chooser; }), '同一張公告的另一條岔路也接成一圈：排隊，掛公告的人（甲）選');
+  throws(function () { C.openCircleSlot(s, J1, c2.id, T0 + 300e6, T0); }, /還在排隊/);
+  throws(function () { C.chooseCircle(s, J2, c2.id); }, /只有掛公告的人能選/);
+  C.chooseCircle(s, J1, c2.id); assert.ok(c2.status === 'open' && c1.status === 'queued', '甲選了丙那一圈，乙那一圈排隊');
+  C.openCircleSlot(s, J1, c2.id, T0 + 300e6, T0); throws(function () { C.chooseCircle(s, J1, c1.id); }, /已經開了時段/);
+});
+ok('村子、一圈存檔讀得進來；舊存檔沒有村子和線也行', function () {
+  var s = base(); var inv = C.inviteNeighbor(s, J1, J2, T0); C.joinVillage(s, J2, C.villageOf(s, J1).id, inv.id, [1, 0], 90, T0);
+  var nA = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0); var lB = C.linkNotice(s, J2, nA.id, { side: 'need', give: ['p'], need: '畫一張圖' }, T0 + 1); var c = C.linkNotice(s, J1, lB.notice.id, { side: 'need', give: ['x'], need: '一首歌' }, T0 + 2).circle;
+  var raw = JSON.parse(JSON.stringify(s)); raw.v = 9;
+  var out = { roles: raw.roles.map(C.cleanRole), notices: [] }; C.cleanVillages(out, raw.villages);
+  assert.deepStrictEqual(out.villages, raw.villages, '村子洗過還是同一份');
+  raw.villages[0].members.push({ serial: '00000000009', pos: [1, 1], rot: 0 }); raw.villages[0].members.push({ serial: J3, pos: [9, 9], rot: 45 });
+  C.cleanVillages(out, raw.villages); assert.strictEqual(out.villages[0].members.length, 2, '不存在的人、離太遠的丟掉');
+  C.cleanVillages(out, [{ id: 'v', members: [{ serial: J1, pos: [0, 0], rot: 0 }], pending: [], atUs: T0 }]); assert.strictEqual(out.villages.length, 0, '只剩一人的村子不算');
+  var raw2 = JSON.parse(JSON.stringify(s)); var o2 = { roles: raw2.roles.map(C.cleanRole), notices: raw2.notices };
+  var cc = raw2.circles.map(function (x) { return (function (st) { return C.cleanVillages && st; })(o2) && x; });
+  assert.strictEqual(JSON.stringify(cc), JSON.stringify(raw2.circles));
+  var old = { v: 9, me: 0, roles: raw.roles, holds: [], dockings: [], notices: raw.notices, tutorial: { step: 'done' } };
+  delete old.villages; delete old.circles; var store = {}; global.localStorage = { getItem: function (k) { return store[k] || null; }, setItem: function (k, v) { store[k] = v; }, removeItem: function (k) { delete store[k]; } };
+  store['arrive-v9'] = JSON.stringify(old); var st = C.load(); assert.ok(Array.isArray(st.villages) && st.villages.length === 0 && Array.isArray(st.circles), '舊存檔沒有村子和線：讀得進來');
+  store['arrive-v9'] = JSON.stringify(raw); var st2 = C.load(); assert.strictEqual(st2.villages.length, 1); assert.strictEqual(st2.circles.length, 1); assert.strictEqual(st2.notices.filter(function (n) { return n.parent; }).length, 2);
+  delete global.localStorage;
+});
+ok('示範資料：阿澄和小樂住同一個村子（照規則做出來）、引路人和阿明不在村子；公告欄有一條三個人的鏈還差一個人接成一圈', function () {
+  var s = C.fresh({ history: false });
+  assert.ok(C.isNeighbor(s, '00000000002', '00000000003') && !C.villageOf(s, '00000000004') && !C.villageOf(s, '00000000005'), '阿澄、小樂是鄰居；引路人、阿明不在村子');
+  var chain = s.notices.filter(function (n) { return n.parent; }); assert.strictEqual(chain.length, 2); assert.strictEqual(C.circlesOf(s).length, 0);
+  var root = s.notices.find(function (n) { return n.owner === '00000000002' && n.need === '想學手機拍照'; }); assert.deepStrictEqual(C.chainOf(s, chain[1].id).map(function (n) { return n.owner; }), ['00000000002', '00000000005', '00000000003']);
+  C.demoMe(s, T0); var r1 = C.linkNotice(s, J1, chain[1].id, { side: 'need', give: ['r1b'], need: '一小時諮詢' }, T0); assert.strictEqual(r1.circle, null);
+  var r2 = C.linkNotice(s, J1, root.id, { side: 'give', item: 'r2b', give: ['r1b'], need: '一小時諮詢' }, T0 + 1);
+  assert.ok(r2.circle && r2.circle.members.length === 4 && r2.circle.leader === J1, '新手接上去就成一圈（4 人）');
 });
 console.log('core.test.js ok（' + n + ' 項）');

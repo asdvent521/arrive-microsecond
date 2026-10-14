@@ -1,6 +1,6 @@
 // 打招呼密鑰和固定約：到他的那張紙設密鑰、對方在事件簿最上面看到提醒、更多 → 打招呼密鑰同意才成立；
 // 兩個人都在框裡輸入密鑰 → 後輸入的那一刻當場換一次（白光、事件簿那一行標「密鑰」）；只有一個人輸入，1 分鐘沒等到就取消、什麼都不記；第三個人輸入說找不到。
-// 固定約：成交結果裡兩邊都勾 → 成立，換日多一行標「每天」、按「停」結束。
+// 密鑰不能跟第二個人重複、不分大小寫、框不自動大寫。固定約：成交結果裡兩邊都勾 → 成立，換日多一行標「每天」、按「停」結束。
 // node v9/tests/t_greet.js <test9.html>
 var lib = require('./lib'), assert = lib.assert;
 var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
@@ -44,6 +44,15 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
   await H.becomeMe(J1); await H.serial('早安'); await H.becomeMe(J2); await H.serial('早安'); await pg.waitForTimeout(300); await H.popOk();
   assert((await H.ev("APP.state().dockings.filter(function(x){return x.greet&&x.traded;}).length")) === 2 && (await H.ev("CORE.dockCount(APP.state(),'" + J1 + "')")) === 1, '同一對人一天第二次：照樣記一筆、不算進對接過幾次');
   await H.nav('greet'); assert((await H.main()).indexOf('上次') >= 0 && (await H.main()).indexOf('刪掉') >= 0, '打招呼密鑰那張紙：上次換的日子、可以改、刪掉');
+  // 5b. 同一個密鑰不能跟第二個人用；不分大小寫、頭尾空白不算；框不會自動大寫
+  await H.serial('J3'); await H.clickText('跟他設打招呼密鑰', '#tmain'); await H.setIn('gKey', ' 早安 '); await H.popOk('送出');
+  assert((await H.popTitle()) === '設不了' && (await H.popBody()).indexOf('這個密鑰你已經跟 我 用了') >= 0, '阿澄跟 J1 用著「早安」：跟小樂再設「 早安 」擋下（頭尾空白不算）'); await H.popOk();
+  assert((await H.ev("document.getElementById('serialIn').getAttribute('autocapitalize')")) === 'off' && (await H.ev("document.getElementById('hSerialIn').getAttribute('autocapitalize')")) === 'off', '序號或密鑰框不自動大寫');
+  await H.clickText('回我自己', '#tother');
+  await H.ev("(function(){var S=APP.state();CORE.accept(S,'" + J1 + "','" + J3 + "',APP.now());CORE.proposeGreet(S,'" + J1 + "','" + J3 + "',{key:'hello',give:['r1b'],get:['r3a']},APP.now());CORE.agreeGreet(S,'" + J3 + "',CORE.greetPair(S,'" + J1 + "','" + J3 + "').id);APP.changed();})()");
+  await H.becomeMe(J1); await H.serial('HELLO'); assert((await H.msg()).indexOf('等對方 1 分鐘內也輸入') >= 0, '輸入 HELLO 也配得到 hello（手機鍵盤自動大寫沒關係）');
+  await H.becomeMe(J3); await H.serial(' hello '); await pg.waitForTimeout(300); assert((await H.popOpen()) && (await H.popTitle()) === '到達那微秒', '對方輸入「 hello 」：當場換一次'); await H.popOk();
+  var gn = await H.ev("APP.state().dockings.filter(function(x){return x.greet&&x.traded;}).length"); assert(gn === 3, '密鑰換了三次（' + gn + '）');
   // 6. 固定約：成交結果裡兩邊都勾
   await H.becomeMe(J1);
   var sid = await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+1.5e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2b']);CORE.setWants(S,s.id,'" + J2 + "','" + J1 + "',['r1b']);APP.changed();return s.id;})()");

@@ -23,7 +23,7 @@ var KIT = (function () {
   function isOpen() { return !$('pop').hidden; }
   function flash() { var el = $('flash'); el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
 
-  /* ---------- 一張紙的外殼（四張紙和日曆紙共用）：標題、副標、上面的欄位、表、底下的說明 ---------- */
+  /* ---------- 一張紙的外殼（五張紙共用）：標題、副標、上面的欄位、表、底下的說明 ---------- */
   function page(key, title, sub, fields, body, foot, grow) {
     return '<section class="page' + (grow ? ' grow' : '') + '" data-sheet="' + key + '"><header><div><h1>' + esc(title) + '</h1></div><div class="sub">' + sub + '</div></header>' + (fields ? '<div class="fields">' + fields + '</div>' : '') + body + (foot ? '<p class="foot">' + foot + '</p>' : '') + '</section>';
   }

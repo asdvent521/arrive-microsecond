@@ -1,4 +1,4 @@
-// 新手教學（DESIGN 7-4，六步）都在四張紙上用手指走完：創角色（資源表那張紙已經寫好「空的」）→ 骰子骰出序號、按「去」→ 公告欄打「空的」找到引路人按「約他」、事件簿那一行選他的「空的」
+// 新手教學（DESIGN 7-4，六步）都在表格世界用手指走完：創角色（資源表那張紙已經寫好「空的」）→ 骰子骰出序號、按「去」→ 公告欄打「空的」找到引路人按「約他」、事件簿那一行選他的「空的」
 // → 那一微秒白光、那一行成交、紅字「引路人」→ 那一行兌現 → 去我的達秒屋（你 0 歲，第一塊磚亮了，鏡頭靠近）。
 // 教學的對接不算數、標「教學」；可以跳過（只做創角色，空物件的提醒照樣出現）；教學中跳過；全部還原又從創角色開始；舊存檔的八步對到六步。
 // node v9/tests/t_tutorial.js <test9.html>
@@ -10,12 +10,12 @@ var J1 = '00000000001', J4 = '00000000004';
   var waitStep = function (k) { return pg.waitForFunction("APP.tut().step === " + JSON.stringify(k), null, { timeout: 15000 }); };
   // ① 創角色：資源表那張紙已經寫好「空的」
   await H.fresh({ raw: true });
-  assert((await H.ev("APP.state().me")) === -1 && (await H.ev("APP.state().roles.map(function(r){return r.name;}).join(',')")) === '阿澄,小樂,引路人', '示範版沒有預先放好「我」：第一次打開從創角色開始');
+  assert((await H.ev("APP.state().me")) === -1 && (await H.ev("APP.state().roles.map(function(r){return r.name;}).join(',')")) === '阿澄,小樂,阿明,引路人', '示範版沒有預先放好「我」：第一次打開從創角色開始');
   assert((await H.sheetName()) === 'res' && (await pg.textContent('#tutbar')).indexOf('① 創角色') >= 0 && (await H.ev("!!document.querySelector('#tmain section.page[data-sheet=res]')")), '一打開就在資源表那張紙，上面一行寫新手教學 ① 創角色');
   assert((await H.ev("[document.getElementById('cDaily').value,document.getElementById('cItem').value,document.getElementById('cPrice').value,document.getElementById('cQty').value].join('/')")) === '2000/空的/0/1', '每天的點預設 2000，第一行「空的」0 點 1 份已經寫好');
   await H.setIn('cName', '小明'); await H.clickText('建立', '#tmain');
   await waitStep(2); await pg.waitForTimeout(300);
-  assert((await H.ev("APP.me().serial")) === J1 && (await pg.isHidden('#view-house')) && (await pg.isVisible('#view-table')) && (await H.msg()).indexOf('按最上面的骰子') >= 0, '建立：J1 當下生效，留在四張紙上，提示按骰子');
+  assert((await H.ev("APP.me().serial")) === J1 && (await pg.isHidden('#view-house')) && (await pg.isVisible('#view-table')) && (await H.msg()).indexOf('按最上面的骰子') >= 0, '建立：J1 當下生效，留在表格世界，提示按骰子');
   assert((await pg.textContent('#tutbar')).indexOf('② 找陌生人：骰子') >= 0 && (await pg.isVisible('#tutbar [data-act="tutSkip"]')), '教學到 ②，有「跳過教學」');
   assert((await H.ev("CORE.houseOf(APP.me()).blocks.length")) > 50 && (await H.ev("CORE.houseOf(APP.me()).cal.blocks.length")) === 1, '建好角色就有一間預設小屋和第一塊日曆');
   // ② 骰子：骰出序號、按「去」

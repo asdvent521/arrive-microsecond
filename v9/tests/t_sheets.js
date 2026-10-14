@@ -10,7 +10,7 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
 (async function () {
   var H = await lib.open(process.argv[2]), pg = H.pg;
   await H.fresh();
-  assert((await H.ev("typeof GAME")) === 'undefined' && (await H.ev("typeof TABLE !== 'undefined' && TABLE === SHEETS")) && (await H.ev("document.getElementById('view-house').hidden")) === true, '做事都在四張紙上：沒有裡世界；3D 只畫達秒屋（沒打開）');
+  assert((await H.ev("typeof GAME")) === 'undefined' && (await H.ev("typeof TABLE !== 'undefined' && TABLE === SHEETS")) && (await H.ev("document.getElementById('view-house').hidden")) === true, '做事都在表格世界（五張紙）：沒有裡世界；3D 只畫達秒屋（沒打開）');
   assert((await H.ev("Array.from(document.querySelectorAll('#ttabs .tab')).map(b=>b.textContent).join(',')")) === '事件簿,日曆,資源表,公告欄,更多' && (await H.ev("document.getElementById('serialIn').placeholder")) === '序號或密鑰' && (await H.ev("document.getElementById('diceBtn').title")) === '隨機骰一個序號', '最上面一列：「序號或密鑰」框、去、骰子（隨機骰一個序號）、五張紙的分頁');
   await pg.reload(); await pg.waitForTimeout(500);
   assert((await H.sheetName()) === 'log' && (await H.ev("SHEETS.ui.day")) === null && (await H.main()).indexOf('事件簿') >= 0, '一打開是今天的事件簿');

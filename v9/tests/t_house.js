@@ -76,10 +76,10 @@ var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){
   // 他的那張紙下面有「看他的達秒屋」
   await H.clickText('看他的達秒屋', '#tmain'); await pg.waitForTimeout(400);
   assert(!(await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("WORLD.info().serial")) === J2, '他的那張紙下面「看他的達秒屋」');
-  // 6. 骰子＋去：到一間還在玩、不是自己的達秒屋；回我的四張紙
+  // 6. 骰子＋去：到一間還在玩、不是自己的達秒屋；回我的表格世界
   var ok6 = true; for (var i = 0; i < 10; i++) { await H.hclick('#hDice'); await pg.waitForTimeout(100); await H.hclick('#hSerialGo'); await pg.waitForTimeout(150); var w = await H.ev("WORLD.info().serial"); if (!w || w === J1) ok6 = false; }
   assert(ok6, '骰子再按「去」10 次，都到不是自己的達秒屋');
-  await H.hclick('#hBack'); assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("SHEETS.ui.other")) === null, '「回我的四張紙」');
+  await H.hclick('#hBack'); assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("SHEETS.ui.other")) === null, '「回我的表格世界」');
   // 7. 成交那一刻開著自己的達秒屋：白光一閃，今天那塊磚亮起來
   await H.nav('house'); await H.clickText('去我的達秒屋', '#tmain'); await pg.waitForTimeout(400);
   var litBefore = await H.ev("WORLD.info().lit");
