@@ -1,6 +1,6 @@
 /* ===== v9 達秒屋（3D）：只畫 CORE.viewHouse 回傳的資料 =====
- * 兩部分：大門（大家都一樣，照紀錄畫：門牆排法跟日曆一樣，一格一個月、一天一塊磚、一排一週，一年一層）和自己蓋的方塊。
- * 同一種東西一次畫完：門牆的磚用 InstancedMesh；方塊同一種合成一個網格，被別的方塊擋住的面不畫。沒在動就不重畫。
+ * 兩部分：日曆（一個月一塊 2×2×1 的方塊，全部在 z＝0 那一面、正面朝前；正面畫月份和一天一塊磚，位置照 CORE 算好的清單）和自己蓋的方塊（門也是一塊）。
+ * 同一種東西一次畫完：磚用 InstancedMesh；所有日曆方塊的正面合成一個網格、月份字和日子的空位畫在同一張貼圖上；方塊同一種合成一個網格，被擋住的面不畫。沒在動就不重畫。
  * 一指拖著轉、兩指縮放、滾輪縮放；點一下（沒拖動）才算點。點方塊用格子一格一格找（不用逐個三角形比），地皮塞滿也快。
  * 只用資料畫：方塊種類是清單裡的字，畫面由這裡的程式畫。不讀紀錄、不改資料。
  */
@@ -10,27 +10,17 @@ var WORLD = (function () {
   var api = { available: false };
   if (!T) return stub();
   var renderer, scene, camera, root, container, picks = [], dirty = true, raf = 0, paused = false, onTap = null, lastKey = '';
-  var cam = { theta: 0, phi: 1.3, dist: 20, target: new T.Vector3(0, 2, 0), minD: 1.2, maxD: 400 };
-  var current = null, building = false, lastCalls = 0, gate = null, vox = null, counts = {}, focus = null;
-  function stub() { return { available: false, init: function () { return false; }, show: function () {}, onTap: function () {}, info: function () { return { calls: 0, bricks: 0 }; }, screenOf: function () { return null; }, hitAt: function () { return null; }, focusDay: function () {}, pause: function () {}, resume: function () {}, resize: function () {}, setInsets: function () {}, camera: function () { return null; } }; }
+  var cam = { theta: 0, phi: 1.35, dist: 12, target: new T.Vector3(0, 1, 1), minD: 1.2, maxD: 400 };
+  var current = null, building = false, lastCalls = 0, vox = null, counts = {}, focus = null, anim = null;
+  function stub() { return { available: false, init: function () { return false; }, show: function () {}, onTap: function () {}, info: function () { return { calls: 0, bricks: 0 }; }, screenOf: function () { return null; }, hitAt: function () { return null; }, focusDay: function () {}, lookCalendar: function () {}, pause: function () {}, resume: function () {}, resize: function () {}, setInsets: function () {}, camera: function () { return null; } }; }
 
-  /* ---------- 大門的尺寸（單位：一格方塊＝1） ---------- */
-  var P = 0.21, BS = 0.18, BD = 0.08;                // 一塊磚的間距、大小、厚度
-  var MW = 7 * P, MH6 = 6 * P, LBL = 0.24, MG = 0.12; // 一個月：七欄、最多六排；上面一條寫月份
-  var MH = MH6 + LBL, LH = 2 * MH + 0.1, BASE = 0.3;  // 一層：兩排月份（門的兩邊各 3×2 格＝12 個月）
-  var SIDE_W = 3 * MW + 2 * MG, SIDE_X0 = -6 + 0.15;  // 門左邊從 -5.85 開始，右邊對稱
-  var DOOR_W = 1.5, DOOR_H = 2.3;
-  function gateGeom(plot, layers) { var zf = plot.gateZ + 0.9; return { zf: zf, z0: plot.gateZ + 0.35, h: BASE + layers * LH + 0.35, layers: layers }; }
-  // 第 k 個月（0～11）在門牆上的左上角：前 6 個月在門左邊（上排 1～3、下排 4～6），後 6 個月在右邊
-  function monthOrigin(layer, k) {
-    var right = k >= 6, kk = k % 6, mrow = Math.floor(kk / 3), mcol = kk % 3;
-    var x0 = (right ? 1.2 : SIDE_X0) + mcol * (MW + MG), top = BASE + (layer + 1) * LH - 0.05 - mrow * MH;
-    return { x: x0, top: top, labelY: top - LBL / 2, gridTop: top - LBL };
-  }
-  function brickPos(g, zf) { var o = monthOrigin(g.layer, g.month); return { x: o.x + g.col * P + P / 2, y: o.gridTop - g.row * P - P / 2, z: zf + BD / 2 }; }
+  /* ---------- 日曆方塊的尺寸（單位：一格方塊＝1；一塊日曆 2×2×1） ---------- */
+  var CW = 2, CH = 2, CD = 1, LBL = 0.36, P = CW / 7, RP = (CH - LBL) / 6, BS = 0.2, BD = 0.06;   // 七欄、六排
+  var ZF = CORE.CAL_Z + CD;   // 正面在 z＝1
+  function brickPos(pos, g) { return { x: pos[0] + g.col * P + P / 2, y: pos[1] + CH - LBL - g.row * RP - RP / 2, z: ZF + BD / 2 }; }
 
   /* ---------- 材質、貼圖 ---------- */
-  var GATE_BODY = '#5E564C', GATE_FACE = '#6C6357', DAY_EMPTY = '#7B7266', BRICK = '#CDBB9E';
+  var CAL_BODY = '#5E564C', CAL_FACE = '#6C6357', DAY_EMPTY = '#7B7266', BRICK = '#CDBB9E';
   var dashedTex = null, clothTex = null;
   function dashed() {
     if (dashedTex) return dashedTex;
@@ -53,22 +43,25 @@ var WORLD = (function () {
     lines.forEach(function (t, i) { g.font = (i === 0 ? '700 48px ' : '400 36px ') + FONT; g.fillText(t, 256, lines.length === 1 ? 80 : 52 + i * 60, 480); });
     return new T.CanvasTexture(c);
   }
-  // 門牆一邊的底圖：每個月一格，格子裡畫出那個月每一天的空位（像日曆），上面寫月份；每一層第一個月和一月寫年份
-  function sideTexture(view, right) {
-    var layers = view.layers, ppu = Math.max(40, Math.min(128, Math.floor(4096 / (layers * LH)))), H = layers * LH;
-    var c = document.createElement('canvas'); c.width = Math.ceil(SIDE_W * ppu); c.height = Math.ceil(H * ppu); var g = c.getContext('2d');
-    g.fillStyle = GATE_FACE; g.fillRect(0, 0, c.width, c.height);
-    var X = function (x) { return (x - (right ? 1.2 : SIDE_X0)) * ppu; }, Y = function (y) { return (BASE + H - y) * ppu; };
-    g.textBaseline = 'middle';
-    for (var L = 0; L < layers; L++) for (var kk = 0; kk < 6; kk++) {
-      var k = kk + (right ? 6 : 0), o = monthOrigin(L, k), ym = view.gateMonths[L * 12 + k]; if (!ym) continue;
+  // 所有月份的正面畫在同一張貼圖上：一塊一格（月份字、每一天的空位），正面的網格用 UV 對過去
+  var TILE = 128, ATLAS_COLS = 16;
+  function atlasTexture(months) {
+    var n = Math.max(1, months.length), rows = Math.ceil(n / ATLAS_COLS);
+    var c = document.createElement('canvas'); c.width = TILE * Math.min(ATLAS_COLS, n); c.height = TILE * rows; var g = c.getContext('2d');
+    g.fillStyle = CAL_FACE; g.fillRect(0, 0, c.width, c.height);
+    var ppu = TILE / 2;   // 一塊 2×2 格
+    months.forEach(function (ym, i) {
+      if (!ym) return;
+      var ox = (i % ATLAS_COLS) * TILE, oy = Math.floor(i / ATLAS_COLS) * TILE;
       var first = new Date(Date.UTC(ym.y, ym.m - 1, 1)).getUTCDay(), days = new Date(Date.UTC(ym.y, ym.m, 0)).getUTCDate();
-      g.fillStyle = DAY_EMPTY;
-      for (var d = 0; d < days; d++) { var row = Math.floor((first + d) / 7), col = (first + d) % 7; g.fillRect(X(o.x + col * P + (P - BS) / 2), Y(o.gridTop - row * P - (P - BS) / 2), BS * ppu, BS * ppu); }
-      g.fillStyle = '#EDE4CC'; g.font = '600 ' + Math.round(LBL * ppu * 0.72) + 'px ' + FONT;
-      g.fillText((kk === 0 && !right) || ym.m === 1 ? ym.y + ' 年 ' + ym.m + ' 月' : ym.m + ' 月', X(o.x) + 2, Y(o.labelY));
-    }
-    var tex = new T.CanvasTexture(c); tex.anisotropy = 4; return tex;
+      g.fillStyle = ym.preview ? '#7E7568' : DAY_EMPTY;
+      for (var d = 0; d < days; d++) { var row = Math.floor((first + d) / 7), col = (first + d) % 7; g.fillRect(ox + (col * P + (P - BS) / 2) * ppu, oy + (LBL + row * RP + (RP - BS) / 2) * ppu, BS * ppu, BS * ppu); }
+      g.fillStyle = '#EDE4CC'; g.font = '600 ' + Math.round(LBL * ppu * 0.68) + 'px ' + FONT; g.textBaseline = 'middle'; g.textAlign = 'left';
+      var label = ym.first ? '起點 ' + ym.y + ' 年 ' + ym.m + ' 月' : ym.m === 1 ? ym.y + ' 年 1 月' : ym.m + ' 月';
+      if (ym.preview) label = '下個月 ' + ym.m + ' 月';
+      g.fillText(label, ox + 3, oy + LBL * ppu / 2, TILE - 6);
+    });
+    var tex = new T.CanvasTexture(c); tex.anisotropy = 4; tex.flipY = false; return tex;
   }
   function litColor(level) { return new T.Color(level >= 3 ? '#FFF4B8' : level === 2 ? '#FFD54F' : '#F2A93B'); }
 
@@ -99,43 +92,66 @@ var WORLD = (function () {
   var M4 = new T.Matrix4(), Q = new T.Quaternion(), V = new T.Vector3(), SV = new T.Vector3(1, 1, 1), E = new T.Euler();
   function setM(mesh, i, p, ry, s) { E.set(0, ry || 0, 0); Q.setFromEuler(E); V.set(p.x, p.y, p.z); SV.set(s || 1, s || 1, s || 1); M4.compose(V, Q, SV); mesh.setMatrixAt(i, M4); }
 
-  /* ---------- 大門 ---------- */
-  function buildGate(view) {
-    var plot = view.plot, G = gateGeom(plot, view.layers), zf = G.zf, closed = view.closed;
-    gate = G;
-    var body = add(new T.Mesh(new T.BoxGeometry(12, G.h, zf - G.z0), new T.MeshLambertMaterial({ color: GATE_BODY })), 'gate');
-    body.position.set(0, G.h / 2, (zf + G.z0) / 2); picks.push(body);
-    var cap = add(new T.Mesh(new T.BoxGeometry(12.4, 0.2, zf - G.z0 + 0.3), new T.MeshLambertMaterial({ color: '#4A433B' })), 'gatecap'); cap.position.set(0, G.h + 0.1, (zf + G.z0) / 2);
-    [false, true].forEach(function (right) {
-      var w = SIDE_W, h = view.layers * LH, face = add(new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshLambertMaterial({ map: sideTexture(view, right) })), right ? 'faceR' : 'faceL');
-      face.position.set((right ? 1.2 : SIDE_X0) + w / 2, BASE + h / 2, zf + 0.003);
-    });
-    var door = add(new T.Mesh(new T.BoxGeometry(DOOR_W, DOOR_H, 0.12), new T.MeshLambertMaterial({ color: '#7A5536' })), 'door'); door.position.set(0, DOOR_H / 2, zf + 0.06); picks.push(door);
-    var frame = add(new T.Mesh(new T.BoxGeometry(DOOR_W + 0.24, DOOR_H + 0.12, 0.06), new T.MeshLambertMaterial({ color: '#3B342C' })), 'doorframe'); frame.position.set(0, (DOOR_H + 0.12) / 2, zf + 0.02);
-    var knob = add(new T.Mesh(new T.SphereGeometry(0.06, 8, 6), new T.MeshBasicMaterial({ color: '#E8C35A' })), 'knob'); knob.position.set(0.5, 1.1, zf + 0.15);
-    var lines = closed ? ['只給鄰居看'] : [view.age ? view.age.text : '', view.sign ? '「' + view.sign + '」' : ''].filter(Boolean);
-    var sign = add(new T.Mesh(new T.PlaneGeometry(2.2, 0.69), new T.MeshBasicMaterial({ map: signTexture(lines, closed ? '#3B4652' : '#F4EBD3', closed ? '#FFFFFF' : '#3B342C') })), 'sign');
-    sign.position.set(0, DOOR_H + 0.5, zf + 0.01);
-    // 磚：沒亮、亮、蓋布、虛線（未來的預約），加上小記號
+  /* ---------- 日曆：方塊的身體（一次畫完）、正面（合成一個網格、一張貼圖）、磚、預告框 ---------- */
+  function buildCalendar(view) {
+    var cal = view.cal, closed = view.closed, list = cal.blocks, months = cal.months.slice();
+    var bodies = list.filter(Boolean);
+    var body = inst(new T.BoxGeometry(CW, CH, CD), new T.MeshLambertMaterial({ color: CAL_BODY }), bodies.length, 'calbody');
+    bodies.forEach(function (p, i) { setM(body, i, { x: p[0] + CW / 2, y: p[1] + CH / 2, z: CORE.CAL_Z + CD / 2 }); }); body.instanceMatrix.needsUpdate = true;
+    // 正面：每一塊一個四邊形，UV 對到貼圖上自己那一格
+    if (cal.preview) months.push(Object.assign({ preview: true }, cal.preview.month));
+    var tex = atlasTexture(months), cols = Math.min(ATLAS_COLS, Math.max(1, months.length)), rows = Math.ceil(Math.max(1, months.length) / ATLAS_COLS);
+    var quad = function (pos, i, out) {
+      var u0 = (i % ATLAS_COLS) / cols, v0 = Math.floor(i / ATLAS_COLS) / rows, u1 = u0 + 1 / cols, v1 = v0 + 1 / rows;
+      var x0 = pos[0], x1 = pos[0] + CW, y0 = pos[1], y1 = pos[1] + CH, z = ZF + 0.004;
+      var P4 = [[x0, y0, z, u0, v1], [x1, y0, z, u1, v1], [x1, y1, z, u1, v0], [x0, y1, z, u0, v0]];
+      [0, 1, 2, 0, 2, 3].forEach(function (k) { out.pos.push(P4[k][0], P4[k][1], P4[k][2]); out.uv.push(P4[k][3], P4[k][4]); out.nor.push(0, 0, 1); });
+    };
+    var face = { pos: [], uv: [], nor: [] };
+    list.forEach(function (p, i) { if (p) quad(p, i, face); });
+    var mkFace = function (o, mat, name) { if (!o.pos.length) return; var g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(o.pos, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(o.uv, 2)); g.setAttribute('normal', new T.Float32BufferAttribute(o.nor, 3)); add(new T.Mesh(g, mat), name); };
+    mkFace(face, new T.MeshLambertMaterial({ map: tex }), 'calface');
+    // 預告框：下一塊的位置，半透明的框（屋主看時上面寫會拆幾塊，由畫面層顯示在文字裡）
+    if (cal.preview) {
+      var pp = cal.preview.pos, pf = { pos: [], uv: [], nor: [] }; quad(pp, months.length - 1, pf);
+      mkFace(pf, new T.MeshLambertMaterial({ map: tex, transparent: true, opacity: 0.45, depthWrite: false }), 'previewface');
+      var box = add(new T.Mesh(new T.BoxGeometry(CW, CH, CD), new T.MeshLambertMaterial({ color: '#8FB3D9', transparent: true, opacity: 0.22, depthWrite: false })), 'preview');
+      box.position.set(pp[0] + CW / 2, pp[1] + CH / 2, CORE.CAL_Z + CD / 2); box.renderOrder = 1;
+      var edge = add(new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(CW + 0.02, CH + 0.02, CD + 0.02)), new T.LineBasicMaterial({ color: '#2D5A86' })), 'previewedge'); edge.position.copy(box.position);
+    }
+    // 磚：沒亮、亮、蓋布、虛線（未來的預約），加上小記號；只畫在房子上有位置的
     var unlit = [], lit = [], cover = [], fut = [], mark = [];
+    var posOf = function (b) { return b.g.m < list.length ? list[b.g.m] : (cal.preview && b.g.m === list.length ? cal.preview.pos : null); };
     view.bricks.forEach(function (b) {
-      if (!b.g) return;
+      if (!b.onHouse || !b.g) return; var p = posOf(b); if (!p) return; b._p = p;
       if (closed) unlit.push(b); else if (b.future) fut.push(b); else if (b.lit) lit.push(b); else if (b.cover) cover.push(b); else unlit.push(b);
       if (!closed && b.mark && !b.future) mark.push(b);
     });
     var geo = new T.BoxGeometry(BS, BS, BD);
-    var put = function (list, mat, name, colorFn) {
-      var m = inst(geo.clone(), mat, list.length, name);
-      list.forEach(function (b, i) { setM(m, i, brickPos(b.g, zf)); if (colorFn) m.setColorAt(i, colorFn(b)); });
+    var put = function (bl, mat, name, colorFn) {
+      var m = inst(geo.clone(), mat, bl.length, name);
+      bl.forEach(function (b, i) { setM(m, i, brickPos(b._p, b.g)); if (colorFn) m.setColorAt(i, colorFn(b)); });
       m.instanceMatrix.needsUpdate = true; if (colorFn && m.instanceColor) m.instanceColor.needsUpdate = true;
-      m.userData.days = list.map(function (b) { return b.day; }); picks.push(m); counts[name] = list.length; return m;
+      m.userData.days = bl.map(function (b) { return b.day; }); picks.push(m); counts[name] = bl.length; return m;
     };
     put(unlit, new T.MeshLambertMaterial({ color: closed ? '#A99C88' : BRICK }), 'unlit');
     put(lit, new T.MeshBasicMaterial({ color: 0xffffff }), 'lit', function (b) { return litColor(b.lit); });
     put(cover, new T.MeshLambertMaterial({ map: cloth() }), 'cover');
     put(fut, new T.MeshBasicMaterial({ map: dashed(), transparent: true, opacity: 0.95, depthWrite: false }), 'future');
     var mk = inst(new T.BoxGeometry(BS * 0.36, BS * 0.36, 0.02), new T.MeshBasicMaterial({ color: '#2B2520' }), mark.length, 'mark');
-    mark.forEach(function (b, i) { var p = brickPos(b.g, zf); setM(mk, i, { x: p.x, y: p.y, z: p.z + BD / 2 + 0.011 }); }); mk.instanceMatrix.needsUpdate = true; counts.mark = mark.length;
+    mark.forEach(function (b, i) { var p = brickPos(b._p, b.g); setM(mk, i, { x: p.x, y: p.y, z: p.z + BD / 2 + 0.011 }); }); mk.instanceMatrix.needsUpdate = true; counts.mark = mark.length;
+    view.bricks.forEach(function (b) { delete b._p; });
+    counts.cal = bodies.length;
+  }
+  // 門：一塊 1×2 的方塊，照方向轉；門牌掛在門上方
+  function buildDoor(view) {
+    var d = view.look.door, f = CORE.doorFront(d[4] || 0), ry = (d[4] || 0) * Math.PI / 180, cx = d[0] + 0.5, cz = d[2] + 0.5;
+    var frame = add(new T.Mesh(new T.BoxGeometry(1, 2, 1), new T.MeshLambertMaterial({ color: '#3B342C' })), 'doorframe'); frame.position.set(cx, d[1] + 1, cz);
+    var door = add(new T.Mesh(new T.BoxGeometry(0.84, 1.84, 0.12), new T.MeshLambertMaterial({ color: '#7A5536' })), 'door'); door.position.set(cx + f[0] * 0.47, d[1] + 1, cz + f[1] * 0.47); door.rotation.y = ry; picks.push(door);
+    var knob = add(new T.Mesh(new T.SphereGeometry(0.05, 8, 6), new T.MeshBasicMaterial({ color: '#E8C35A' })), 'knob'); knob.position.set(cx + f[0] * 0.56 - f[1] * 0.28, d[1] + 0.95, cz + f[1] * 0.56 + f[0] * 0.28);
+    var lines = view.closed ? ['只給鄰居看'] : [view.age ? view.age.text : '', view.sign ? '「' + view.sign + '」' : ''].filter(Boolean);
+    var sign = add(new T.Mesh(new T.PlaneGeometry(1.6, 0.5), new T.MeshBasicMaterial({ map: signTexture(lines, view.closed ? '#3B4652' : '#F4EBD3', view.closed ? '#FFFFFF' : '#3B342C'), side: T.DoubleSide })), 'sign');
+    sign.position.set(cx + f[0] * 0.52, d[1] + 2.35, cz + f[1] * 0.52); sign.rotation.y = ry;
   }
 
   /* ---------- 自己蓋的方塊：同一種合成一個網格，被擋住的面不畫 ---------- */
@@ -145,19 +161,21 @@ var WORLD = (function () {
     { n: [0, 0, 1], c: [[1, 0, 1], [1, 1, 1], [0, 1, 1], [0, 0, 1]] }, { n: [0, 0, -1], c: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]] }
   ];
   var KIND_IDS = null;
-  function kindIds() { if (KIND_IDS) return KIND_IDS; KIND_IDS = { list: [null] , id: {} }; Object.keys(CORE.BLOCKS).forEach(function (k) { KIND_IDS.id[k] = KIND_IDS.list.length; KIND_IDS.list.push(k); }); return KIND_IDS; }
-  function makeVox(plot, blocks) {
-    var S = plot.size, H = plot.height, grid = new Uint8Array(S * H * S), rot = {}, K = kindIds();
+  function kindIds() { if (KIND_IDS) return KIND_IDS; KIND_IDS = { list: [null], id: {} }; Object.keys(CORE.BLOCKS).concat(['cal']).forEach(function (k) { KIND_IDS.id[k] = KIND_IDS.list.length; KIND_IDS.list.push(k); }); return KIND_IDS; }
+  // 格子裡有什麼：自己蓋的方塊、門（兩格）、日曆方塊（四格）
+  function makeVox(plot, blocks, cal) {
+    var S = plot.size, H = plot.height, grid = new Uint8Array(S * H * S), K = kindIds(), doorAt = {};
     var idx = function (x, y, z) { if (x < plot.min || x > plot.max || z < plot.min || z > plot.max || y < 0 || y >= H) return -1; return ((x - plot.min) * H + y) * S + (z - plot.min); };
-    blocks.forEach(function (b) { var i = idx(b[0], b[1], b[2]); if (i >= 0) { grid[i] = K.id[b[3]] || 0; if (b.length > 4) rot[i] = b[4]; } });
-    return { plot: plot, grid: grid, idx: idx, rot: rot, kindAt: function (x, y, z) { var i = idx(x, y, z); return i < 0 ? null : K.list[grid[i]]; } };
+    blocks.forEach(function (b) { var i = idx(b[0], b[1], b[2]); if (i >= 0) grid[i] = K.id[b[3]] || 0; if (b[3] === 'door') { var j = idx(b[0], b[1] + 1, b[2]); if (j >= 0) grid[j] = K.id.door; doorAt[i] = b; doorAt[j] = b; } });
+    cal.forEach(function (p) { if (!p) return; CORE.calCells(p).forEach(function (c) { var i = idx(c[0], c[1], c[2]); if (i >= 0) grid[i] = K.id.cal; }); });
+    return { plot: plot, grid: grid, idx: idx, doorAt: doorAt, kindAt: function (x, y, z) { var i = idx(x, y, z); return i < 0 ? null : K.list[grid[i]]; } };
   }
-  function typeOf(k) { return k ? CORE.BLOCKS[k].type : null; }
+  function typeOf(k) { return k === 'cal' ? 'solid' : k ? CORE.BLOCKS[k].type : null; }
   function buildBlocks(view) {
-    var plot = view.plot, blocks = view.look.blocks, K = kindIds();
-    vox = makeVox(plot, blocks);
+    var plot = view.plot, blocks = view.look.blocks;
+    vox = makeVox(plot, blocks, view.cal.blocks);
     var byKind = {}, propList = {};
-    blocks.forEach(function (b) { var t = typeOf(b[3]); if (t === 'prop') (propList[b[3]] = propList[b[3]] || []).push(b); else (byKind[b[3]] = byKind[b[3]] || []).push(b); });
+    blocks.forEach(function (b) { var t = typeOf(b[3]); if (t === 'door') return; if (t === 'prop') (propList[b[3]] = propList[b[3]] || []).push(b); else (byKind[b[3]] = byKind[b[3]] || []).push(b); });
     var faces = 0;
     Object.keys(byKind).forEach(function (k) {
       var t = typeOf(k), pos = [], nor = [], col = [], base = new T.Color(CORE.BLOCKS[k].hex), cc = new T.Color();
@@ -180,7 +198,7 @@ var WORLD = (function () {
       var mat = t === 'lamp' ? new T.MeshBasicMaterial({ vertexColors: true }) : t === 'glass' ? new T.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.45, depthWrite: false, side: T.DoubleSide }) : new T.MeshLambertMaterial({ vertexColors: true });
       var m = add(new T.Mesh(g, mat), 'blk-' + k); if (t === 'glass') m.renderOrder = 2;
     });
-    counts.faces = faces; counts.blocks = blocks.length;
+    counts.faces = faces; counts.blocks = view.look.n;
     // 擺設：一種擺設的每一個零件一次畫完，跟著方向轉
     Object.keys(propList).forEach(function (k) {
       (PROP_PARTS[k] || []).forEach(function (part, pi) {
@@ -214,28 +232,45 @@ var WORLD = (function () {
   function show(view, opts) {
     if (!renderer) return;
     opts = opts || {}; var same = current && current.serial === view.serial;
-    var key = JSON.stringify({ b: view.bricks, s: view.sign, a: view.age && view.age.text, c: view.closed, n: view.look.n, r: view.look.rev, p: view.plot.size, L: view.layers }) + '|' + !!opts.building;
+    var key = JSON.stringify({ b: view.bricks, s: view.sign, a: view.age && view.age.text, c: view.closed, n: view.look.n, r: view.look.rev, d: view.look.door, p: view.plot.size, cal: view.cal.blocks, pv: view.cal.preview }) + '|' + !!opts.building;
     if (same && key === lastKey && !opts.resetCamera) return;   // 什麼都沒變就不重蓋
     var startBuild = !!opts.building && !building, stopBuild = !opts.building && building;
     lastKey = key; current = view; building = !!opts.building;
     clear();
-    buildGround(view.plot); buildGate(view); buildBlocks(view);
+    buildGround(view.plot); buildCalendar(view); buildDoor(view); buildBlocks(view);
     root.updateMatrixWorld(true);   // 新蓋的東西馬上點得到，不用等下一次畫
-    if (!same || opts.resetCamera || stopBuild) frontView();
-    if (startBuild) buildView();
+    if (!same || opts.resetCamera || stopBuild) { anim = null; setPose(calPose()); }
+    if (startBuild) { anim = null; setPose(buildPose()); }
     applyCam(); dirty = true; loop();
   }
-  // 一打開：鏡頭對著大門
-  function frontView() { var G = gate, r = Math.max(6.6, G.h / 2 + 0.4); cam.target.set(0, Math.min(G.h, 2 * r) / 2, G.zf); cam.theta = 0; cam.phi = 1.32; cam.dist = fitDist(r); }
-  // 蓋的時候：從高一點往下看整塊地皮
-  function buildView() { var p = current.plot; cam.target.set(0, 1, 0); cam.theta = 0.55; cam.phi = 0.6; cam.dist = fitDist(p.size * 0.66); }
+  // 這個月那一塊日曆（最後一塊有位置的；沒有就是起點）
+  function monthBlock() { var list = current.cal.blocks; for (var i = list.length - 1; i >= 0; i--) if (list[i]) return list[i]; return CORE.CAL_START; }
+  // 一打開：鏡頭對著這個月那一塊日曆的正面，旁邊看得到一點房子
+  function calPose() { var p = monthBlock(); return { target: new T.Vector3(p[0] + CW / 2, p[1] + CH / 2 - 0.1, ZF), theta: 0, phi: 1.38, dist: fitDist(3.0) }; }
+  // 蓋的時候：從右前方高處往下看整塊地皮
+  function buildPose() { var p = current.plot; return { target: new T.Vector3(0, 1, 0), theta: 0.55, phi: 0.6, dist: fitDist(p.size * 0.66) }; }
+  function setPose(p) { cam.target.copy(p.target); cam.theta = p.theta; cam.phi = p.phi; cam.dist = p.dist; }
+  // 「看日曆」：鏡頭繞回一打開時的位置，大約 0.7 秒看得到轉的過程
+  function lookCalendar() {
+    if (!current) return;
+    var to = calPose(), from = { target: cam.target.clone(), theta: cam.theta, phi: cam.phi, dist: cam.dist };
+    var TAU = Math.PI * 2; from.theta = ((from.theta % TAU) + TAU) % TAU; if (from.theta > Math.PI) from.theta -= TAU;   // 走短的那一邊
+    anim = { from: from, to: to, t0: performance.now(), ms: 700 }; dirty = true; loop();
+  }
+  function stepAnim(now) {
+    if (!anim) return false;
+    var k = Math.min(1, (now - anim.t0) / anim.ms), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    cam.target.lerpVectors(anim.from.target, anim.to.target, e); cam.theta = anim.from.theta + (anim.to.theta - anim.from.theta) * e; cam.phi = anim.from.phi + (anim.to.phi - anim.from.phi) * e; cam.dist = anim.from.dist + (anim.to.dist - anim.from.dist) * e;
+    if (k >= 1) anim = null;
+    applyCam(); return true;
+  }
   // 那一天的磚：鏡頭靠近，加一個框標出來
   function focusDay(day) {
     if (!current) return false;
-    var b = current.bricks.find(function (x) { return x.day === day; }); if (!b || !b.g) return false;
-    var p = brickPos(b.g, gate.zf);
+    var b = current.bricks.find(function (x) { return x.day === day; }); if (!b || !b.g || !b.onHouse) return false;
+    var pos = b.g.m < current.cal.blocks.length ? current.cal.blocks[b.g.m] : current.cal.preview.pos, p = brickPos(pos, b.g);
     var box = add(new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(BS + 0.08, BS + 0.08, BD + 0.06)), new T.LineBasicMaterial({ color: '#E0402B' })), 'focus');
-    box.position.set(p.x, p.y, p.z); focus = day;
+    box.position.set(p.x, p.y, p.z); focus = day; anim = null;
     cam.target.set(p.x, p.y - 0.42, p.z); cam.theta = 0; cam.phi = 1.5; cam.dist = 2.6; applyCam(); loop(); return true;   // 鏡頭往下挪一點：磚在畫面上半，下面留給說明
   }
 
@@ -249,13 +284,13 @@ var WORLD = (function () {
     camera.position.set(c.target.x + c.dist * Math.sin(c.phi) * Math.sin(c.theta), c.target.y + c.dist * Math.cos(c.phi), c.target.z + c.dist * Math.sin(c.phi) * Math.cos(c.theta));
     camera.lookAt(c.target); camera.updateMatrixWorld(); dirty = true;
   }
-  function loop() { if (raf || paused) return; raf = requestAnimationFrame(function () { raf = 0; if (dirty && renderer && !paused) { renderer.render(scene, camera); lastCalls = renderer.info.render.calls; dirty = false; } }); }
+  function loop() { if (raf || paused) return; raf = requestAnimationFrame(function (now) { raf = 0; var more = stepAnim(now); if (dirty && renderer && !paused) { renderer.render(scene, camera); lastCalls = renderer.info.render.calls; dirty = false; } if (more) loop(); }); }
   function resize() { if (!renderer || !container) return; var w = container.clientWidth || window.innerWidth, h = container.clientHeight || window.innerHeight; renderer.setSize(w, h, false); renderer.domElement.style.width = w + 'px'; renderer.domElement.style.height = h + 'px'; vw = w; vh = h; var d = insets.t - insets.b, fullH = h + Math.abs(d); camera.aspect = w / Math.max(1, fullH); camera.setViewOffset(w, fullH, 0, d > 0 ? 0 : -d, w, h); camera.updateProjectionMatrix(); dirty = true; loop(); }
 
   /* ---------- 手勢：一指轉、兩指縮放、滾輪縮放；點一下才算點 ---------- */
   function bindInput(el) {
     var pts = new Map(), start = null, moved = false, pinch = null;
-    el.addEventListener('pointerdown', function (e) { if (e.isPrimary) { pts.clear(); pinch = null; } el.setPointerCapture && el.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 1) { start = { x: e.clientX, y: e.clientY, t: Date.now() }; moved = false; } else { moved = true; pinch = null; } });
+    el.addEventListener('pointerdown', function (e) { anim = null; if (e.isPrimary) { pts.clear(); pinch = null; } el.setPointerCapture && el.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 1) { start = { x: e.clientX, y: e.clientY, t: Date.now() }; moved = false; } else { moved = true; pinch = null; } });
     el.addEventListener('pointermove', function (e) {
       if (!pts.has(e.pointerId)) return; var prev = pts.get(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pts.size === 1) { var dx = e.clientX - prev.x, dy = e.clientY - prev.y; if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) moved = true; if (moved) { cam.theta -= dx * 0.008; cam.phi -= dy * 0.006; applyCam(); loop(); } }
@@ -267,10 +302,10 @@ var WORLD = (function () {
       if (!pts.size) start = null;
     };
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-    el.addEventListener('wheel', function (e) { e.preventDefault(); cam.dist *= Math.pow(1.0015, e.deltaY); applyCam(); loop(); }, { passive: false });
+    el.addEventListener('wheel', function (e) { e.preventDefault(); anim = null; cam.dist *= Math.pow(1.0015, e.deltaY); applyCam(); loop(); }, { passive: false });
   }
 
-  /* ---------- 點到什麼：大門（門、磚、門牆）用三角形找；方塊一格一格找；都沒打到就看地上哪一格 ---------- */
+  /* ---------- 點到什麼：磚和門板用三角形找；方塊、門、日曆一格一格找；都沒打到就看地上哪一格 ---------- */
   var ray = new T.Raycaster(), ndc = new T.Vector2();
   // 手指點的不會剛好準：先點那一點，沒打到再試旁邊幾個點（也避開剛好落在三角形邊上的時候）
   var NEAR = [[0, 0], [0.37, 0.21], [-0.33, 0.29], [0.3, -0.4], [-0.25, -0.35], [3, 0], [-3, 0], [0, 3], [0, -3], [6, 0], [-6, 0], [0, 6], [0, -6]];
@@ -282,9 +317,8 @@ var WORLD = (function () {
     var hits = ray.intersectObjects(picks, false);
     for (var i = 0; i < hits.length; i++) {
       var h = hits[i], o = h.object, out = null;
-      if (o.name === 'door') out = { kind: 'door' };
+      if (o.name === 'door') { var dd = current.look.door; out = { kind: 'door', x: dd[0], y: dd[1], z: dd[2], rot: dd[4] || 0 }; }
       else if (o.userData.days && h.instanceId != null) out = { kind: 'brick', day: o.userData.days[h.instanceId], mesh: o.name };
-      else if (o.name === 'gate') out = { kind: 'gate' };
       if (out) { out.dist = h.distance; best = out; break; }
     }
     var v = voxelHit(ray.ray.origin, ray.ray.direction);
@@ -310,6 +344,8 @@ var WORLD = (function () {
     var n = [0, 0, 0]; if (axis0 >= 0) n[axis0] = -step[axis0];
     for (var guard = 0; guard < 400; guard++) {
       var k = vox.kindAt(c[0], c[1], c[2]);
+      if (k === 'door') { var dr = vox.doorAt[vox.idx(c[0], c[1], c[2])]; return { kind: 'door', x: dr[0], y: dr[1], z: dr[2], rot: dr[4] || 0, n: n.slice(), dist: t }; }
+      if (k === 'cal') return { kind: 'cal', x: c[0], y: c[1], z: c[2], n: n.slice(), dist: t };
       if (k) return { kind: 'block', x: c[0], y: c[1], z: c[2], k: k, prop: typeOf(k) === 'prop', n: n.slice(), dist: t };
       var m = tMax[0] < tMax[1] ? (tMax[0] < tMax[2] ? 0 : 2) : (tMax[1] < tMax[2] ? 1 : 2);
       t = tMax[m]; if (t > t1) return null;
@@ -321,13 +357,14 @@ var WORLD = (function () {
   function tap(x, y) { var hit = hitAt(x, y); if (onTap) onTap(hit); }
 
   /* ---------- 給畫面和測試用 ---------- */
-  // 某個東西在畫面上的位置：'door'、'gate'、{day}、{block:[x,y,z], n:[0,1,0]}（那一面的中心）、{ground:[x,z]}
+  // 某個東西在畫面上的位置：'door'、{day}、{cal:[x,y]}（那塊日曆正面的中心）、{preview:true}、{block:[x,y,z], n:[0,1,0]}（那一面的中心）、{ground:[x,z]}
   function screenOf(target) {
-    if (!renderer || !current || !gate) return null;
+    if (!renderer || !current) return null;
     var p = null;
-    if (target === 'door') p = new T.Vector3(-0.3, 0.9, gate.zf + 0.13);
-    else if (target === 'gate') p = new T.Vector3(0, Math.min(gate.h - 0.3, DOOR_H + 1.05), gate.zf);
-    else if (target.day != null) { var b = current.bricks.find(function (x) { return x.day === target.day; }); if (!b || !b.g) return null; var q = brickPos(b.g, gate.zf); p = new T.Vector3(q.x, q.y, q.z + BD / 2); }
+    if (target === 'door') { var dd = current.look.door, f = CORE.doorFront(dd[4] || 0); p = new T.Vector3(dd[0] + 0.5 + f[0] * 0.55 - f[1] * 0.15, dd[1] + 0.9, dd[2] + 0.5 + f[1] * 0.55 + f[0] * 0.15); }
+    else if (target.day != null) { var b = current.bricks.find(function (x) { return x.day === target.day; }); if (!b || !b.g || !b.onHouse) return null; var pos = b.g.m < current.cal.blocks.length ? current.cal.blocks[b.g.m] : current.cal.preview.pos, q = brickPos(pos, b.g); p = new T.Vector3(q.x, q.y, q.z + BD / 2); }
+    else if (target.cal) p = new T.Vector3(target.cal[0] + CW / 2, target.cal[1] + CH / 2, ZF);
+    else if (target.preview) { if (!current.cal.preview) return null; var pv = current.cal.preview.pos; p = new T.Vector3(pv[0] + CW / 2, pv[1] + CH / 2, ZF); }
     else if (target.block) { var bl = target.block, n = target.n || [0, 1, 0]; p = new T.Vector3(bl[0] + 0.5 + n[0] * 0.5, bl[1] + 0.5 + n[1] * 0.5, bl[2] + 0.5 + n[2] * 0.5); if (target.prop) p.set(bl[0] + 0.5, bl[1] + 0.3, bl[2] + 0.5); }
     else if (target.ground) p = new T.Vector3(target.ground[0] + 0.5, 0, target.ground[1] + 0.5);
     if (!p) return null;
@@ -335,12 +372,14 @@ var WORLD = (function () {
     if (p.z > 1) return null;
     return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height };
   }
-  function renderNow() { if (renderer) { renderer.render(scene, camera); lastCalls = renderer.info.render.calls; dirty = false; } }
+  function renderNow() { if (renderer) { if (anim) { anim.t0 = -1e9; stepAnim(performance.now()); } renderer.render(scene, camera); lastCalls = renderer.info.render.calls; dirty = false; } }
   api = {
-    available: true, init: init, show: show, resize: resize, setInsets: setInsets, hitAt: hitAt, screenOf: screenOf, focusDay: focusDay,
+    available: true, init: init, show: show, resize: resize, setInsets: setInsets, hitAt: hitAt, screenOf: screenOf, focusDay: focusDay, lookCalendar: lookCalendar,
     onTap: function (fn) { onTap = fn; },
     pause: function () { paused = true; if (raf) { cancelAnimationFrame(raf); raf = 0; } }, resume: function () { paused = false; dirty = true; loop(); },
-    info: function () { var c = (counts.unlit || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.lit || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length : 0, serial: current ? current.serial : null, building: building, focus: focus, gateH: gate ? gate.h : 0, gateZ: gate ? gate.zf : 0 }; },
+    info: function () { var c = (counts.unlit || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.lit || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length : 0, serial: current ? current.serial : null, building: building, focus: focus, animating: !!anim }; },
+    calPose: function () { return current ? calPose() : null; },
+    setCamera: function (p) { anim = null; if (p.target) cam.target.set(p.target[0], p.target[1], p.target[2]); if (p.theta != null) cam.theta = p.theta; if (p.phi != null) cam.phi = p.phi; if (p.dist != null) cam.dist = p.dist; applyCam(); loop(); },
     renderNow: renderNow, camera: function () { return cam; }, needsRender: function () { return dirty; }
   };
   // 試著建一個 WebGL 環境：瀏覽器不支援就當作 3D 用不了

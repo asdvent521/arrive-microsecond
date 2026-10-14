@@ -142,13 +142,18 @@ a.lk{word-break:break-all}
 .htut{display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:space-between;padding:6px 10px;background:var(--brass-soft);border:1px solid var(--line);border-radius:var(--r-m)}
 .hrow{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .hhint{font-size:.78rem;color:var(--ink);background:var(--hud);border:1px solid var(--line);border-radius:999px;padding:3px 10px;backdrop-filter:blur(6px);pointer-events:none}
-.hbuild{display:flex;flex-direction:row;align-items:center;gap:6px;background:var(--hud);border:1px solid var(--line);border-radius:var(--r-m);padding:6px;backdrop-filter:blur(6px)}
+.hbuild{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px;background:var(--hud);border:1px solid var(--line);border-radius:var(--r-m);padding:6px;backdrop-filter:blur(6px)}
 .hblk{order:2;flex:1 1 0;min-width:0;display:flex;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
 .hblk button{flex:none;min-width:42px;min-height:42px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:2px solid var(--line);border-radius:var(--r-s);background:var(--panel);font-size:.68rem;padding:2px 4px;color:var(--ink)}
 .hblk button .sw{margin:0;width:20px;height:16px}
 .hblk button.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--brass)}
-.hops{order:1;flex:none;display:flex;gap:5px;align-items:center}
-.hops .btn{min-height:42px;padding:4px 9px}
+.hops{order:1;flex:none;display:flex;gap:5px;align-items:center;flex-wrap:nowrap}
+.hops .btn{min-height:42px;padding:4px 9px;white-space:nowrap}
+.hdir{order:3;flex:1 0 100%;display:flex;gap:5px;align-items:center;flex-wrap:wrap;font-size:.8rem}
+.hdir .btn{min-height:34px;padding:2px 10px;white-space:nowrap}
+.hdir .btn.on{background:var(--ink);color:var(--panel)}
+.hrow .btn{white-space:nowrap}
+@media (max-width:520px){.hblk{order:0;flex:1 0 100%}.hops{order:1;flex:1 1 auto;overflow-x:auto}.hdir{order:2}.hrow{flex-wrap:wrap}}
 .hops .btn.on{background:var(--ink);color:var(--panel)}
 .hmsg{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:4;background:var(--ink);color:var(--panel);border-radius:var(--r-m);padding:6px 12px;font-size:.88rem;max-width:calc(100% - 32px)}
 .pop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);padding:16px}
@@ -174,7 +179,7 @@ a.lk{word-break:break-all}
   <div id="hcal" hidden></div>
   <div class="hbar"><input type="text" id="hSerialIn" placeholder="序號，例如 J2" aria-label="序號" autocomplete="off"><button type="button" class="btn sm pri" data-hact="go" id="hSerialGo">去</button><button type="button" class="btn sm" data-hact="random" id="hRandom">隨機</button><span class="who" id="hwho"></span><button type="button" class="btn sm" data-hact="back" id="hBack">回我的表格世界</button></div>
   <div class="hmsg" id="hmsg" hidden></div>
-  <div class="hfoot"><div class="htut" id="htut" hidden></div><div class="hbuild" id="hbuild" hidden><div class="hblk" id="hblk" role="toolbar" aria-label="選方塊"></div><div class="hops"><button type="button" class="btn sm on" data-hact="modeAdd" id="hModeAdd">蓋</button><button type="button" class="btn sm" data-hact="modeDel" id="hModeDel">拆</button><button type="button" class="btn sm" data-hact="undo" id="hUndo">復原上一步</button><button type="button" class="btn sm" data-hact="tpl" id="hTpl">範本</button></div></div><div class="hrow"><span class="hhint" id="hhint"></span><span><button type="button" class="btn sm" data-hact="build" id="hBuild" hidden>蓋</button> <button type="button" class="btn sm pri" data-hact="door" id="hDoor">進門</button></span></div></div>
+  <div class="hfoot"><div class="htut" id="htut" hidden></div><div class="hbuild" id="hbuild" hidden><div class="hblk" id="hblk" role="toolbar" aria-label="選方塊"></div><div class="hops"><button type="button" class="btn sm on" data-hact="modeAdd" id="hModeAdd">蓋</button><button type="button" class="btn sm" data-hact="modeDel" id="hModeDel">拆</button><button type="button" class="btn sm" data-hact="undo" id="hUndo">復原上一步</button><button type="button" class="btn sm" data-hact="tpl" id="hTpl">範本</button></div><div class="hdir"><span>日曆往哪長：</span><span id="hDirs"></span><span class="muted" id="hDirNote"></span></div></div><div class="hrow"><span class="hhint" id="hhint"></span><span><button type="button" class="btn sm" data-hact="build" id="hBuild" hidden>蓋</button> <button type="button" class="btn sm" data-hact="look" id="hLook">看日曆</button> <button type="button" class="btn sm pri" data-hact="door" id="hDoor">進門</button></span></div></div>
 </main>
 <div class="whiteflash" id="flash"></div>
 <div class="pop" id="pop" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="popTitle"><h3 id="popTitle"></h3><div class="body" id="popBody"></div><div class="btns" id="popBtns"></div></div></div>
@@ -526,9 +531,10 @@ var CORE = (function () {
     if (state.issued.indexOf(serial) < 0) state.issued.push(serial);
     if (!f.name || !String(f.name).trim()) bad('角色要有名字');
     var daily = f.dailyPoints == null ? DEFAULT_DAILY : Math.floor(+f.dailyPoints); if (!(daily >= 1)) bad('每天的點要是正整數');
-    var r = { serial: serial, name: String(f.name).trim(), contact: String(f.contact || ''), slots: [], stock: {}, world: f.world || defaultWorld(serial), born: dayNum(atUs), house: f.house && f.house.template ? Object.assign(cleanHouse(f.house), { blocks: cleanBlocks(template(f.house.template, f.house.wall, f.house.roof).concat(f.house.extra || []), plotOf(0), false) }) : cleanHouse(f.house || {}),
+    var r = { serial: serial, name: String(f.name).trim(), contact: String(f.contact || ''), slots: [], stock: {}, world: f.world || defaultWorld(serial), born: dayNum(atUs), house: cleanHouse(f.house && f.house.template ? Object.assign({}, f.house, { blocks: template(f.house.template, f.house.wall, f.house.roof).concat(f.house.extra || []), cal: { dir: f.house.calDir || 'up', blocks: [] } }) : (f.house || {}), plotOf(0), false, dayNum(atUs), dayNum(atUs)),
               versions: [{ id: newId('v'), fromDay: dayNum(atUs), dailyPoints: daily, rules: cleanRules(f.rules), resources: (f.resources || []).map(cleanRes) }] };
     r.versions[0].resources.forEach(function (x, i) { var src = f.resources[i]; r.stock[x.id] = { avail: Math.max(0, Math.floor(+(src && src.avail) || 0)), reserved: 0 }; });
+    r.house.calRemoved = 0;   // 新角色：第一塊日曆本來就在牆上，不算拆
     state.roles.push(r);
     return r;
   }
@@ -869,38 +875,77 @@ var CORE = (function () {
   BLOCKS.flower = { name: '花', type: 'prop', hex: '#D9667A' };
   BLOCKS.flag = { name: '旗子', type: 'prop', hex: '#C0453A' };
   BLOCKS.bench = { name: '長椅', type: 'prop', hex: '#8B6A44' };
-  var SIGN_MAX = 20, PLOT_MIN = 12, PLOT_MAX = 32, GATE_W = 12;
+  BLOCKS.door = { name: '門', type: 'door', hex: '#7A5536' };
+  var SIGN_MAX = 20, PLOT_MIN = 12, PLOT_MAX = 32;
   var ROTS = [0, 90, 180, 270];
+  // 日曆：一個月一塊，佔 2×2×1 格，全部在 z＝0 那一面、正面朝前（z 大的那邊）；第一塊固定在 [-2, 0]
+  var CAL_DIRS = { up: '上', down: '下', left: '左', right: '右' }, CAL_ORDER = ['up', 'right', 'left', 'down'], CAL_DELTA = { up: [0, 2], down: [0, -2], left: [-2, 0], right: [2, 0] };
+  var CAL_START = [-2, 0], CAL_Z = 0, DOOR_DEFAULT = [0, 0, 0, 'door', 0];
   // 地皮跟著年齡長：一開始 12×12、高 12；每活一年四邊各外推一格、高度加 2；最大 32×32、高 32
-  function plotOf(years) { var s = Math.min(PLOT_MAX, PLOT_MIN + 2 * Math.max(0, Math.floor(years || 0))); return { size: s, height: s, min: -s / 2, max: s / 2 - 1, gateZ: s / 2 - 1, gateX0: -GATE_W / 2, gateX1: GATE_W / 2 - 1 }; }
+  function plotOf(years) { var s = Math.min(PLOT_MAX, PLOT_MIN + 2 * Math.max(0, Math.floor(years || 0))); return { size: s, height: s, min: -s / 2, max: s / 2 - 1 }; }
   function plotAt(role, now) { return plotOf(ageOf(bornOf(role), dayNum(now || nowUs())).years); }
-  // 方塊位置以地皮中心為準：x、z 從 -size/2 到 size/2-1，y 從 0 到 height-1；大門佔最前面一排中間 12 格（整個高度）
-  function isGateCell(plot, x, z) { return z === plot.gateZ && x >= plot.gateX0 && x <= plot.gateX1; }
+  function inPlot(plot, x, y, z) { return x >= plot.min && x <= plot.max && z >= plot.min && z <= plot.max && y >= 0 && y < plot.height; }
+  function cellKey(x, y, z) { return x + ',' + y + ',' + z; }
+  // 門：佔 (x,y,z) 和 (x,y+1,z)；門前那一格是門朝的那一邊、一樣 1 寬 2 高（0 朝前＝z 大）
+  function doorFront(rot) { return rot === 90 ? [1, 0] : rot === 180 ? [0, -1] : rot === 270 ? [-1, 0] : [0, 1]; }
+  function doorCells(d) { return [[d[0], d[1], d[2]], [d[0], d[1] + 1, d[2]]]; }
+  function doorFrontCells(d, plot) { var f = doorFront(d[4] || 0); return [[d[0] + f[0], d[1], d[2] + f[1]], [d[0] + f[0], d[1] + 1, d[2] + f[1]]].filter(function (c) { return !plot || inPlot(plot, c[0], c[1], c[2]); }); }
+  function doorOf(h) { for (var i = 0; i < h.blocks.length; i++) if (h.blocks[i][3] === 'door') return h.blocks[i]; return null; }
+  // 日曆方塊的格子，和它正面那一條（z 1 到地皮前緣）
+  function calCells(pos) { return [[pos[0], pos[1], CAL_Z], [pos[0] + 1, pos[1], CAL_Z], [pos[0], pos[1] + 1, CAL_Z], [pos[0] + 1, pos[1] + 1, CAL_Z]]; }
+  function calFrontCells(pos, plot) { var out = []; for (var z = CAL_Z + 1; z <= plot.max; z++) for (var dx = 0; dx < 2; dx++) for (var dy = 0; dy < 2; dy++) out.push([pos[0] + dx, pos[1] + dy, z]); return out; }
+  // 這間屋哪些格子被日曆、門佔住或要留空（給蓋、長、搬門用）
+  function reserved(h, plot) {
+    var cal = {}, front = {}, door = {}, dfront = {};
+    ((h.cal && h.cal.blocks) || []).forEach(function (p) { if (!p) return; calCells(p).forEach(function (c) { cal[cellKey(c[0], c[1], c[2])] = true; }); calFrontCells(p, plot).forEach(function (c) { front[cellKey(c[0], c[1], c[2])] = true; }); });
+    var d = doorOf(h); if (d) { doorCells(d).forEach(function (c) { door[cellKey(c[0], c[1], c[2])] = true; }); doorFrontCells(d, plot).forEach(function (c) { dfront[cellKey(c[0], c[1], c[2])] = true; }); }
+    return { cal: cal, front: front, door: door, dfront: dfront };
+  }
+  // 一塊方塊本身合不合格（格式、種類、方向、在不在地皮裡）
   function blockProblem(b, plot) {
     if (!Array.isArray(b) || b.length < 4 || b.length > 5) return '方塊格式不對';
     var x = b[0], y = b[1], z = b[2], k = b[3], rot = b.length > 4 ? b[4] : 0;
     if (![x, y, z].every(function (n) { return typeof n === 'number' && n % 1 === 0; })) return '方塊位置要是整數';
     if (!BLOCKS.hasOwnProperty(k)) return '方塊種類不在清單裡：' + k;
-    if (BLOCKS[k].type === 'prop' ? ROTS.indexOf(rot) < 0 : rot !== 0) return '只有擺設能轉，而且只能轉 90 度';
-    if (x < plot.min || x > plot.max || z < plot.min || z > plot.max || y < 0 || y >= plot.height) return '地皮外面不能蓋';
-    if (isGateCell(plot, x, z)) return '大門那幾格不能蓋';
+    var t = BLOCKS[k].type;
+    if (t === 'prop' || t === 'door' ? ROTS.indexOf(rot) < 0 : rot !== 0) return '只有擺設和門能轉，而且只能轉 90 度';
+    if (!inPlot(plot, x, y, z) || (t === 'door' && y + 1 >= plot.height)) return '地皮外面不能蓋';
     return null;
   }
-  function cellKey(x, y, z) { return x + ',' + y + ',' + z; }
-  function normBlock(b) { var k = b[3]; return BLOCKS[k].type === 'prop' ? [b[0], b[1], b[2], k, b.length > 4 ? b[4] : 0] : [b[0], b[1], b[2], k]; }
-  // 方塊清單：strict（修改時）不合格就整個擋下；讀檔時不合格的丟掉、其他留著
-  function cleanBlocks(list, plot, strict) {
-    var seen = {}, out = [];
+  // 這一格能不能放（日曆、正面那一條、門、門前那一格都不行）
+  function placeProblem(res, x, y, z) {
+    var k = cellKey(x, y, z);
+    if (res.cal[k]) return '這裡要留給日曆'; if (res.front[k]) return '日曆正面前面要空著'; if (res.door[k]) return '這一格是門'; if (res.dfront[k]) return '門前面要空著';
+    return null;
+  }
+  function normBlock(b) { var k = b[3], t = BLOCKS[k].type; return t === 'prop' || t === 'door' ? [b[0], b[1], b[2], k, b.length > 4 ? b[4] : 0] : [b[0], b[1], b[2], k]; }
+  // 門放不放得下：兩格都在地皮裡、不在日曆和它正面那一條上、沒被別的方塊佔住；門前那一格沒有日曆、沒有方塊
+  function doorProblem(h, d, plot, ignoreBlocks) {
+    var p = blockProblem(d, plot); if (p) return p;
+    var res = reserved({ cal: h.cal, blocks: [] }, plot), occ = {};
+    if (!ignoreBlocks) h.blocks.forEach(function (b) { if (b[3] !== 'door') occ[cellKey(b[0], b[1], b[2])] = true; });
+    var cells = doorCells(d);
+    for (var i = 0; i < cells.length; i++) { var k = cellKey(cells[i][0], cells[i][1], cells[i][2]); if (res.cal[k]) return '門不能放在日曆上'; if (res.front[k]) return '門不能放在日曆正面前面'; if (occ[k]) return '那裡有方塊，門放不下'; }
+    var fc = doorFrontCells(d, plot);
+    for (var j = 0; j < fc.length; j++) { var kk = cellKey(fc[j][0], fc[j][1], fc[j][2]); if (res.cal[kk]) return '門前面不能是日曆'; if (occ[kk]) return '門前面要空著'; }
+    return null;
+  }
+  // 方塊清單：strict（修改時）不合格就整個擋下；讀檔時不合格的丟掉、其他留著。門另外處理（剛好一扇）
+  function cleanBlocks(list, plot, strict, h) {
+    var seen = {}, out = [], res = h ? reserved(h, plot) : null, door = null;
     (Array.isArray(list) ? list : []).forEach(function (b) {
       var p = blockProblem(b, plot);
+      if (!p && b[3] === 'door') { if (door) p = '一間屋只能有一扇門'; else { door = normBlock(b); return; } }
       if (!p && seen[cellKey(b[0], b[1], b[2])]) p = '同一格不能放兩塊';
+      if (!p && res) p = placeProblem(res, b[0], b[1], b[2]);
       if (p) { if (strict) bad(p); return; }
       seen[cellKey(b[0], b[1], b[2])] = true; out.push(normBlock(b));
     });
+    if (door) out.push(door);
     return out;
   }
 
-  /* 範本和預設小屋：都放得進 12×12、高 12，不碰大門那一排 */
+  /* 範本和預設小屋：都放得進 12×12、高 12，正面的牆在 z＝0、門在 (0,0,0) 朝前；範本自己帶門 */
   function boxFill(out, x0, x1, y0, y1, z0, z1, k) { for (var x = x0; x <= x1; x++) for (var y = y0; y <= y1; y++) for (var z = z0; z <= z1; z++) out.push([x, y, z, k]); }
   function shell(out, x0, x1, z0, z1, y0, y1, k) { for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) for (var z = z0; z <= z1; z++) if (x === x0 || x === x1 || z === z0 || z === z1) out.push([x, y, z, k]); }
   function carve(out, test) { return out.filter(function (b) { return !test(b[0], b[1], b[2]); }); }
@@ -910,40 +955,38 @@ var CORE = (function () {
   function template(name, wall, roof) {
     if (!TEMPLATES[name]) bad('沒有這個範本');
     wall = BLOCKS[wall] && BLOCKS[wall].type === 'solid' ? wall : TEMPLATE_COLORS[name][0]; roof = BLOCKS[roof] && BLOCKS[roof].type === 'solid' ? roof : TEMPLATE_COLORS[name][1];
-    var out = [], y, x, z;
-    if (name === 'house') {   // 預設小屋：6×5、牆高 3，斜屋頂；門對著大門，兩邊有窗
+    var out = [], y, x, z, door = [0, 0, 0, 'door', 0];
+    if (name === 'house') {   // 預設小屋：6×5、牆高 3，斜屋頂；正面的牆在 z＝0，門在中間，日曆是門左邊那一段牆
       shell(out, -3, 2, -4, 0, 0, 2, wall);
-      out = carve(out, function (a, b, c) { return c === 0 && (a === -1 || a === 0) && b <= 1; });
+      out = carve(out, function (a, b, c) { return c === 0 && a >= -2 && a <= -1 && b <= 1; });   // 門左邊那一段牆是第一塊日曆
       [[-3, -2], [2, -2]].forEach(function (p) { out = setCell(out, p[0], 1, p[1], 'glass'); });
-      out = setCell(out, -2, 1, 0, 'glass'); out = setCell(out, 1, 1, 0, 'glass');
-      [[-5, 1], [-4, 0], [-3, -1], [-2, -2]].forEach(function (r, i) { boxFill(out, -4, 3, 3 + i, 3 + i, r[0] + (i ? 0 : 0), r[1], roof); });
-      out = setCell(out, 2, 0, 2, 'lamp'); out.push([-3, 0, 2, 'flower', 0]);
+      out = setCell(out, 1, 1, 0, 'glass');
+      [[-5, 1], [-4, 0], [-3, -1], [-2, -2]].forEach(function (r, i) { boxFill(out, -4, 3, 3 + i, 3 + i, r[0], r[1], roof); });
+      out = setCell(out, 2, 0, 2, 'lamp'); out.push([-4, 0, 2, 'flower', 0]);
     } else if (name === 'tower') {   // 塔：4×4、高 10，頂上一圈垛口
       shell(out, -2, 1, -3, 0, 0, 8, wall);
-      out = carve(out, function (a, b, c) { return c === 0 && (a === -1 || a === 0) && b <= 1; });
       for (y = 3; y <= 7; y += 2) { out = setCell(out, -1, y, 0, 'glass'); out = setCell(out, -2, y, -2, 'glass'); out = setCell(out, 1, y, -1, 'glass'); }
       boxFill(out, -3, 2, 9, 9, -4, 1, roof);
       for (x = -3; x <= 2; x++) for (z = -4; z <= 1; z++) if ((x === -3 || x === 2 || z === -4 || z === 1) && (x + z) % 2 === 0) out.push([x, 10, z, roof]);
-      out.push([1, 0, 2, 'flag', 0]);
-    } else if (name === 'long') {    // 長屋：10×3、牆高 3，斜屋頂，前面三扇窗
+      out.push([2, 0, 2, 'flag', 0]);
+    } else if (name === 'long') {    // 長屋：10×3、牆高 3，斜屋頂，前面三扇窗；門在正面的牆上
       shell(out, -5, 4, -3, -1, 0, 2, wall);
-      out = carve(out, function (a, b, c) { return c === -1 && (a === -1 || a === 0) && b <= 1; });
       [-4, -3, 2, 3].forEach(function (a) { out = setCell(out, a, 1, -1, 'glass'); });
       boxFill(out, -6, 5, 3, 3, -4, 0, roof); boxFill(out, -6, 5, 4, 4, -3, -1, roof); boxFill(out, -6, 5, 5, 5, -2, -2, roof);
-      out.push([-5, 0, 1, 'tree', 0]); out.push([4, 0, 1, 'bench', 0]);
+      out.push([-5, 0, 1, 'tree', 0]); out.push([4, 0, 1, 'bench', 0]); door = [0, 0, -1, 'door', 0];
     } else if (name === 'flat') {    // 平房：8×8、牆高 2，平屋頂
       shell(out, -4, 3, -5, 2, 0, 1, wall);
-      out = carve(out, function (a, b, c) { return c === 2 && (a === -1 || a === 0) && b <= 1; });
       [-3, 2].forEach(function (a) { out = setCell(out, a, 1, 2, 'glass'); });
       boxFill(out, -5, 4, 2, 2, -6, 3, roof);
-      out = setCell(out, -5, 3, 3, 'lamp'); out = setCell(out, 4, 3, 3, 'lamp');
+      out = setCell(out, -5, 3, 3, 'lamp'); out = setCell(out, 4, 3, 3, 'lamp'); door = [0, 0, 2, 'door', 0];
     } else {                          // 圓屋：圓牆高 3，圓頂
       var cx = -0.5, cz = -1.5, dd = function (a, c) { return Math.sqrt((a - cx) * (a - cx) + (c - cz) * (c - cz)); };
       for (x = -6; x <= 5; x++) for (z = -6; z <= 4; z++) { var d = dd(x, z); if (d >= 3 && d < 4.1) for (y = 0; y <= 2; y++) out.push([x, y, z, wall]); }
-      out = carve(out, function (a, b, c) { return (a === -1 || a === 0) && c >= 1 && b <= 1; });
       [[3.6, 0], [3.0, 1], [2.2, 2], [1.1, 3]].forEach(function (r, i) { for (x = -6; x <= 5; x++) for (z = -6; z <= 4; z++) if (dd(x, z) < r[0] + 0.5) out.push([x, 3 + i, z, roof]); });
-      out = setCell(out, -3, 0, 3, 'lamp'); out = setCell(out, 2, 0, 3, 'lamp');
+      out = setCell(out, -3, 0, 3, 'lamp'); out = setCell(out, 2, 0, 3, 'lamp'); door = [0, 0, 2, 'door', 0];
     }
+    out = carve(out, function (a, b, c) { return a === door[0] && c === door[2] && b <= 1; });   // 門那兩格空出來
+    out.push(door);
     return cleanBlocks(out, plotOf(0), false);
   }
   // 第 2 輪的外觀（屋型、顏色、擺設）換成預設小屋：照原本牆和屋頂的顏色；擺設放得進地皮的換成方塊，放不進的不要
@@ -960,14 +1003,114 @@ var CORE = (function () {
     });
     return blocks;
   }
-  var DEFAULT_HOUSE = { sign: '', visibility: 'public', defaultVis: 'public' };
-  // 達秒屋的資料：門牌一句話、整間屋給誰看、新的一筆預設、自己蓋的方塊清單。plot＝現在的地皮
-  function cleanHouse(h, plot, strict) {
-    h = h && typeof h === 'object' ? h : {}; plot = plot || plotOf(0);
+
+  /* 日曆怎麼長：第 i 塊是創角色那個月往後第 i 個月；每個月第一天從最後一塊往 dir 長一塊，長不了照上、右、左、下換，再不行跳到同一面最近的空位，放滿就記空位 */
+  function ymdOf(dn) { var d = new Date(dn * 86400000); return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate(), wd: d.getUTCDay() }; }
+  function monthIndex(born, day) { var b = ymdOf(born), t = ymdOf(day); return (t.y - b.y) * 12 + (t.m - b.m); }
+  function monthFirstDay(born, i) { var b = ymdOf(born); return Math.round(Date.UTC(b.y, b.m + i, 1) / 86400000); }
+  function calMonth(born, i) { var b = ymdOf(born), mi = b.m + i; return { y: b.y + Math.floor(mi / 12), m: mi % 12 + 1 }; }
+  // 那一天在它那個月的方塊上第幾排第幾欄（七欄，星期日在最左邊）
+  function calSpot(born, day) {
+    if (day < born) return null;
+    var t = ymdOf(day), first = ymdOf(day - t.d + 1).wd;
+    return { m: monthIndex(born, day), row: Math.floor((first + t.d - 1) / 7), col: t.wd };
+  }
+  function calFits(h, pos, plot, skipIndex) {
+    if (pos[0] < plot.min || pos[0] + 1 > plot.max || pos[1] < 0 || pos[1] + 1 >= plot.height) return false;
+    var mine = {}; calCells(pos).forEach(function (c) { mine[cellKey(c[0], c[1], c[2])] = true; });
+    var list = h.cal.blocks;
+    for (var i = 0; i < list.length; i++) { if (i === skipIndex || !list[i]) continue; var cs = calCells(list[i]); for (var j = 0; j < 4; j++) if (mine[cellKey(cs[j][0], cs[j][1], cs[j][2])]) return false; }
+    var d = doorOf(h);
+    if (d) {
+      var dc = doorCells(d).concat(doorFrontCells(d, plot)); for (var k = 0; k < dc.length; k++) if (mine[cellKey(dc[k][0], dc[k][1], dc[k][2])]) return false;   // 碰到門或門前那一格
+      var front = {}; calFrontCells(pos, plot).forEach(function (c) { front[cellKey(c[0], c[1], c[2])] = true; });
+      var dd = doorCells(d); for (var m = 0; m < dd.length; m++) if (front[cellKey(dd[m][0], dd[m][1], dd[m][2])]) return false;   // 正面那一條裡有門
+    }
+    return true;
+  }
+  // 下一塊會長在哪裡（不改資料）：{ pos, dir（實際的方向）, fallback, removes（會拆幾塊）}；放滿了 pos 是 null
+  function nextCalPos(h, plot) {
+    var list = h.cal.blocks, last = null; for (var i = list.length - 1; i >= 0; i--) if (list[i]) { last = list[i]; break; }
+    if (!last) last = CAL_START;
+    var pos = null, dir = null, fallback = false;
+    if (!list.length) { pos = CAL_START.slice(); if (!calFits(h, pos, plot)) pos = null; dir = h.cal.dir; }
+    else {
+      var order = [h.cal.dir].concat(CAL_ORDER.filter(function (o) { return o !== h.cal.dir; }));
+      for (var k = 0; k < order.length && !pos; k++) { var p = [last[0] + CAL_DELTA[order[k]][0], last[1] + CAL_DELTA[order[k]][1]]; if (calFits(h, p, plot)) { pos = p; dir = order[k]; } }
+      if (!pos) {   // 同一面上離最後一塊最近、放得下的地方（一樣近：先低的、再左的）
+        var best = null, bd = Infinity;
+        for (var y = 0; y + 1 < plot.height; y++) for (var x = plot.min; x + 1 <= plot.max; x++) { var q = [x, y], d = Math.abs(x - last[0]) + Math.abs(y - last[1]); if (d < bd && calFits(h, q, plot)) { best = q; bd = d; } }
+        pos = best; fallback = true; dir = null;
+      }
+    }
+    var removes = 0;
+    if (pos) { var cells = {}; calCells(pos).concat(calFrontCells(pos, plot)).forEach(function (c) { cells[cellKey(c[0], c[1], c[2])] = true; }); h.blocks.forEach(function (b) { if (b[3] !== 'door' && cells[cellKey(b[0], b[1], b[2])]) removes++; }); }
+    return { pos: pos, dir: dir, fallback: fallback, removes: removes };
+  }
+  // 長一塊：日曆優先，長到的格子和正面那一條裡的方塊拆掉，回傳拆了幾塊
+  function growOne(h, born) {
+    var i = h.cal.blocks.length, plot = plotOf(ageOf(born, monthFirstDay(born, i)).years), n = nextCalPos(h, plot);
+    h.cal.blocks.push(n.pos);
+    if (!n.pos) return 0;
+    var cells = {}; calCells(n.pos).concat(calFrontCells(n.pos, plot)).forEach(function (c) { cells[cellKey(c[0], c[1], c[2])] = true; });
+    var before = h.blocks.length; h.blocks = h.blocks.filter(function (b) { return b[3] === 'door' || !cells[cellKey(b[0], b[1], b[2])]; });
+    var removed = before - h.blocks.length; if (removed) { h.rev = (h.rev || 0) + 1; h.calRemoved = (h.calRemoved || 0) + removed; }
+    return removed;
+  }
+  // 補長到第 upTo 個月（不含）；回傳總共拆了幾塊
+  function growTo(h, born, upTo) { var n = 0; while (h.cal.blocks.length < upTo) n += growOne(h, born); return n; }
+  // 讀檔和換日：每個角色從現有的塊數補到這個月。回傳有沒有長
+  function growCalendars(state, now) {
+    var today = dayNum(now || nowUs()), grew = false;
+    state.roles.forEach(function (r) { var h = houseOf(r); if (!h.cal) return; var want = monthIndex(bornOf(r), today) + 1; if (h.cal.blocks.length < want) { growTo(h, bornOf(r), want); grew = true; } });
+    return grew;
+  }
+  // 日曆清單合不合格：格式、第一塊在起點、不重疊、不出那個月的地皮（長度不能比現在多）
+  function calValid(h, born, today) {
+    var c = h.cal; if (!c || !CAL_DIRS[c.dir] || !Array.isArray(c.blocks)) return false;
+    if (c.blocks.length > monthIndex(born, today) + 1) return false;
+    var seen = {};
+    for (var i = 0; i < c.blocks.length; i++) {
+      var p = c.blocks[i]; if (p === null) continue;
+      if (!Array.isArray(p) || p.length !== 2 || p[0] % 1 !== 0 || p[1] % 1 !== 0) return false;
+      if (i === 0 && (p[0] !== CAL_START[0] || p[1] !== CAL_START[1])) return false;
+      var plot = plotOf(ageOf(born, monthFirstDay(born, i)).years); if (p[0] < plot.min || p[0] + 1 > plot.max || p[1] < 0 || p[1] + 1 >= plot.height) return false;
+      var cs = calCells(p); for (var j = 0; j < 4; j++) { var k = cellKey(cs[j][0], cs[j][1], cs[j][2]); if (seen[k]) return false; seen[k] = true; }
+    }
+    return true;
+  }
+  // 門一定要有一扇：沒有就放預設位置；放不下就找離預設位置最近、放得下的地上
+  function ensureDoor(h, plot) {
+    var d = doorOf(h);
+    if (d && !doorProblem(h, d, plot, true)) return false;   // 門還在、也不在日曆上：留著（擋到它的方塊最後會拆掉）
+    h.blocks = h.blocks.filter(function (b) { return b[3] !== 'door'; });
+    var cands = [DOOR_DEFAULT.slice()], best = null;
+    if (doorProblem(h, cands[0], plot, false)) {
+      var bd = Infinity;
+      for (var x = plot.min; x <= plot.max; x++) for (var z = plot.min; z <= plot.max; z++) { var dist = Math.abs(x) + Math.abs(z), c = [x, 0, z, 'door', 0]; if (dist < bd && !doorProblem(h, c, plot, false)) { best = c; bd = dist; } }
+    } else best = cands[0];
+    if (!best) { best = DOOR_DEFAULT.slice(); h.blocks = h.blocks.filter(function (b) { return !(b[0] === 0 && b[2] === 0 && b[1] <= 1); }); }   // 真的沒地方：硬放預設位置，擋到的拆掉
+    h.blocks.push(best); return true;
+  }
+  var DEFAULT_HOUSE = { sign: '', visibility: 'public', defaultVis: 'public', blocks: [], cal: { dir: 'up', blocks: [] } };
+  // 達秒屋的資料：門牌一句話、整間屋給誰看、新的一筆預設、自己蓋的方塊清單（門在裡面）、日曆清單。born／today 用來檢查和補長
+  function cleanHouse(h, plot, strict, born, today) {
+    h = h && typeof h === 'object' ? h : {}; plot = plot || plotOf(0); born = born == null ? (today == null ? 0 : today) : born; today = today == null ? born : today;
     var sign = String(h.sign == null ? '' : h.sign);
     if (sign.length > SIGN_MAX) { if (strict) bad('門牌一句話要在 ' + SIGN_MAX + ' 字以內'); sign = sign.slice(0, SIGN_MAX); }
-    var blocks = Array.isArray(h.blocks) ? cleanBlocks(h.blocks, plot, strict) : (h.shape || h.props || h.wall ? fromOldLook(h, plot) : template('house'));
-    return { sign: sign, visibility: h.visibility === 'neighbors' ? 'neighbors' : 'public', defaultVis: h.defaultVis == null ? 'public' : cleanVisLevel(h.defaultVis), blocks: blocks, rev: 0 };
+    var out = { sign: sign, visibility: h.visibility === 'neighbors' ? 'neighbors' : 'public', defaultVis: h.defaultVis == null ? 'public' : cleanVisLevel(h.defaultVis), blocks: [], cal: null, rev: Number(h.rev) || 0, calRemoved: 0 };
+    out.blocks = Array.isArray(h.blocks) ? cleanBlocks(h.blocks, plot, strict) : (h.shape || h.props || h.wall ? fromOldLook(h, plot) : template('house'));
+    // 門先定（沒有就補），再定日曆（不合格就從起點照 dir 重新長），門擋到日曆就搬，最後拆掉跟日曆、門衝突的方塊
+    ensureDoor(out, plot);
+    var dir = h.cal && CAL_DIRS[h.cal.dir] ? h.cal.dir : 'up';
+    out.cal = { dir: dir, blocks: calValid({ cal: h.cal }, born, today) ? h.cal.blocks.map(function (p) { return p ? [p[0], p[1]] : null; }) : [] };
+    var removed = Number(h.calRemoved) || 0;
+    removed += growTo(out, born, monthIndex(born, today) + 1);
+    if (ensureDoor(out, plot)) { /* 門搬了 */ }
+    var res = reserved(out, plot), before = out.blocks.length;
+    out.blocks = out.blocks.filter(function (b) { return b[3] === 'door' || !placeProblem(res, b[0], b[1], b[2]); });
+    out.calRemoved = removed + (before - out.blocks.length);
+    return out;
   }
   function houseOf(role) { return role && role.house ? role.house : DEFAULT_HOUSE; }
   // 門牌一句話、整間屋給誰看、新的一筆預設：馬上生效
@@ -982,35 +1125,56 @@ var CORE = (function () {
     if (f.defaultVis != null) h.defaultVis = f.defaultVis;
     return h;
   }
-  // 自己蓋：加一塊、拆一塊、轉擺設、整份換掉（範本、復原）。不限幾塊，只限地皮
+  // 日曆下一塊往哪長：選了存在 dir，馬上生效
+  function setCalDir(state, serial, dir) { if (!CAL_DIRS[dir]) bad('方向只有上、下、左、右'); var h = houseOf(need(state, serial)), old = h.cal.dir; h.cal.dir = dir; h.rev = (h.rev || 0) + 1; return old; }
+  // 屋主看過「拆了 N 塊」就清掉
+  function ackCalRemoved(state, serial) { var h = houseOf(need(state, serial)), n = h.calRemoved || 0; h.calRemoved = 0; return n; }
+  // 自己蓋：加一塊、拆一塊、轉擺設或門、搬門、整份換掉（範本、復原）。不限幾塊，只限地皮
   function blockIndex(h, x, y, z) { for (var i = 0; i < h.blocks.length; i++) { var b = h.blocks[i]; if (b[0] === x && b[1] === y && b[2] === z) return i; } return -1; }
   function addBlock(state, serial, b, now) {
     var r = need(state, serial), h = houseOf(r), plot = plotAt(r, now);
-    var nb = b && !Array.isArray(b) ? (BLOCKS[b.k] && BLOCKS[b.k].type === 'prop' ? [b.x, b.y, b.z, b.k, b.rot == null ? 0 : b.rot] : [b.x, b.y, b.z, b.k]) : b;
+    var nb = b && !Array.isArray(b) ? [b.x, b.y, b.z, b.k, b.rot == null ? 0 : b.rot] : b;
+    if (nb && nb[3] === 'door') bad('門只有一扇，用搬的');
     var p = blockProblem(nb, plot); if (p) bad(p);
+    p = placeProblem(reserved(h, plot), nb[0], nb[1], nb[2]); if (p) bad(p);
     if (blockIndex(h, nb[0], nb[1], nb[2]) >= 0) bad('這一格已經有東西了');
     nb = normBlock(nb); h.blocks.push(nb); h.rev = (h.rev || 0) + 1; return nb.slice();
   }
-  function removeBlock(state, serial, x, y, z) { var h = houseOf(need(state, serial)), i = blockIndex(h, x, y, z); if (i < 0) bad('這一格沒有東西'); var b = h.blocks.splice(i, 1)[0]; h.rev = (h.rev || 0) + 1; return b.slice(); }
-  function rotateBlock(state, serial, x, y, z) {
-    var h = houseOf(need(state, serial)), i = blockIndex(h, x, y, z); if (i < 0) bad('這一格沒有東西');
-    var b = h.blocks[i]; if (BLOCKS[b[3]].type !== 'prop') bad('只有擺設能轉');
+  function removeBlock(state, serial, x, y, z, now) {
+    var r = need(state, serial), h = houseOf(r), i = blockIndex(h, x, y, z);
+    if (i < 0) { var res = reserved(h, plotAt(r, now)); if (res.cal[cellKey(x, y, z)]) bad('日曆拆不掉'); if (res.door[cellKey(x, y, z)]) bad('門拆不掉，只能搬'); bad('這一格沒有東西'); }
+    if (h.blocks[i][3] === 'door') bad('門拆不掉，只能搬');
+    var b = h.blocks.splice(i, 1)[0]; h.rev = (h.rev || 0) + 1; return b.slice();
+  }
+  function rotateBlock(state, serial, x, y, z, now) {
+    var r = need(state, serial), h = houseOf(r), i = blockIndex(h, x, y, z); if (i < 0) bad('這一格沒有東西');
+    var b = h.blocks[i], t = BLOCKS[b[3]].type; if (t !== 'prop' && t !== 'door') bad('只有擺設和門能轉');
+    if (t === 'door') { var nd = b.slice(); nd[4] = (b[4] + 90) % 360; var p = doorProblem(h, nd, plotAt(r, now), false); if (p) bad(p + '，轉不過去'); }
     b[4] = (b[4] + 90) % 360; h.rev = (h.rev || 0) + 1; return b.slice();
   }
-  function setBlocks(state, serial, list, now) { var r = need(state, serial), h = houseOf(r), old = h.blocks; h.blocks = cleanBlocks(list, plotAt(r, now), true); h.rev = (h.rev || 0) + 1; return old.map(function (b) { return b.slice(); }); }
-  function applyTemplate(state, serial, name, now) { return setBlocks(state, serial, template(name), now); }
-
-  /* 大門：門牆排法跟日曆一樣。一層 12 個月（從創角色那個月開始），一格一個月，一排一週（七欄，星期日在最左邊）；每過一年加高一層 */
-  function ymdOf(dn) { var d = new Date(dn * 86400000); return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate(), wd: d.getUTCDay() }; }
-  function gateSpot(born, day) {
-    var b = ymdOf(born), t = ymdOf(day), mi = (t.y - b.y) * 12 + (t.m - b.m);
-    if (mi < 0 || day < born) return null;
-    var first = ymdOf(day - t.d + 1).wd;
-    return { layer: Math.floor(mi / 12), month: mi % 12, row: Math.floor((first + t.d - 1) / 7), col: t.wd };
+  // 搬門：點一個地方門就搬過去；回傳原本的門（復原用）
+  function moveDoor(state, serial, x, y, z, rot, now) {
+    var r = need(state, serial), h = houseOf(r), plot = plotAt(r, now), old = doorOf(h);
+    var nd = [x, y, z, 'door', rot == null ? (old ? old[4] : 0) : rot];
+    var p = doorProblem(h, nd, plot, false); if (p) bad(p);
+    h.blocks = h.blocks.filter(function (b) { return b[3] !== 'door'; }); h.blocks.push(nd); h.rev = (h.rev || 0) + 1;
+    return old ? old.slice() : null;
   }
-  // 門牆第 layer 層第 k 格是哪一年哪一月
-  function gateMonth(born, layer, k) { var b = ymdOf(born), mi = b.m + layer * 12 + k; return { y: b.y + Math.floor(mi / 12), m: mi % 12 + 1 }; }
-  function gateMonths(born, layers) { var out = []; for (var L = 0; L < layers; L++) for (var k = 0; k < 12; k++) out.push(gateMonth(born, L, k)); return out; }
+  // 整份換掉：loose＝碰到日曆、門前的那幾塊拿掉（範本用）；沒帶門就留原本的門
+  function setBlocks(state, serial, list, now, loose) {
+    var r = need(state, serial), h = houseOf(r), plot = plotAt(r, now), old = h.blocks.map(function (b) { return b.slice(); });
+    var cur = doorOf(h), nd = (Array.isArray(list) ? list : []).filter(function (b) { return Array.isArray(b) && b[3] === 'door'; })[0] || null;
+    var tmp = { cal: h.cal, blocks: list.filter(function (b) { return !(Array.isArray(b) && b[3] === 'door'); }) };
+    var door = cur ? cur.slice() : null;
+    if (nd && !doorProblem({ cal: h.cal, blocks: [] }, nd, plot, true)) { var test = { cal: h.cal, blocks: tmp.blocks }; if (!doorProblem(test, nd, plot, false)) door = normBlock(nd); else if (loose) { door = normBlock(nd); var occ = {}; doorCells(door).concat(doorFrontCells(door, plot)).forEach(function (c) { occ[cellKey(c[0], c[1], c[2])] = true; }); tmp.blocks = tmp.blocks.filter(function (b) { return !occ[cellKey(b[0], b[1], b[2])]; }); } }
+    else if (nd && !loose) bad(doorProblem({ cal: h.cal, blocks: [] }, nd, plot, true));
+    if (!door) { var e = { cal: h.cal, blocks: tmp.blocks.slice() }; ensureDoor(e, plot); door = doorOf(e); tmp.blocks = e.blocks.filter(function (b) { return b[3] !== 'door'; }); }
+    var withDoor = { cal: h.cal, blocks: [door] };
+    var cleaned = cleanBlocks(tmp.blocks, plot, !loose, withDoor);
+    h.blocks = cleaned.concat([door]); h.rev = (h.rev || 0) + 1;
+    return old;
+  }
+  function applyTemplate(state, serial, name, now) { return setBlocks(state, serial, template(name), now, true); }
   // 是不是鄰居：第 3 輪接上街；這一輪沒有街，永遠不是
   function isNeighbor(state, a, b) { return false; }
 
@@ -1054,15 +1218,23 @@ var CORE = (function () {
     return lv === 'public' || (lv === 'neighbors' && !!viewer && isNeighbor(state, owner, viewer));
   }
   function houseClosed(state, role, viewer) { return houseOf(role).visibility === 'neighbors' && viewer !== role.serial && !(viewer && isNeighbor(state, role.serial, viewer)); }
-  function lookOf(role) { var h = houseOf(role); return { blocks: (h.blocks || []).map(function (b) { return b.slice(); }), rev: h.rev || 0, n: (h.blocks || []).length }; }
+  function lookOf(role) { var h = houseOf(role); return { blocks: (h.blocks || []).map(function (b) { return b.slice(); }), door: (doorOf(h) || DOOR_DEFAULT).slice(), rev: h.rev || 0, n: (h.blocks || []).filter(function (b) { return b[3] !== 'door'; }).length }; }
+  // 日曆的形狀：每一塊在哪裡、是哪一年哪一月、預告框在哪裡（owner 自己看才寫會拆幾塊）
+  function calOf(role, born, today, mine) {
+    var h = houseOf(role), n = monthIndex(born, today) + 1, plot = plotOf(ageOf(born, monthFirstDay(born, n)).years), nx = nextCalPos(h, plot);
+    return { dir: h.cal.dir, z: CAL_Z, blocks: h.cal.blocks.map(function (p) { return p ? [p[0], p[1]] : null; }), months: h.cal.blocks.map(function (p, i) { var m = calMonth(born, i); m.first = i === 0; return m; }),
+      preview: nx.pos ? { pos: nx.pos, dir: nx.dir, fallback: nx.fallback, removes: mine ? nx.removes : 0, month: calMonth(born, n) } : null, full: !nx.pos };
+  }
   // 看一間屋：只回傳 viewer 看得到的東西（viewer 是 null 就是陌生人，例如家規系統）
   function viewHouse(state, ownerSerial, viewerSerial, now) {
-    now = now || nowUs(); var r = need(state, ownerSerial), today = dayNum(now), born = bornOf(r), viewer = viewerSerial || null;
-    var bricks = [], d, plot = plotOf(ageOf(born, today).years), layers = 1;
-    var spot = function (b) { b.g = gateSpot(born, b.day); if (b.g && b.g.layer + 1 > layers) layers = b.g.layer + 1; return b; };
-    if (houseClosed(state, r, viewer)) {   // 只給鄰居看、看的人又不是鄰居：只回外觀（自己蓋的）和門牆上的磚（沒有亮暗）
+    now = now || nowUs(); var r = need(state, ownerSerial), today = dayNum(now), born = bornOf(r), viewer = viewerSerial || null, h = houseOf(r);
+    var bricks = [], d, plot = plotOf(ageOf(born, today).years), cal = calOf(r, born, today, viewer === ownerSerial), nBlocks = h.cal.blocks.length;
+    // 每塊磚在第幾塊日曆上第幾排第幾欄；這個月以後只有下個月（預告框）畫在房子上
+    var spot = function (b) { var g = calSpot(born, b.day); b.g = g; b.onHouse = !!g && (g.m < nBlocks ? !!h.cal.blocks[g.m] : (g.m === nBlocks && !!cal.preview)); return b; };
+    if (houseClosed(state, r, viewer)) {   // 只給鄰居看、看的人又不是鄰居：只回外觀（自己蓋的、日曆的形狀）和磚的位置（沒有亮暗）
       for (d = born; d <= today; d++) bricks.push(spot({ day: d, future: false }));
-      return { serial: r.serial, name: r.name, closed: true, look: lookOf(r), plot: plot, layers: layers, gateMonths: gateMonths(born, layers), sign: '', age: null, born: null, today: today, bricks: bricks };
+      cal.preview = cal.preview ? Object.assign(cal.preview, { removes: 0 }) : null;
+      return { serial: r.serial, name: r.name, closed: true, look: lookOf(r), cal: cal, plot: plot, sign: '', age: null, born: null, today: today, bricks: bricks };
     }
     var byDay = {};
     entriesOf(state).forEach(function (e) { if (e.a !== ownerSerial && e.b !== ownerSerial) return; var dd = dayNum(e.atUs); (byDay[dd] = byDay[dd] || []).push(e); });
@@ -1073,8 +1245,7 @@ var CORE = (function () {
     };
     for (d = born; d <= today; d++) bricks.push(spot(brick(d, false)));
     Object.keys(byDay).map(Number).filter(function (x) { return x > today; }).sort(function (x, y) { return x - y; }).forEach(function (x) { bricks.push(spot(brick(x, true))); });
-    var h = houseOf(r);
-    return { serial: r.serial, name: r.name, closed: false, look: lookOf(r), plot: plot, layers: layers, gateMonths: gateMonths(born, layers), sign: h.sign, age: ageOf(born, today), born: born, today: today, bricks: bricks };
+    return { serial: r.serial, name: r.name, closed: false, look: lookOf(r), cal: cal, plot: plot, sign: h.sign, age: ageOf(born, today), born: born, today: today, bricks: bricks, calRemoved: viewer === ownerSerial ? (h.calRemoved || 0) : 0 };
   }
   function versionOnDay(role, day) { var out = role.versions[0]; role.versions.forEach(function (v) { if (v.fromDay <= day) out = v; }); return out; }
   function holdState(state, h) { if (!h) return null; return h.status === 'redeemed' ? '換了 ' + (h.redeemedAt ? fmtUs(h.redeemedAt).slice(5, 10) : '') : h.status === 'expired' ? '到期作廢' + (h.endedAt ? ' ' + fmtUs(h.endedAt).slice(5, 10) : '') : h.status === 'voided' ? '作廢' : '保留中'; }
@@ -1173,16 +1344,18 @@ var CORE = (function () {
     var now = nowUs(), hist = opts.history !== false, ago = function (days) { return hist ? now - days * DAY_US : now; };
     var st = { v: 9, me: -1, roles: [], issued: [], holds: [], dockings: [], redeems: [], acceptances: [], records: [], notices: [], tutorial: freshTutorial() };
     // 示範角色：阿澄（條件：可換的貨 ≥ 5）、小樂（要兩方都通、接受家規）、引路人（沒有條件、一堆 0 點的「空的」）。第一次打開從創角色開始
-    createRole(st, { serial: '00000000002', name: '阿澄', dailyPoints: 2000, house: { template: 'tower', wall: 'brick', roof: 'slate', sign: '聽你講，幫你改', extra: [[-3, 0, 2, 'lamp'], [-2, 0, 3, 'flower', 0], [-1, 0, 3, 'flower', 0]] },
+    createRole(st, { serial: '00000000002', name: '阿澄', dailyPoints: 2000, house: { template: 'tower', wall: 'brick', roof: 'slate', sign: '聽你講，幫你改', calDir: 'up', extra: [[-3, 0, 2, 'lamp'], [-4, 0, 3, 'flower', 0], [-5, 0, 3, 'flower', 0]] },
       rules: { uses: ['1 阿澄點 = 聽你講 1 分鐘', '100 阿澄點 = 幫你改一份履歷'], conditions: [{ field: 'avail', op: '>=', value: 5 }], village: '東恆家規：對接後要一起立一個難題。' },
       resources: [{ id: 'r2a', name: '改履歷', def: '一份，三天內回', price: 100, keepDays: 30, avail: 3 }, { id: 'r2b', name: '一小時諮詢', def: '', price: 90, keepDays: null, avail: 10 }, { id: 'r2c', name: '試聽 5 分鐘', def: '試用品，不收點', price: 0, keepDays: 7, avail: 3 }], contact: '' }, ago(420));
-    createRole(st, { serial: '00000000003', name: '小樂', dailyPoints: 800, house: { template: 'long', wall: 'sand', roof: 'moss', sign: '借書的長屋', extra: [[-3, 0, 3, 'tree', 0], [2, 0, 3, 'tree', 90], [0, 0, 3, 'flower', 0], [-6, 0, -5, 'wood'], [-6, 1, -5, 'wood']] },
+    createRole(st, { serial: '00000000003', name: '小樂', dailyPoints: 800, house: { template: 'long', wall: 'sand', roof: 'moss', sign: '借書的長屋', calDir: 'right', extra: [[-3, 0, 3, 'tree', 0], [2, 0, 3, 'tree', 90], [0, 0, 3, 'flower', 0], [-6, 0, -5, 'wood'], [-6, 1, -5, 'wood']] },
       rules: { uses: ['1 小樂點 = 借書 1 天'], conditions: [{ field: 'myPoints', op: '>=', value: 0 }], bothMustPass: true, mustAcceptVillage: true, village: '小樂家規：借的書要在一個月內還。' },
       resources: [{ id: 'r3a', name: '借一本書', def: '', price: 10, keepDays: 14, avail: 20 }], contact: 'mail@example.com' }, ago(230));
-    createRole(st, { serial: GUIDE, name: '引路人', dailyPoints: 2000, house: { template: 'round', wall: 'cream', roof: 'pine', sign: '空的換空的', extra: [[-4, 0, 4, 'flower', 0], [3, 0, 4, 'flower', 0], [-6, 0, -6, 'tree', 0], [5, 0, -6, 'tree', 180]] },
+    createRole(st, { serial: GUIDE, name: '引路人', dailyPoints: 2000, house: { template: 'round', wall: 'cream', roof: 'pine', sign: '空的換空的', calDir: 'left', extra: [[-4, 0, 4, 'flower', 0], [3, 0, 4, 'flower', 0], [-6, 0, -6, 'tree', 0], [5, 0, -6, 'tree', 180]] },
       rules: { uses: ['引路人的點只用來教學'], conditions: [], village: '' },
       resources: [{ id: 'r4e', name: '空的', def: '什麼都不給；教學用', price: 0, keepDays: null, avail: 99999 }], contact: '' }, ago(800));
     if (hist) demoHistory(st, now);
+    // 示範角色的日曆用規則層一個月一個月長到現在：阿澄一直往上（到頂往右）、小樂往右（到邊往上）、引路人往左四個月再往上
+    if (hist) { var g = roleOf(st, GUIDE), gh = houseOf(g); growTo(gh, bornOf(g), Math.min(4, monthIndex(bornOf(g), dayNum(now)) + 1)); gh.cal.dir = 'up'; growCalendars(st, now); st.roles.forEach(function (r) { houseOf(r).calRemoved = 0; }); }
     // 阿澄開兩個對接時段：3 分鐘後、10 分鐘後，各 2 個名額
     addSlot(st, '00000000002', now + 180e6, 2, null, now);
     addSlot(st, '00000000002', now + 600e6, 2, null, now);
@@ -1264,7 +1437,7 @@ var CORE = (function () {
         return { id: ident(s.id, '時段'), atUs: num(s.atUs, '時段'), capacity: num(s.capacity, '名額'), together: !!s.together, bookings: list(s.bookings || [], LIMITS.booked, '預約').map(ser('預約')), confirmed: list(s.confirmed || [], LIMITS.booked, '確認到達').map(ser('確認到達')), bookedAt: ba, docked: list(s.docked || [], LIMITS.booked, '對接').map(ser('對接')), missed: list(s.missed || [], LIMITS.booked, '錯過').map(ser('錯過')), wants: wants, maxGive: mg, judged: !!s.judged, visAt: (function () { var o = {}; Object.keys(s.visAt || {}).forEach(function (k) { o[str(k, 11, '預設')] = cleanVisLevel(s.visAt[k]); }); return o; })() }; }),
       world: cleanWorld(r.world)
     };
-    out.house = cleanHouse(r.house, plotAt(out));   // 方塊照現在的地皮檢查：不合格的丟掉；第 2 輪的外觀換成預設小屋
+    out.house = cleanHouse(r.house, plotAt(out), false, bornOf(out), dayNum(nowUs()));   // 方塊照現在的地皮檢查：不合格的丟掉；門補上、日曆補長；舊的外觀換成預設小屋
     return out;
   }
   // 世界：沿用 v5 的格式（物件、門、走法、路、起點）
@@ -1413,7 +1586,7 @@ var CORE = (function () {
   return {
     abbrev: abbrev, expand: expand, digitsAfter: digitsAfter, Decoder: Decoder, route: route,
     FUNCS: FUNCS, SHAPES: SHAPES, LOOKS: LOOKS, look: look, radiusOf: radiusOf, VIS: VIS, allObjects: allObjects, findObject: findObject, cleanWorld: cleanWorld, cleanRole: cleanRole, tryClean: tryClean,
-    fmtUs: fmtUs, nowUs: nowUs, untilText: untilText, deleteSlot: deleteSlot, VIS_LEVELS: VIS_LEVELS, PALETTE: PALETTE, BLOCKS: BLOCKS, SIGN_MAX: SIGN_MAX, PLOT_MIN: PLOT_MIN, PLOT_MAX: PLOT_MAX, GATE_W: GATE_W, TEMPLATES: TEMPLATES, plotOf: plotOf, plotAt: plotAt, isGateCell: isGateCell, cleanBlocks: cleanBlocks, template: template, gateSpot: gateSpot, gateMonth: gateMonth, codec: codec,
+    fmtUs: fmtUs, nowUs: nowUs, untilText: untilText, deleteSlot: deleteSlot, VIS_LEVELS: VIS_LEVELS, PALETTE: PALETTE, BLOCKS: BLOCKS, SIGN_MAX: SIGN_MAX, PLOT_MIN: PLOT_MIN, PLOT_MAX: PLOT_MAX, TEMPLATES: TEMPLATES, CAL_DIRS: CAL_DIRS, CAL_START: CAL_START, CAL_Z: CAL_Z, plotOf: plotOf, plotAt: plotAt, cleanBlocks: cleanBlocks, template: template, calSpot: calSpot, calMonth: calMonth, monthIndex: monthIndex, monthFirstDay: monthFirstDay, nextCalPos: nextCalPos, growCalendars: growCalendars, setCalDir: setCalDir, ackCalRemoved: ackCalRemoved, moveDoor: moveDoor, doorOf: doorOf, doorFront: doorFront, doorCells: doorCells, doorFrontCells: doorFrontCells, calCells: calCells, calFrontCells: calFrontCells, reserved: reserved, codec: codec,
     cleanHouse: cleanHouse, houseOf: houseOf, compress: compress, decompress: decompress, encodeSave: encodeSave, decodeSave: decodeSave, setHouse: setHouse, addBlock: addBlock, removeBlock: removeBlock, rotateBlock: rotateBlock, setBlocks: setBlocks, applyTemplate: applyTemplate, isNeighbor: isNeighbor, entriesOf: entriesOf, setVis: setVis, viewHouse: viewHouse, dayDetail: dayDetail, ageOf: ageOf, bornOf: bornOf, buildEntries: buildEntries, io: io, LIMITS: LIMITS, cleanSite: cleanSite, setSite: setSite, setContact: setContact, randomRole: randomRole, postNotice: postNotice, removeNotice: removeNotice, expireNotices: expireNotices, giveNames: giveNames, canBook: canBook, search: search, KEY: KEY, OLD_KEY: OLD_KEY, togetherMissing: togetherMissing, togetherStatus: togetherStatus, selectedPairs: selectedPairs, BLANK: BLANK, dayOf: dayOf, dayNum: dayNum, dayLabel: dayLabel, DAY_US: DAY_US, newId: newId, DEFAULT_DAILY: DEFAULT_DAILY,
     version: version, pending: pending, tomorrow: tomorrow, dropPending: dropPending, resourceOf: resourceOf, resourceName: resourceName, setDailyPoints: setDailyPoints, setRules: setRules, addResource: addResource, setResource: setResource, removeResource: removeResource, cleanRules: cleanRules,
     dailyPoints: dailyPoints, givenToday: givenToday, remainingToday: remainingToday, stockOf: stockOf, restock: restock, availTotal: availTotal,
@@ -1528,14 +1701,14 @@ var APP = (function () {
   // 每一步：名字、怎麼做、到哪一張表、做完沒
   var TUT = [
     { id: 't1', name: '創角色', how: '在「我的／角色」填名字、每天的點（預設 2000）、第一樣東西「空的」（0 點，補 1 份），按「建立」', sheet: 'role', done: function () { return !isBlank(); } },
-    { id: 't2', name: '找陌生人一：隨機', how: '在達秒屋外面按「隨機」，跳到一個陌生人的達秒屋外面，看看他的大門，點門進他的表格世界', sheet: 'house', done: function () { return !!tut().door; } },
+    { id: 't2', name: '找陌生人一：隨機', how: '在達秒屋外面按「隨機」，跳到一個陌生人的達秒屋外面，看看他的日曆，點門進他的表格世界', sheet: 'house', done: function () { return !!tut().door; } },
     { id: 't3', name: '找陌生人二：在公告欄找序號', how: '打開「公告欄／公告」，找到引路人的公告（需要：空的；可以給：空的），記下他的序號，在最上面的序號框輸入，按「去」（在達秒屋外面輸入就到他的達秒屋外面）', sheet: 'notices', done: function () { return !!tut().found; } },
     { id: 't4', name: '看他的家規', how: '在引路人的表格世界打開「規則表」：家規那一段沒有家規網站，表示他不收留言', sheet: 'rules', who: GUIDE, done: function () { return !!tut().sawRules; } },
     { id: 't5', name: '預約、選他的「空的」', how: '在引路人的「時段」按「約他」（到達的勾預設勾著，預約時就確認到達），再到「預約／我預約的」選他的「空的」。引路人一定會選你的「空的」', sheet: 'slots', who: GUIDE,
       done: function () { var s = tutSlot(); if (!s || s.bookings.indexOf(me.serial) < 0 || !CORE.isPresent(state, me.serial, s.id)) return false; var g = guide(); return CORE.wantsValid(state, s, me.serial, GUIDE).some(function (id) { var x = CORE.resourceOf(CORE.version(g, s.atUs), id); return x && x.price === 0; }); } },
     { id: 't6', name: '那一微秒', how: '大約一分鐘後，白光一閃，跳出成交結果：「我拿出：空的；拿到：引路人的空的」。不用守著', sheet: 'booked', done: function () { return !!tutDocking(); } },
     { id: 't7', name: '兌現', how: '到「我的／背包」，在引路人的那一筆按「兌現」', sheet: 'bag', done: function () { var h = tutHold(GUIDE, me.serial); return !!h && h.status === 'redeemed'; } },
-    { id: 't8', name: '看自己的達秒屋', how: '按「去我的達秒屋」：你 0 歲，門牆上的第一塊磚亮了', sheet: 'house', done: function () { return !!tut().house; } }
+    { id: 't8', name: '看自己的達秒屋', how: '按「去我的達秒屋」：你 0 歲，第一塊日曆上今天那塊磚亮了', sheet: 'house', done: function () { return !!tut().house; } }
   ];
   var NO = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'];
   function tutSteps() {
@@ -1580,6 +1753,7 @@ var APP = (function () {
     tutTick();
     var res = CORE.judge(state, t), dirty = res.length > 0;
     if (CORE.expire(state, t)) dirty = true;
+    if (CORE.growCalendars(state, t)) { dirty = true; emit('calGrow'); }   // 每個月第一天換日：每間屋的日曆長一塊
     if (dirty) changed();
     if (res.length) {
       var mine = res.filter(function (x) { return x.late && (x.docking ? (x.docking.a === me.serial || x.docking.b === me.serial) : x.missed === me.serial); });
@@ -1703,8 +1877,8 @@ var KIT = (function () {
 })();
 
 /* ===== v9 達秒屋（3D）：只畫 CORE.viewHouse 回傳的資料 =====
- * 兩部分：大門（大家都一樣，照紀錄畫：門牆排法跟日曆一樣，一格一個月、一天一塊磚、一排一週，一年一層）和自己蓋的方塊。
- * 同一種東西一次畫完：門牆的磚用 InstancedMesh；方塊同一種合成一個網格，被別的方塊擋住的面不畫。沒在動就不重畫。
+ * 兩部分：日曆（一個月一塊 2×2×1 的方塊，全部在 z＝0 那一面、正面朝前；正面畫月份和一天一塊磚，位置照 CORE 算好的清單）和自己蓋的方塊（門也是一塊）。
+ * 同一種東西一次畫完：磚用 InstancedMesh；所有日曆方塊的正面合成一個網格、月份字和日子的空位畫在同一張貼圖上；方塊同一種合成一個網格，被擋住的面不畫。沒在動就不重畫。
  * 一指拖著轉、兩指縮放、滾輪縮放；點一下（沒拖動）才算點。點方塊用格子一格一格找（不用逐個三角形比），地皮塞滿也快。
  * 只用資料畫：方塊種類是清單裡的字，畫面由這裡的程式畫。不讀紀錄、不改資料。
  */
@@ -1714,27 +1888,17 @@ var WORLD = (function () {
   var api = { available: false };
   if (!T) return stub();
   var renderer, scene, camera, root, container, picks = [], dirty = true, raf = 0, paused = false, onTap = null, lastKey = '';
-  var cam = { theta: 0, phi: 1.3, dist: 20, target: new T.Vector3(0, 2, 0), minD: 1.2, maxD: 400 };
-  var current = null, building = false, lastCalls = 0, gate = null, vox = null, counts = {}, focus = null;
-  function stub() { return { available: false, init: function () { return false; }, show: function () {}, onTap: function () {}, info: function () { return { calls: 0, bricks: 0 }; }, screenOf: function () { return null; }, hitAt: function () { return null; }, focusDay: function () {}, pause: function () {}, resume: function () {}, resize: function () {}, setInsets: function () {}, camera: function () { return null; } }; }
+  var cam = { theta: 0, phi: 1.35, dist: 12, target: new T.Vector3(0, 1, 1), minD: 1.2, maxD: 400 };
+  var current = null, building = false, lastCalls = 0, vox = null, counts = {}, focus = null, anim = null;
+  function stub() { return { available: false, init: function () { return false; }, show: function () {}, onTap: function () {}, info: function () { return { calls: 0, bricks: 0 }; }, screenOf: function () { return null; }, hitAt: function () { return null; }, focusDay: function () {}, lookCalendar: function () {}, pause: function () {}, resume: function () {}, resize: function () {}, setInsets: function () {}, camera: function () { return null; } }; }
 
-  /* ---------- 大門的尺寸（單位：一格方塊＝1） ---------- */
-  var P = 0.21, BS = 0.18, BD = 0.08;                // 一塊磚的間距、大小、厚度
-  var MW = 7 * P, MH6 = 6 * P, LBL = 0.24, MG = 0.12; // 一個月：七欄、最多六排；上面一條寫月份
-  var MH = MH6 + LBL, LH = 2 * MH + 0.1, BASE = 0.3;  // 一層：兩排月份（門的兩邊各 3×2 格＝12 個月）
-  var SIDE_W = 3 * MW + 2 * MG, SIDE_X0 = -6 + 0.15;  // 門左邊從 -5.85 開始，右邊對稱
-  var DOOR_W = 1.5, DOOR_H = 2.3;
-  function gateGeom(plot, layers) { var zf = plot.gateZ + 0.9; return { zf: zf, z0: plot.gateZ + 0.35, h: BASE + layers * LH + 0.35, layers: layers }; }
-  // 第 k 個月（0～11）在門牆上的左上角：前 6 個月在門左邊（上排 1～3、下排 4～6），後 6 個月在右邊
-  function monthOrigin(layer, k) {
-    var right = k >= 6, kk = k % 6, mrow = Math.floor(kk / 3), mcol = kk % 3;
-    var x0 = (right ? 1.2 : SIDE_X0) + mcol * (MW + MG), top = BASE + (layer + 1) * LH - 0.05 - mrow * MH;
-    return { x: x0, top: top, labelY: top - LBL / 2, gridTop: top - LBL };
-  }
-  function brickPos(g, zf) { var o = monthOrigin(g.layer, g.month); return { x: o.x + g.col * P + P / 2, y: o.gridTop - g.row * P - P / 2, z: zf + BD / 2 }; }
+  /* ---------- 日曆方塊的尺寸（單位：一格方塊＝1；一塊日曆 2×2×1） ---------- */
+  var CW = 2, CH = 2, CD = 1, LBL = 0.36, P = CW / 7, RP = (CH - LBL) / 6, BS = 0.2, BD = 0.06;   // 七欄、六排
+  var ZF = CORE.CAL_Z + CD;   // 正面在 z＝1
+  function brickPos(pos, g) { return { x: pos[0] + g.col * P + P / 2, y: pos[1] + CH - LBL - g.row * RP - RP / 2, z: ZF + BD / 2 }; }
 
   /* ---------- 材質、貼圖 ---------- */
-  var GATE_BODY = '#5E564C', GATE_FACE = '#6C6357', DAY_EMPTY = '#7B7266', BRICK = '#CDBB9E';
+  var CAL_BODY = '#5E564C', CAL_FACE = '#6C6357', DAY_EMPTY = '#7B7266', BRICK = '#CDBB9E';
   var dashedTex = null, clothTex = null;
   function dashed() {
     if (dashedTex) return dashedTex;
@@ -1757,22 +1921,25 @@ var WORLD = (function () {
     lines.forEach(function (t, i) { g.font = (i === 0 ? '700 48px ' : '400 36px ') + FONT; g.fillText(t, 256, lines.length === 1 ? 80 : 52 + i * 60, 480); });
     return new T.CanvasTexture(c);
   }
-  // 門牆一邊的底圖：每個月一格，格子裡畫出那個月每一天的空位（像日曆），上面寫月份；每一層第一個月和一月寫年份
-  function sideTexture(view, right) {
-    var layers = view.layers, ppu = Math.max(40, Math.min(128, Math.floor(4096 / (layers * LH)))), H = layers * LH;
-    var c = document.createElement('canvas'); c.width = Math.ceil(SIDE_W * ppu); c.height = Math.ceil(H * ppu); var g = c.getContext('2d');
-    g.fillStyle = GATE_FACE; g.fillRect(0, 0, c.width, c.height);
-    var X = function (x) { return (x - (right ? 1.2 : SIDE_X0)) * ppu; }, Y = function (y) { return (BASE + H - y) * ppu; };
-    g.textBaseline = 'middle';
-    for (var L = 0; L < layers; L++) for (var kk = 0; kk < 6; kk++) {
-      var k = kk + (right ? 6 : 0), o = monthOrigin(L, k), ym = view.gateMonths[L * 12 + k]; if (!ym) continue;
+  // 所有月份的正面畫在同一張貼圖上：一塊一格（月份字、每一天的空位），正面的網格用 UV 對過去
+  var TILE = 128, ATLAS_COLS = 16;
+  function atlasTexture(months) {
+    var n = Math.max(1, months.length), rows = Math.ceil(n / ATLAS_COLS);
+    var c = document.createElement('canvas'); c.width = TILE * Math.min(ATLAS_COLS, n); c.height = TILE * rows; var g = c.getContext('2d');
+    g.fillStyle = CAL_FACE; g.fillRect(0, 0, c.width, c.height);
+    var ppu = TILE / 2;   // 一塊 2×2 格
+    months.forEach(function (ym, i) {
+      if (!ym) return;
+      var ox = (i % ATLAS_COLS) * TILE, oy = Math.floor(i / ATLAS_COLS) * TILE;
       var first = new Date(Date.UTC(ym.y, ym.m - 1, 1)).getUTCDay(), days = new Date(Date.UTC(ym.y, ym.m, 0)).getUTCDate();
-      g.fillStyle = DAY_EMPTY;
-      for (var d = 0; d < days; d++) { var row = Math.floor((first + d) / 7), col = (first + d) % 7; g.fillRect(X(o.x + col * P + (P - BS) / 2), Y(o.gridTop - row * P - (P - BS) / 2), BS * ppu, BS * ppu); }
-      g.fillStyle = '#EDE4CC'; g.font = '600 ' + Math.round(LBL * ppu * 0.72) + 'px ' + FONT;
-      g.fillText((kk === 0 && !right) || ym.m === 1 ? ym.y + ' 年 ' + ym.m + ' 月' : ym.m + ' 月', X(o.x) + 2, Y(o.labelY));
-    }
-    var tex = new T.CanvasTexture(c); tex.anisotropy = 4; return tex;
+      g.fillStyle = ym.preview ? '#7E7568' : DAY_EMPTY;
+      for (var d = 0; d < days; d++) { var row = Math.floor((first + d) / 7), col = (first + d) % 7; g.fillRect(ox + (col * P + (P - BS) / 2) * ppu, oy + (LBL + row * RP + (RP - BS) / 2) * ppu, BS * ppu, BS * ppu); }
+      g.fillStyle = '#EDE4CC'; g.font = '600 ' + Math.round(LBL * ppu * 0.68) + 'px ' + FONT; g.textBaseline = 'middle'; g.textAlign = 'left';
+      var label = ym.first ? '起點 ' + ym.y + ' 年 ' + ym.m + ' 月' : ym.m === 1 ? ym.y + ' 年 1 月' : ym.m + ' 月';
+      if (ym.preview) label = '下個月 ' + ym.m + ' 月';
+      g.fillText(label, ox + 3, oy + LBL * ppu / 2, TILE - 6);
+    });
+    var tex = new T.CanvasTexture(c); tex.anisotropy = 4; tex.flipY = false; return tex;
   }
   function litColor(level) { return new T.Color(level >= 3 ? '#FFF4B8' : level === 2 ? '#FFD54F' : '#F2A93B'); }
 
@@ -1803,43 +1970,66 @@ var WORLD = (function () {
   var M4 = new T.Matrix4(), Q = new T.Quaternion(), V = new T.Vector3(), SV = new T.Vector3(1, 1, 1), E = new T.Euler();
   function setM(mesh, i, p, ry, s) { E.set(0, ry || 0, 0); Q.setFromEuler(E); V.set(p.x, p.y, p.z); SV.set(s || 1, s || 1, s || 1); M4.compose(V, Q, SV); mesh.setMatrixAt(i, M4); }
 
-  /* ---------- 大門 ---------- */
-  function buildGate(view) {
-    var plot = view.plot, G = gateGeom(plot, view.layers), zf = G.zf, closed = view.closed;
-    gate = G;
-    var body = add(new T.Mesh(new T.BoxGeometry(12, G.h, zf - G.z0), new T.MeshLambertMaterial({ color: GATE_BODY })), 'gate');
-    body.position.set(0, G.h / 2, (zf + G.z0) / 2); picks.push(body);
-    var cap = add(new T.Mesh(new T.BoxGeometry(12.4, 0.2, zf - G.z0 + 0.3), new T.MeshLambertMaterial({ color: '#4A433B' })), 'gatecap'); cap.position.set(0, G.h + 0.1, (zf + G.z0) / 2);
-    [false, true].forEach(function (right) {
-      var w = SIDE_W, h = view.layers * LH, face = add(new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshLambertMaterial({ map: sideTexture(view, right) })), right ? 'faceR' : 'faceL');
-      face.position.set((right ? 1.2 : SIDE_X0) + w / 2, BASE + h / 2, zf + 0.003);
-    });
-    var door = add(new T.Mesh(new T.BoxGeometry(DOOR_W, DOOR_H, 0.12), new T.MeshLambertMaterial({ color: '#7A5536' })), 'door'); door.position.set(0, DOOR_H / 2, zf + 0.06); picks.push(door);
-    var frame = add(new T.Mesh(new T.BoxGeometry(DOOR_W + 0.24, DOOR_H + 0.12, 0.06), new T.MeshLambertMaterial({ color: '#3B342C' })), 'doorframe'); frame.position.set(0, (DOOR_H + 0.12) / 2, zf + 0.02);
-    var knob = add(new T.Mesh(new T.SphereGeometry(0.06, 8, 6), new T.MeshBasicMaterial({ color: '#E8C35A' })), 'knob'); knob.position.set(0.5, 1.1, zf + 0.15);
-    var lines = closed ? ['只給鄰居看'] : [view.age ? view.age.text : '', view.sign ? '「' + view.sign + '」' : ''].filter(Boolean);
-    var sign = add(new T.Mesh(new T.PlaneGeometry(2.2, 0.69), new T.MeshBasicMaterial({ map: signTexture(lines, closed ? '#3B4652' : '#F4EBD3', closed ? '#FFFFFF' : '#3B342C') })), 'sign');
-    sign.position.set(0, DOOR_H + 0.5, zf + 0.01);
-    // 磚：沒亮、亮、蓋布、虛線（未來的預約），加上小記號
+  /* ---------- 日曆：方塊的身體（一次畫完）、正面（合成一個網格、一張貼圖）、磚、預告框 ---------- */
+  function buildCalendar(view) {
+    var cal = view.cal, closed = view.closed, list = cal.blocks, months = cal.months.slice();
+    var bodies = list.filter(Boolean);
+    var body = inst(new T.BoxGeometry(CW, CH, CD), new T.MeshLambertMaterial({ color: CAL_BODY }), bodies.length, 'calbody');
+    bodies.forEach(function (p, i) { setM(body, i, { x: p[0] + CW / 2, y: p[1] + CH / 2, z: CORE.CAL_Z + CD / 2 }); }); body.instanceMatrix.needsUpdate = true;
+    // 正面：每一塊一個四邊形，UV 對到貼圖上自己那一格
+    if (cal.preview) months.push(Object.assign({ preview: true }, cal.preview.month));
+    var tex = atlasTexture(months), cols = Math.min(ATLAS_COLS, Math.max(1, months.length)), rows = Math.ceil(Math.max(1, months.length) / ATLAS_COLS);
+    var quad = function (pos, i, out) {
+      var u0 = (i % ATLAS_COLS) / cols, v0 = Math.floor(i / ATLAS_COLS) / rows, u1 = u0 + 1 / cols, v1 = v0 + 1 / rows;
+      var x0 = pos[0], x1 = pos[0] + CW, y0 = pos[1], y1 = pos[1] + CH, z = ZF + 0.004;
+      var P4 = [[x0, y0, z, u0, v1], [x1, y0, z, u1, v1], [x1, y1, z, u1, v0], [x0, y1, z, u0, v0]];
+      [0, 1, 2, 0, 2, 3].forEach(function (k) { out.pos.push(P4[k][0], P4[k][1], P4[k][2]); out.uv.push(P4[k][3], P4[k][4]); out.nor.push(0, 0, 1); });
+    };
+    var face = { pos: [], uv: [], nor: [] };
+    list.forEach(function (p, i) { if (p) quad(p, i, face); });
+    var mkFace = function (o, mat, name) { if (!o.pos.length) return; var g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(o.pos, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(o.uv, 2)); g.setAttribute('normal', new T.Float32BufferAttribute(o.nor, 3)); add(new T.Mesh(g, mat), name); };
+    mkFace(face, new T.MeshLambertMaterial({ map: tex }), 'calface');
+    // 預告框：下一塊的位置，半透明的框（屋主看時上面寫會拆幾塊，由畫面層顯示在文字裡）
+    if (cal.preview) {
+      var pp = cal.preview.pos, pf = { pos: [], uv: [], nor: [] }; quad(pp, months.length - 1, pf);
+      mkFace(pf, new T.MeshLambertMaterial({ map: tex, transparent: true, opacity: 0.45, depthWrite: false }), 'previewface');
+      var box = add(new T.Mesh(new T.BoxGeometry(CW, CH, CD), new T.MeshLambertMaterial({ color: '#8FB3D9', transparent: true, opacity: 0.22, depthWrite: false })), 'preview');
+      box.position.set(pp[0] + CW / 2, pp[1] + CH / 2, CORE.CAL_Z + CD / 2); box.renderOrder = 1;
+      var edge = add(new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(CW + 0.02, CH + 0.02, CD + 0.02)), new T.LineBasicMaterial({ color: '#2D5A86' })), 'previewedge'); edge.position.copy(box.position);
+    }
+    // 磚：沒亮、亮、蓋布、虛線（未來的預約），加上小記號；只畫在房子上有位置的
     var unlit = [], lit = [], cover = [], fut = [], mark = [];
+    var posOf = function (b) { return b.g.m < list.length ? list[b.g.m] : (cal.preview && b.g.m === list.length ? cal.preview.pos : null); };
     view.bricks.forEach(function (b) {
-      if (!b.g) return;
+      if (!b.onHouse || !b.g) return; var p = posOf(b); if (!p) return; b._p = p;
       if (closed) unlit.push(b); else if (b.future) fut.push(b); else if (b.lit) lit.push(b); else if (b.cover) cover.push(b); else unlit.push(b);
       if (!closed && b.mark && !b.future) mark.push(b);
     });
     var geo = new T.BoxGeometry(BS, BS, BD);
-    var put = function (list, mat, name, colorFn) {
-      var m = inst(geo.clone(), mat, list.length, name);
-      list.forEach(function (b, i) { setM(m, i, brickPos(b.g, zf)); if (colorFn) m.setColorAt(i, colorFn(b)); });
+    var put = function (bl, mat, name, colorFn) {
+      var m = inst(geo.clone(), mat, bl.length, name);
+      bl.forEach(function (b, i) { setM(m, i, brickPos(b._p, b.g)); if (colorFn) m.setColorAt(i, colorFn(b)); });
       m.instanceMatrix.needsUpdate = true; if (colorFn && m.instanceColor) m.instanceColor.needsUpdate = true;
-      m.userData.days = list.map(function (b) { return b.day; }); picks.push(m); counts[name] = list.length; return m;
+      m.userData.days = bl.map(function (b) { return b.day; }); picks.push(m); counts[name] = bl.length; return m;
     };
     put(unlit, new T.MeshLambertMaterial({ color: closed ? '#A99C88' : BRICK }), 'unlit');
     put(lit, new T.MeshBasicMaterial({ color: 0xffffff }), 'lit', function (b) { return litColor(b.lit); });
     put(cover, new T.MeshLambertMaterial({ map: cloth() }), 'cover');
     put(fut, new T.MeshBasicMaterial({ map: dashed(), transparent: true, opacity: 0.95, depthWrite: false }), 'future');
     var mk = inst(new T.BoxGeometry(BS * 0.36, BS * 0.36, 0.02), new T.MeshBasicMaterial({ color: '#2B2520' }), mark.length, 'mark');
-    mark.forEach(function (b, i) { var p = brickPos(b.g, zf); setM(mk, i, { x: p.x, y: p.y, z: p.z + BD / 2 + 0.011 }); }); mk.instanceMatrix.needsUpdate = true; counts.mark = mark.length;
+    mark.forEach(function (b, i) { var p = brickPos(b._p, b.g); setM(mk, i, { x: p.x, y: p.y, z: p.z + BD / 2 + 0.011 }); }); mk.instanceMatrix.needsUpdate = true; counts.mark = mark.length;
+    view.bricks.forEach(function (b) { delete b._p; });
+    counts.cal = bodies.length;
+  }
+  // 門：一塊 1×2 的方塊，照方向轉；門牌掛在門上方
+  function buildDoor(view) {
+    var d = view.look.door, f = CORE.doorFront(d[4] || 0), ry = (d[4] || 0) * Math.PI / 180, cx = d[0] + 0.5, cz = d[2] + 0.5;
+    var frame = add(new T.Mesh(new T.BoxGeometry(1, 2, 1), new T.MeshLambertMaterial({ color: '#3B342C' })), 'doorframe'); frame.position.set(cx, d[1] + 1, cz);
+    var door = add(new T.Mesh(new T.BoxGeometry(0.84, 1.84, 0.12), new T.MeshLambertMaterial({ color: '#7A5536' })), 'door'); door.position.set(cx + f[0] * 0.47, d[1] + 1, cz + f[1] * 0.47); door.rotation.y = ry; picks.push(door);
+    var knob = add(new T.Mesh(new T.SphereGeometry(0.05, 8, 6), new T.MeshBasicMaterial({ color: '#E8C35A' })), 'knob'); knob.position.set(cx + f[0] * 0.56 - f[1] * 0.28, d[1] + 0.95, cz + f[1] * 0.56 + f[0] * 0.28);
+    var lines = view.closed ? ['只給鄰居看'] : [view.age ? view.age.text : '', view.sign ? '「' + view.sign + '」' : ''].filter(Boolean);
+    var sign = add(new T.Mesh(new T.PlaneGeometry(1.6, 0.5), new T.MeshBasicMaterial({ map: signTexture(lines, view.closed ? '#3B4652' : '#F4EBD3', view.closed ? '#FFFFFF' : '#3B342C'), side: T.DoubleSide })), 'sign');
+    sign.position.set(cx + f[0] * 0.52, d[1] + 2.35, cz + f[1] * 0.52); sign.rotation.y = ry;
   }
 
   /* ---------- 自己蓋的方塊：同一種合成一個網格，被擋住的面不畫 ---------- */
@@ -1849,19 +2039,21 @@ var WORLD = (function () {
     { n: [0, 0, 1], c: [[1, 0, 1], [1, 1, 1], [0, 1, 1], [0, 0, 1]] }, { n: [0, 0, -1], c: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]] }
   ];
   var KIND_IDS = null;
-  function kindIds() { if (KIND_IDS) return KIND_IDS; KIND_IDS = { list: [null] , id: {} }; Object.keys(CORE.BLOCKS).forEach(function (k) { KIND_IDS.id[k] = KIND_IDS.list.length; KIND_IDS.list.push(k); }); return KIND_IDS; }
-  function makeVox(plot, blocks) {
-    var S = plot.size, H = plot.height, grid = new Uint8Array(S * H * S), rot = {}, K = kindIds();
+  function kindIds() { if (KIND_IDS) return KIND_IDS; KIND_IDS = { list: [null], id: {} }; Object.keys(CORE.BLOCKS).concat(['cal']).forEach(function (k) { KIND_IDS.id[k] = KIND_IDS.list.length; KIND_IDS.list.push(k); }); return KIND_IDS; }
+  // 格子裡有什麼：自己蓋的方塊、門（兩格）、日曆方塊（四格）
+  function makeVox(plot, blocks, cal) {
+    var S = plot.size, H = plot.height, grid = new Uint8Array(S * H * S), K = kindIds(), doorAt = {};
     var idx = function (x, y, z) { if (x < plot.min || x > plot.max || z < plot.min || z > plot.max || y < 0 || y >= H) return -1; return ((x - plot.min) * H + y) * S + (z - plot.min); };
-    blocks.forEach(function (b) { var i = idx(b[0], b[1], b[2]); if (i >= 0) { grid[i] = K.id[b[3]] || 0; if (b.length > 4) rot[i] = b[4]; } });
-    return { plot: plot, grid: grid, idx: idx, rot: rot, kindAt: function (x, y, z) { var i = idx(x, y, z); return i < 0 ? null : K.list[grid[i]]; } };
+    blocks.forEach(function (b) { var i = idx(b[0], b[1], b[2]); if (i >= 0) grid[i] = K.id[b[3]] || 0; if (b[3] === 'door') { var j = idx(b[0], b[1] + 1, b[2]); if (j >= 0) grid[j] = K.id.door; doorAt[i] = b; doorAt[j] = b; } });
+    cal.forEach(function (p) { if (!p) return; CORE.calCells(p).forEach(function (c) { var i = idx(c[0], c[1], c[2]); if (i >= 0) grid[i] = K.id.cal; }); });
+    return { plot: plot, grid: grid, idx: idx, doorAt: doorAt, kindAt: function (x, y, z) { var i = idx(x, y, z); return i < 0 ? null : K.list[grid[i]]; } };
   }
-  function typeOf(k) { return k ? CORE.BLOCKS[k].type : null; }
+  function typeOf(k) { return k === 'cal' ? 'solid' : k ? CORE.BLOCKS[k].type : null; }
   function buildBlocks(view) {
-    var plot = view.plot, blocks = view.look.blocks, K = kindIds();
-    vox = makeVox(plot, blocks);
+    var plot = view.plot, blocks = view.look.blocks;
+    vox = makeVox(plot, blocks, view.cal.blocks);
     var byKind = {}, propList = {};
-    blocks.forEach(function (b) { var t = typeOf(b[3]); if (t === 'prop') (propList[b[3]] = propList[b[3]] || []).push(b); else (byKind[b[3]] = byKind[b[3]] || []).push(b); });
+    blocks.forEach(function (b) { var t = typeOf(b[3]); if (t === 'door') return; if (t === 'prop') (propList[b[3]] = propList[b[3]] || []).push(b); else (byKind[b[3]] = byKind[b[3]] || []).push(b); });
     var faces = 0;
     Object.keys(byKind).forEach(function (k) {
       var t = typeOf(k), pos = [], nor = [], col = [], base = new T.Color(CORE.BLOCKS[k].hex), cc = new T.Color();
@@ -1884,7 +2076,7 @@ var WORLD = (function () {
       var mat = t === 'lamp' ? new T.MeshBasicMaterial({ vertexColors: true }) : t === 'glass' ? new T.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.45, depthWrite: false, side: T.DoubleSide }) : new T.MeshLambertMaterial({ vertexColors: true });
       var m = add(new T.Mesh(g, mat), 'blk-' + k); if (t === 'glass') m.renderOrder = 2;
     });
-    counts.faces = faces; counts.blocks = blocks.length;
+    counts.faces = faces; counts.blocks = view.look.n;
     // 擺設：一種擺設的每一個零件一次畫完，跟著方向轉
     Object.keys(propList).forEach(function (k) {
       (PROP_PARTS[k] || []).forEach(function (part, pi) {
@@ -1918,28 +2110,45 @@ var WORLD = (function () {
   function show(view, opts) {
     if (!renderer) return;
     opts = opts || {}; var same = current && current.serial === view.serial;
-    var key = JSON.stringify({ b: view.bricks, s: view.sign, a: view.age && view.age.text, c: view.closed, n: view.look.n, r: view.look.rev, p: view.plot.size, L: view.layers }) + '|' + !!opts.building;
+    var key = JSON.stringify({ b: view.bricks, s: view.sign, a: view.age && view.age.text, c: view.closed, n: view.look.n, r: view.look.rev, d: view.look.door, p: view.plot.size, cal: view.cal.blocks, pv: view.cal.preview }) + '|' + !!opts.building;
     if (same && key === lastKey && !opts.resetCamera) return;   // 什麼都沒變就不重蓋
     var startBuild = !!opts.building && !building, stopBuild = !opts.building && building;
     lastKey = key; current = view; building = !!opts.building;
     clear();
-    buildGround(view.plot); buildGate(view); buildBlocks(view);
+    buildGround(view.plot); buildCalendar(view); buildDoor(view); buildBlocks(view);
     root.updateMatrixWorld(true);   // 新蓋的東西馬上點得到，不用等下一次畫
-    if (!same || opts.resetCamera || stopBuild) frontView();
-    if (startBuild) buildView();
+    if (!same || opts.resetCamera || stopBuild) { anim = null; setPose(calPose()); }
+    if (startBuild) { anim = null; setPose(buildPose()); }
     applyCam(); dirty = true; loop();
   }
-  // 一打開：鏡頭對著大門
-  function frontView() { var G = gate, r = Math.max(6.6, G.h / 2 + 0.4); cam.target.set(0, Math.min(G.h, 2 * r) / 2, G.zf); cam.theta = 0; cam.phi = 1.32; cam.dist = fitDist(r); }
-  // 蓋的時候：從高一點往下看整塊地皮
-  function buildView() { var p = current.plot; cam.target.set(0, 1, 0); cam.theta = 0.55; cam.phi = 0.6; cam.dist = fitDist(p.size * 0.66); }
+  // 這個月那一塊日曆（最後一塊有位置的；沒有就是起點）
+  function monthBlock() { var list = current.cal.blocks; for (var i = list.length - 1; i >= 0; i--) if (list[i]) return list[i]; return CORE.CAL_START; }
+  // 一打開：鏡頭對著這個月那一塊日曆的正面，旁邊看得到一點房子
+  function calPose() { var p = monthBlock(); return { target: new T.Vector3(p[0] + CW / 2, p[1] + CH / 2 - 0.1, ZF), theta: 0, phi: 1.38, dist: fitDist(3.0) }; }
+  // 蓋的時候：從右前方高處往下看整塊地皮
+  function buildPose() { var p = current.plot; return { target: new T.Vector3(0, 1, 0), theta: 0.55, phi: 0.6, dist: fitDist(p.size * 0.66) }; }
+  function setPose(p) { cam.target.copy(p.target); cam.theta = p.theta; cam.phi = p.phi; cam.dist = p.dist; }
+  // 「看日曆」：鏡頭繞回一打開時的位置，大約 0.7 秒看得到轉的過程
+  function lookCalendar() {
+    if (!current) return;
+    var to = calPose(), from = { target: cam.target.clone(), theta: cam.theta, phi: cam.phi, dist: cam.dist };
+    var TAU = Math.PI * 2; from.theta = ((from.theta % TAU) + TAU) % TAU; if (from.theta > Math.PI) from.theta -= TAU;   // 走短的那一邊
+    anim = { from: from, to: to, t0: performance.now(), ms: 700 }; dirty = true; loop();
+  }
+  function stepAnim(now) {
+    if (!anim) return false;
+    var k = Math.min(1, (now - anim.t0) / anim.ms), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    cam.target.lerpVectors(anim.from.target, anim.to.target, e); cam.theta = anim.from.theta + (anim.to.theta - anim.from.theta) * e; cam.phi = anim.from.phi + (anim.to.phi - anim.from.phi) * e; cam.dist = anim.from.dist + (anim.to.dist - anim.from.dist) * e;
+    if (k >= 1) anim = null;
+    applyCam(); return true;
+  }
   // 那一天的磚：鏡頭靠近，加一個框標出來
   function focusDay(day) {
     if (!current) return false;
-    var b = current.bricks.find(function (x) { return x.day === day; }); if (!b || !b.g) return false;
-    var p = brickPos(b.g, gate.zf);
+    var b = current.bricks.find(function (x) { return x.day === day; }); if (!b || !b.g || !b.onHouse) return false;
+    var pos = b.g.m < current.cal.blocks.length ? current.cal.blocks[b.g.m] : current.cal.preview.pos, p = brickPos(pos, b.g);
     var box = add(new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(BS + 0.08, BS + 0.08, BD + 0.06)), new T.LineBasicMaterial({ color: '#E0402B' })), 'focus');
-    box.position.set(p.x, p.y, p.z); focus = day;
+    box.position.set(p.x, p.y, p.z); focus = day; anim = null;
     cam.target.set(p.x, p.y - 0.42, p.z); cam.theta = 0; cam.phi = 1.5; cam.dist = 2.6; applyCam(); loop(); return true;   // 鏡頭往下挪一點：磚在畫面上半，下面留給說明
   }
 
@@ -1953,13 +2162,13 @@ var WORLD = (function () {
     camera.position.set(c.target.x + c.dist * Math.sin(c.phi) * Math.sin(c.theta), c.target.y + c.dist * Math.cos(c.phi), c.target.z + c.dist * Math.sin(c.phi) * Math.cos(c.theta));
     camera.lookAt(c.target); camera.updateMatrixWorld(); dirty = true;
   }
-  function loop() { if (raf || paused) return; raf = requestAnimationFrame(function () { raf = 0; if (dirty && renderer && !paused) { renderer.render(scene, camera); lastCalls = renderer.info.render.calls; dirty = false; } }); }
+  function loop() { if (raf || paused) return; raf = requestAnimationFrame(function (now) { raf = 0; var more = stepAnim(now); if (dirty && renderer && !paused) { renderer.render(scene, camera); lastCalls = renderer.info.render.calls; dirty = false; } if (more) loop(); }); }
   function resize() { if (!renderer || !container) return; var w = container.clientWidth || window.innerWidth, h = container.clientHeight || window.innerHeight; renderer.setSize(w, h, false); renderer.domElement.style.width = w + 'px'; renderer.domElement.style.height = h + 'px'; vw = w; vh = h; var d = insets.t - insets.b, fullH = h + Math.abs(d); camera.aspect = w / Math.max(1, fullH); camera.setViewOffset(w, fullH, 0, d > 0 ? 0 : -d, w, h); camera.updateProjectionMatrix(); dirty = true; loop(); }
 
   /* ---------- 手勢：一指轉、兩指縮放、滾輪縮放；點一下才算點 ---------- */
   function bindInput(el) {
     var pts = new Map(), start = null, moved = false, pinch = null;
-    el.addEventListener('pointerdown', function (e) { if (e.isPrimary) { pts.clear(); pinch = null; } el.setPointerCapture && el.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 1) { start = { x: e.clientX, y: e.clientY, t: Date.now() }; moved = false; } else { moved = true; pinch = null; } });
+    el.addEventListener('pointerdown', function (e) { anim = null; if (e.isPrimary) { pts.clear(); pinch = null; } el.setPointerCapture && el.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 1) { start = { x: e.clientX, y: e.clientY, t: Date.now() }; moved = false; } else { moved = true; pinch = null; } });
     el.addEventListener('pointermove', function (e) {
       if (!pts.has(e.pointerId)) return; var prev = pts.get(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pts.size === 1) { var dx = e.clientX - prev.x, dy = e.clientY - prev.y; if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) moved = true; if (moved) { cam.theta -= dx * 0.008; cam.phi -= dy * 0.006; applyCam(); loop(); } }
@@ -1971,10 +2180,10 @@ var WORLD = (function () {
       if (!pts.size) start = null;
     };
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-    el.addEventListener('wheel', function (e) { e.preventDefault(); cam.dist *= Math.pow(1.0015, e.deltaY); applyCam(); loop(); }, { passive: false });
+    el.addEventListener('wheel', function (e) { e.preventDefault(); anim = null; cam.dist *= Math.pow(1.0015, e.deltaY); applyCam(); loop(); }, { passive: false });
   }
 
-  /* ---------- 點到什麼：大門（門、磚、門牆）用三角形找；方塊一格一格找；都沒打到就看地上哪一格 ---------- */
+  /* ---------- 點到什麼：磚和門板用三角形找；方塊、門、日曆一格一格找；都沒打到就看地上哪一格 ---------- */
   var ray = new T.Raycaster(), ndc = new T.Vector2();
   // 手指點的不會剛好準：先點那一點，沒打到再試旁邊幾個點（也避開剛好落在三角形邊上的時候）
   var NEAR = [[0, 0], [0.37, 0.21], [-0.33, 0.29], [0.3, -0.4], [-0.25, -0.35], [3, 0], [-3, 0], [0, 3], [0, -3], [6, 0], [-6, 0], [0, 6], [0, -6]];
@@ -1986,9 +2195,8 @@ var WORLD = (function () {
     var hits = ray.intersectObjects(picks, false);
     for (var i = 0; i < hits.length; i++) {
       var h = hits[i], o = h.object, out = null;
-      if (o.name === 'door') out = { kind: 'door' };
+      if (o.name === 'door') { var dd = current.look.door; out = { kind: 'door', x: dd[0], y: dd[1], z: dd[2], rot: dd[4] || 0 }; }
       else if (o.userData.days && h.instanceId != null) out = { kind: 'brick', day: o.userData.days[h.instanceId], mesh: o.name };
-      else if (o.name === 'gate') out = { kind: 'gate' };
       if (out) { out.dist = h.distance; best = out; break; }
     }
     var v = voxelHit(ray.ray.origin, ray.ray.direction);
@@ -2014,6 +2222,8 @@ var WORLD = (function () {
     var n = [0, 0, 0]; if (axis0 >= 0) n[axis0] = -step[axis0];
     for (var guard = 0; guard < 400; guard++) {
       var k = vox.kindAt(c[0], c[1], c[2]);
+      if (k === 'door') { var dr = vox.doorAt[vox.idx(c[0], c[1], c[2])]; return { kind: 'door', x: dr[0], y: dr[1], z: dr[2], rot: dr[4] || 0, n: n.slice(), dist: t }; }
+      if (k === 'cal') return { kind: 'cal', x: c[0], y: c[1], z: c[2], n: n.slice(), dist: t };
       if (k) return { kind: 'block', x: c[0], y: c[1], z: c[2], k: k, prop: typeOf(k) === 'prop', n: n.slice(), dist: t };
       var m = tMax[0] < tMax[1] ? (tMax[0] < tMax[2] ? 0 : 2) : (tMax[1] < tMax[2] ? 1 : 2);
       t = tMax[m]; if (t > t1) return null;
@@ -2025,13 +2235,14 @@ var WORLD = (function () {
   function tap(x, y) { var hit = hitAt(x, y); if (onTap) onTap(hit); }
 
   /* ---------- 給畫面和測試用 ---------- */
-  // 某個東西在畫面上的位置：'door'、'gate'、{day}、{block:[x,y,z], n:[0,1,0]}（那一面的中心）、{ground:[x,z]}
+  // 某個東西在畫面上的位置：'door'、{day}、{cal:[x,y]}（那塊日曆正面的中心）、{preview:true}、{block:[x,y,z], n:[0,1,0]}（那一面的中心）、{ground:[x,z]}
   function screenOf(target) {
-    if (!renderer || !current || !gate) return null;
+    if (!renderer || !current) return null;
     var p = null;
-    if (target === 'door') p = new T.Vector3(-0.3, 0.9, gate.zf + 0.13);
-    else if (target === 'gate') p = new T.Vector3(0, Math.min(gate.h - 0.3, DOOR_H + 1.05), gate.zf);
-    else if (target.day != null) { var b = current.bricks.find(function (x) { return x.day === target.day; }); if (!b || !b.g) return null; var q = brickPos(b.g, gate.zf); p = new T.Vector3(q.x, q.y, q.z + BD / 2); }
+    if (target === 'door') { var dd = current.look.door, f = CORE.doorFront(dd[4] || 0); p = new T.Vector3(dd[0] + 0.5 + f[0] * 0.55 - f[1] * 0.15, dd[1] + 0.9, dd[2] + 0.5 + f[1] * 0.55 + f[0] * 0.15); }
+    else if (target.day != null) { var b = current.bricks.find(function (x) { return x.day === target.day; }); if (!b || !b.g || !b.onHouse) return null; var pos = b.g.m < current.cal.blocks.length ? current.cal.blocks[b.g.m] : current.cal.preview.pos, q = brickPos(pos, b.g); p = new T.Vector3(q.x, q.y, q.z + BD / 2); }
+    else if (target.cal) p = new T.Vector3(target.cal[0] + CW / 2, target.cal[1] + CH / 2, ZF);
+    else if (target.preview) { if (!current.cal.preview) return null; var pv = current.cal.preview.pos; p = new T.Vector3(pv[0] + CW / 2, pv[1] + CH / 2, ZF); }
     else if (target.block) { var bl = target.block, n = target.n || [0, 1, 0]; p = new T.Vector3(bl[0] + 0.5 + n[0] * 0.5, bl[1] + 0.5 + n[1] * 0.5, bl[2] + 0.5 + n[2] * 0.5); if (target.prop) p.set(bl[0] + 0.5, bl[1] + 0.3, bl[2] + 0.5); }
     else if (target.ground) p = new T.Vector3(target.ground[0] + 0.5, 0, target.ground[1] + 0.5);
     if (!p) return null;
@@ -2039,12 +2250,14 @@ var WORLD = (function () {
     if (p.z > 1) return null;
     return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height };
   }
-  function renderNow() { if (renderer) { renderer.render(scene, camera); lastCalls = renderer.info.render.calls; dirty = false; } }
+  function renderNow() { if (renderer) { if (anim) { anim.t0 = -1e9; stepAnim(performance.now()); } renderer.render(scene, camera); lastCalls = renderer.info.render.calls; dirty = false; } }
   api = {
-    available: true, init: init, show: show, resize: resize, setInsets: setInsets, hitAt: hitAt, screenOf: screenOf, focusDay: focusDay,
+    available: true, init: init, show: show, resize: resize, setInsets: setInsets, hitAt: hitAt, screenOf: screenOf, focusDay: focusDay, lookCalendar: lookCalendar,
     onTap: function (fn) { onTap = fn; },
     pause: function () { paused = true; if (raf) { cancelAnimationFrame(raf); raf = 0; } }, resume: function () { paused = false; dirty = true; loop(); },
-    info: function () { var c = (counts.unlit || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.lit || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length : 0, serial: current ? current.serial : null, building: building, focus: focus, gateH: gate ? gate.h : 0, gateZ: gate ? gate.zf : 0 }; },
+    info: function () { var c = (counts.unlit || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.lit || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length : 0, serial: current ? current.serial : null, building: building, focus: focus, animating: !!anim }; },
+    calPose: function () { return current ? calPose() : null; },
+    setCamera: function (p) { anim = null; if (p.target) cam.target.set(p.target[0], p.target[1], p.target[2]); if (p.theta != null) cam.theta = p.theta; if (p.phi != null) cam.phi = p.phi; if (p.dist != null) cam.dist = p.dist; applyCam(); loop(); },
     renderNow: renderNow, camera: function () { return cam; }, needsRender: function () { return dirty; }
   };
   // 試著建一個 WebGL 環境：瀏覽器不支援就當作 3D 用不了
@@ -2353,11 +2566,12 @@ var TABLE = (function () {
   R.house = function () {
     var h = CORE.houseOf(me()), v = CORE.viewHouse(S(), me().serial, me().serial, APP.now()), sel = function (ed, table, cur, label) { return '<select data-ed="house" data-id="' + ed + '" aria-label="' + label + '">' + Object.keys(table).map(function (k) { return opt(k, table[k], cur); }).join('') + '</select>'; };
     return table('house', ['項目', '內容'], [
-      { id: 'sign', cells: ['門牌一句話', '<input type="text" data-ed="house" data-id="sign" value="' + esc(h.sign) + '" maxlength="' + CORE.SIGN_MAX + '" placeholder="' + CORE.SIGN_MAX + ' 字以內（選填）" aria-label="門牌一句話">' + small('掛在大門上，跟幾歲幾天寫在一起')] },
-      { id: 'visibility', cells: ['整間屋給誰看', sel('visibility', { public: '公開', neighbors: '只給鄰居看' }, h.visibility, '整間屋給誰看') + small('只給鄰居看：陌生人只看得到外觀（自己蓋的部分）和牌子，門牆的磚看不出亮暗、點不開。這一輪還沒有村子，所以沒有鄰居')] },
+      { id: 'sign', cells: ['門牌一句話', '<input type="text" data-ed="house" data-id="sign" value="' + esc(h.sign) + '" maxlength="' + CORE.SIGN_MAX + '" placeholder="' + CORE.SIGN_MAX + ' 字以內（選填）" aria-label="門牌一句話">' + small('掛在門上方，跟幾歲幾天寫在一起')] },
+      { id: 'visibility', cells: ['整間屋給誰看', sel('visibility', { public: '公開', neighbors: '只給鄰居看' }, h.visibility, '整間屋給誰看') + small('只給鄰居看：陌生人只看得到外觀（自己蓋的部分）和牌子，日曆上的磚看不出亮暗、點不開。這一輪還沒有村子，所以沒有鄰居')] },
       { id: 'defaultVis', cells: ['新的一筆預設', sel('defaultVis', CORE.VIS_LEVELS, h.defaultVis, '新的一筆預設') + small('約別人、被約的那一刻照這個；之後在日曆的明細裡每一筆都能改')] },
-      { id: 'plot', cells: ['地皮', '<span class="num">' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '</span>' + small('一開始 12×12、高 12；每活一年四邊各外推一格、高度加 2，最大 32×32、高 32。大門那一排不能蓋')] },
+      { id: 'plot', cells: ['地皮', '<span class="num">' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '</span>' + small('一開始 12×12、高 12；每活一年四邊各外推一格、高度加 2，最大 32×32、高 32。日曆和門前面不能蓋')] },
       { id: 'blocks', cells: ['已經蓋了', '<span class="num">' + v.look.n + '</span> 塊' + small('不限幾塊，只限地皮')] },
+      { id: 'cal', cells: ['日曆', '<span class="num">' + v.cal.blocks.length + '</span> 塊，下一塊往<b>' + CORE.CAL_DIRS[v.cal.dir] + '</b>長' + small('一個月一塊，從創角色那個月開始，全部長在正面那一面；改方向在達秒屋外面的「蓋」裡')] },
       { id: 'go', cells: ['', btn('myHouse', '去我的達秒屋', '', '') + ' ' + btn('build', '去我的達秒屋蓋', '', 'pri')] }]);
   };
   var HELP = [
@@ -2368,8 +2582,8 @@ var TABLE = (function () {
     ['預約', '在他的「時段」按「約他」。旁邊到達的勾預設勾著：預約時就確認到達，勾了就算，不用守在那一刻；不去的話先把勾拿掉。之後在「我預約的」可以取消到達、再確認、取消預約；沒確認的記為錯過。那一微秒之前在同一列選要換他的什麼、設每人最多給多少點、看他要我的什麼。一換一：兩邊都選了對方的東西才成交。開時段可以勾「一起成交」：有選東西的每一對都成才全部成交。'],
     ['那一微秒', '畫面開著的話，成交那一刻整個畫面白光一閃，跳出成交結果，能量條往下降；沒開著的話，下次打開跳出「你不在的時候」。'],
     ['我的', '角色：每天的點（改了明天起生效）、聯絡方式（只有預約成功的人看得到）、換點比例、對接過幾次、不玩了；換人只是單機測試用。規則表：用途、對接條件、兩個開關、家規和家規網站（只收 https:// 開頭的網址；沒填就是不收留言），改了明天起生效。資源表：名稱、價格、保留天數、定義改了明天起生效，「明天起」寫在那一格下面；可換的數量隨時補減。背包：手上別人的點，每一筆旁邊直接兌現。日曆：一格一天，跟達秒屋的磚一樣（亮、小記號、蓋布、虛線）；點一格看那天，在那裡改每一筆給誰看。'],
-    ['達秒屋', '每個人一間，分大門和房子。大門大家都一樣：門牆排法跟日曆一樣，一格一個月、一天一塊磚、一排一週，一層 12 個月（從創角色那個月開始），每過一年加高一層。有成交就亮、越多越亮；只有不成交或錯過有個小記號；看不到的蓋著布；未來的預約是虛線磚。點一塊磚看那天，點門進他的表格世界。一指拖著轉、兩指縮放。門以外的房子自己蓋：在自己的達秒屋外面按「蓋」，選方塊、點一個面加一塊，切到「拆」點一塊拿掉，點擺設轉方向，可以復原上一步，也可以用範本（塔、長屋、平房、圓屋）。只能蓋在地皮上，大門那一排不能蓋；地皮一開始 12×12、高 12，每活一年四邊各外推一格、高度加 2，最大 32×32、高 32，不限幾塊。每一筆可以設公開、只給鄰居看或全藏，只藏自己這一邊；對接的兩個人永遠看得到；藏起來的照樣算進對接過幾次和換點比例。整間屋可以只給鄰居看。'],
-    ['新手教學', '第一次打開從創角色開始，創完先到自己的達秒屋外面：在達秒屋外面按隨機看一個陌生人的大門、點門進他的表格世界；在公告欄找到引路人的序號跳過去；看他的家規；預約選他的「空的」；那一微秒；在背包兌現；最後看自己的達秒屋，門牆上的第一塊磚亮了。可以跳過；教學的對接標「教學」，不算進對接過幾次和換點比例。']
+    ['達秒屋', '每個人一間：自己蓋的房子，上面長著一條日曆。日曆一個月一塊方塊（2×2），從創角色那個月開始，每個月第一天往自己選的方向（上下左右）長一塊，全部在正面那一面；長到的地方的方塊會拆掉，門不會。門也是一塊方塊，可以搬、可以轉。正面上面寫月份，一天一塊磚、一排一週。有成交就亮、越多越亮；只有不成交或錯過有個小記號；看不到的蓋著布；未來的預約是虛線磚。點一塊磚看那天，點門進他的表格世界。一指拖著轉、兩指縮放。房子自己蓋：在自己的達秒屋外面按「蓋」，選方塊、點一個面加一塊，切到「拆」點一塊拿掉，點擺設轉方向，可以復原上一步，也可以用範本（塔、長屋、平房、圓屋）。只能蓋在地皮上，日曆、日曆正面前面、門和門前面那一格不能蓋；地皮一開始 12×12、高 12，每活一年四邊各外推一格、高度加 2，最大 32×32、高 32，不限幾塊。每一筆可以設公開、只給鄰居看或全藏，只藏自己這一邊；對接的兩個人永遠看得到；藏起來的照樣算進對接過幾次和換點比例。整間屋可以只給鄰居看。'],
+    ['新手教學', '第一次打開從創角色開始，創完先到自己的達秒屋外面：在達秒屋外面按隨機看一個陌生人的日曆、點門進他的表格世界；在公告欄找到引路人的序號跳過去；看他的家規；預約選他的「空的」；那一微秒；在背包兌現；最後看自己的達秒屋，第一塊日曆上今天那塊磚亮了。可以跳過；教學的對接標「教學」，不算進對接過幾次和換點比例。']
   ];
   R.help = function () { return '<div class="help">' + HELP.map(function (h) { return '<h3>' + esc(h[0]) + '</h3><p>' + esc(h[1]) + '</p>'; }).join('') + '<p style="margin-top:16px">' + btn('resetAll', '全部還原成預設', '', 'warn') + '</p></div>'; };
 
@@ -2540,8 +2754,8 @@ var TABLE = (function () {
 })();
 
 /* ===== v9 達秒屋的畫面：外面整個畫面就是達秒屋 =====
- * 最上面一列：序號框、去、隨機、誰的達秒屋、回我的表格世界。自己的屋多一個「蓋」。
- * 點門牆的磚看那天、點門到他的表格世界；蓋的時候：選方塊、點一個面加一塊、切到「拆」點一塊拿掉、點擺設轉方向、復原上一步、範本。
+ * 最上面一列：序號框、去、隨機、誰的達秒屋、回我的表格世界。自己的屋多一個「蓋」；「看日曆」鏡頭轉回這個月那一塊日曆。
+ * 點日曆上的磚看那天、點門到他的表格世界；蓋的時候：選方塊、點一個面加一塊、切到「拆」點一塊拿掉、點擺設轉方向、選門搬門、日曆往哪長、復原上一步、範本。
  * 3D 用不了就顯示成日曆。只呼叫 APP、CORE、KIT、WORLD。
  */
 var HOUSE = (function () {
@@ -2560,6 +2774,7 @@ var HOUSE = (function () {
     if (WORLD.available && WORLD.init($('hstage'))) { WORLD.onTap(onTap); $('hcal').hidden = true; }
     else { WORLD.available = false; $('hstage').hidden = true; $('hcal').hidden = false; }
     $('hblk').innerHTML = Object.keys(CORE.BLOCKS).map(function (k) { var b = CORE.BLOCKS[k]; return '<button type="button" data-blk="' + k + '" aria-label="' + esc(b.name) + '"><span class="sw" style="background:' + b.hex + (b.type === 'glass' ? ';opacity:.6' : '') + '"></span>' + esc(b.name) + '</button>'; }).join('');
+    $('hDirs').innerHTML = Object.keys(CORE.CAL_DIRS).map(function (d) { return '<button type="button" class="btn sm" data-dir="' + d + '">' + CORE.CAL_DIRS[d] + '</button>'; }).join('');
   }
   function render(opts) {
     if (!st.shown) return;
@@ -2576,12 +2791,16 @@ var HOUSE = (function () {
       $('hblk').querySelectorAll('[data-blk]').forEach(function (b) { b.classList.toggle('on', b.dataset.blk === st.kind); });
       $('hModeAdd').classList.toggle('on', st.mode === 'add'); $('hModeDel').classList.toggle('on', st.mode === 'remove');
       $('hUndo').disabled = !st.undo.length;
+      $('hDirs').querySelectorAll('[data-dir]').forEach(function (b) { b.classList.toggle('on', b.dataset.dir === v.cal.dir); });
+      var pv = v.cal.preview, note = !pv ? '這一面放滿了，下一塊沒地方長' : pv.fallback ? '這個方向長不了，這次會放到最近的空位' : pv.dir !== v.cal.dir ? '這個方向長不了，這次會往' + CORE.CAL_DIRS[pv.dir] : '下個月長在框那裡';
+      $('hDirNote').textContent = note + (pv && pv.removes ? '，會拆 ' + pv.removes + ' 塊' : '');
     }
-    $('hhint').textContent = st.building ? (st.mode === 'add' ? '選一種方塊，點一個面加一塊；點擺設轉方向。' : '拆：點一塊就拿掉。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點門牆的磚看那天，點門進' + (own ? '我' : '他') + '的表格世界' : '3D 用不了：達秒屋顯示成日曆，點一格跟點一塊磚一樣');
+    $('hhint').textContent = st.building ? (st.mode === 'add' ? (st.kind === 'door' ? '選了門：點一個地方門就搬過去；點門轉方向。' : '選一種方塊，點一個面加一塊；點擺設或門轉方向。') : '拆：點一塊就拿掉（日曆和門拆不掉）。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點日曆上的磚看那天，點門進' + (own ? '我' : '他') + '的表格世界' + (v.cal.preview && v.cal.preview.removes ? '；下個月的日曆會拆 ' + v.cal.preview.removes + ' 塊' : '') : '3D 用不了：達秒屋顯示成日曆，點一格跟點一塊磚一樣');
     tutBar();
     if (WORLD.available) { var vb = $('view-house').getBoundingClientRect(), hb = document.querySelector('.hbar').getBoundingClientRect(), fb = document.querySelector('.hfoot').getBoundingClientRect(); WORLD.setInsets(hb.bottom - vb.top, vb.bottom - fb.top); }
     if (WORLD.available) WORLD.show(v, { building: st.building, resetCamera: opts && opts.resetCamera });
-    else { $('hcal').innerHTML = KIT.calendar(st.serial, viewer(), st.month); KIT.bindCalendar($('hcal'), function (m) { st.month = m; render(); }); }
+    if (own && v.calRemoved && !KIT.isOpen()) { var n = CORE.ackCalRemoved(APP.state(), me().serial); APP.changed(); KIT.pop('日曆長到這裡，拆了 ' + n + ' 塊', '日曆每個月長一塊，長到的地方和它正面前面的方塊會拆掉。在「蓋」裡可以改下一塊往哪長。'); }
+    if (!WORLD.available) { $('hcal').innerHTML = KIT.calendar(st.serial, viewer(), st.month); KIT.bindCalendar($('hcal'), function (m) { st.month = m; render(); }); }
   }
   function tutBar() {
     var on = APP.tutActive() && !APP.isBlank(), stp = on ? APP.steps() : null;
@@ -2599,17 +2818,20 @@ var HOUSE = (function () {
   /* ---------- 蓋：每一步都記下怎麼復原 ---------- */
   function buildTap(hit) {
     var S = APP.state(), s = me().serial, now = APP.now();
-    if (hit.kind === 'door' || hit.kind === 'brick' || hit.kind === 'gate') { KIT.pop('放不上去', '大門不能蓋。'); return; }
     if (st.mode === 'remove') {
+      if (hit.kind === 'cal' || hit.kind === 'brick') { KIT.pop('拆不掉', '日曆拆不掉。'); return; }
+      if (hit.kind === 'door') { KIT.pop('拆不掉', '門拆不掉，只能搬：選「門」再點一個地方。'); return; }
       if (hit.kind !== 'block') return;
-      act(function () { var b = CORE.removeBlock(S, s, hit.x, hit.y, hit.z); return function () { CORE.addBlock(S, s, b, APP.now()); }; }, '拆了一塊');
+      act(function () { var b = CORE.removeBlock(S, s, hit.x, hit.y, hit.z, now); return function () { CORE.addBlock(S, s, b, APP.now()); }; }, '拆了一塊');
       return;
     }
-    if (hit.kind === 'block' && hit.prop) { act(function () { CORE.rotateBlock(S, s, hit.x, hit.y, hit.z); return function () { for (var i = 0; i < 3; i++) CORE.rotateBlock(S, s, hit.x, hit.y, hit.z); }; }, '轉了 90 度'); return; }
+    if (hit.kind === 'brick') { KIT.pop('放不上去', '這裡要留給日曆，正面前面也要空著。'); return; }
+    if (hit.kind === 'door' || (hit.kind === 'block' && hit.prop)) { act(function () { CORE.rotateBlock(S, s, hit.x, hit.y, hit.z, now); return function () { for (var i = 0; i < 3; i++) CORE.rotateBlock(S, s, hit.x, hit.y, hit.z, APP.now()); }; }, '轉了 90 度'); return; }
     var x = hit.x, y = hit.y, z = hit.z;
-    if (hit.kind === 'block') { x += hit.n[0]; y += hit.n[1]; z += hit.n[2]; }
+    if (hit.kind === 'block' || hit.kind === 'cal') { x += hit.n[0]; y += hit.n[1]; z += hit.n[2]; }
     var k = st.kind;
-    act(function () { var b = CORE.addBlock(S, s, CORE.BLOCKS[k].type === 'prop' ? [x, y, z, k, 0] : [x, y, z, k], now); return function () { CORE.removeBlock(S, s, b[0], b[1], b[2]); }; }, '加了一塊' + CORE.BLOCKS[k].name);
+    if (k === 'door') { act(function () { var old = CORE.moveDoor(S, s, x, y, z, null, now); return function () { CORE.moveDoor(S, s, old[0], old[1], old[2], old[4], APP.now()); }; }, '門搬過去了'); return; }
+    act(function () { var b = CORE.addBlock(S, s, CORE.BLOCKS[k].type === 'prop' ? [x, y, z, k, 0] : [x, y, z, k], now); return function () { CORE.removeBlock(S, s, b[0], b[1], b[2], APP.now()); }; }, '加了一塊' + CORE.BLOCKS[k].name);
   }
   // 做一步：成功就把「怎麼復原」放進去；擋下就跳提示，什麼都沒改
   function act(fn, ok) {
@@ -2624,10 +2846,10 @@ var HOUSE = (function () {
   }
   function templates() {
     var n = data().look.n;
-    KIT.pop('範本', '按一下就蓋出來，再自己改。換範本會把現在蓋的換掉。', Object.keys(CORE.TEMPLATES).map(function (k) { return { label: CORE.TEMPLATES[k], fn: function () { confirmReplace(n, '換成「' + CORE.TEMPLATES[k] + '」', function () { return CORE.template(k); }); } }; }).concat([{ label: '全部拆掉', warn: true, fn: function () { confirmReplace(n, '全部拆掉', function () { return []; }); } }, { label: '不要', pri: true }]));
+    KIT.pop('範本', '按一下就蓋出來，再自己改。換範本會把現在蓋的換掉；碰到日曆和門前面的地方會空著，門不會拆。', Object.keys(CORE.TEMPLATES).map(function (k) { return { label: CORE.TEMPLATES[k], fn: function () { confirmReplace(n, '換成「' + CORE.TEMPLATES[k] + '」', function () { return CORE.template(k); }); } }; }).concat([{ label: '全部拆掉', warn: true, fn: function () { confirmReplace(n, '全部拆掉', function () { return []; }); } }, { label: '不要', pri: true }]));
   }
   function confirmReplace(n, what, list) {
-    KIT.pop(what + '？', '現在蓋的 ' + n + ' 塊會被換掉（之後可以按「復原上一步」換回來）。', [{ label: '換掉', warn: true, fn: function () { act(function () { var S = APP.state(), s = me().serial, old = CORE.setBlocks(S, s, list(), APP.now()); return function () { CORE.setBlocks(S, s, old, APP.now()); }; }, what + '了'); } }, { label: '不要', pri: true }]);
+    KIT.pop(what + '？', '現在蓋的 ' + n + ' 塊會被換掉（之後可以按「復原上一步」換回來）。', [{ label: '換掉', warn: true, fn: function () { act(function () { var S = APP.state(), s = me().serial, old = CORE.setBlocks(S, s, list(), APP.now(), true); return function () { CORE.setBlocks(S, s, old, APP.now(), true); }; }, what + '了'); } }, { label: '不要', pri: true }]);
   }
   function msg(t) { var el = $('hmsg'); el.textContent = t || ''; el.hidden = !t; clearTimeout(msg.t); if (t) msg.t = setTimeout(function () { el.hidden = true; }, 3500); }
   function goDoor() { var s = st.serial; if (s !== me().serial) APP.tutEvent('door'); APP.goTable(s, 'role', 'door'); }
@@ -2639,6 +2861,7 @@ var HOUSE = (function () {
   }
   $('view-house').addEventListener('click', function (e) {
     var blk = e.target.closest('[data-blk]'); if (blk) { st.kind = blk.dataset.blk; st.mode = 'add'; render(); return; }
+    var dir = e.target.closest('[data-dir]'); if (dir) { act(function () { var old = CORE.setCalDir(APP.state(), me().serial, dir.dataset.dir); return function () { CORE.setCalDir(APP.state(), me().serial, old); }; }, '下一塊往' + CORE.CAL_DIRS[dir.dataset.dir]); return; }
     var b = e.target.closest('[data-hact]'); if (!b) return;
     var a = b.dataset.hact;
     if (a === 'go') goSerial();
@@ -2650,6 +2873,7 @@ var HOUSE = (function () {
     else if (a === 'undo') undo();
     else if (a === 'tpl') templates();
     else if (a === 'door') goDoor();
+    else if (a === 'look') { if (WORLD.available) WORLD.lookCalendar(); }
     else if (a === 'myHouse') APP.goHouse(me().serial);
     else if (a === 'tutSkip') { APP.tutSkip(); msg('跳過了教學。想只收不給，記得要有 0 點的空物件。'); tutBar(); }
   });
@@ -2667,11 +2891,12 @@ var HOUSE = (function () {
   });
   APP.on('change', function () { if (st.shown) render(); });
   APP.on('tut', function () { if (st.shown) tutBar(); });
-  // 教學第 8 步：鏡頭靠近門牆上的第一塊磚，框起來
+  APP.on('calGrow', function () { if (st.shown) render(); });
+  // 教學第 8 步：鏡頭靠近第一塊日曆上今天那塊磚，框起來
   APP.on('firstBrick', function () {
     var v = st.shown ? data() : null;
     if (v && WORLD.available) { render(); WORLD.focusDay(v.born); }
-    KIT.pop('你 0 歲，第一塊磚亮了', '就是上面門牆上框起來的那一塊。每天一塊磚，成交的那天會亮；門以外的房子可以按「蓋」自己蓋。教學完成！', null, null, { low: true });
+    KIT.pop('你 0 歲，第一塊磚亮了', '就是上面日曆方塊上框起來的那一塊。每天一塊磚，成交的那天會亮；門以外的房子可以按「蓋」自己蓋。教學完成！', null, null, { low: true });
   });
   // 成交那一刻正好開著：白光一閃，今天那塊磚亮起來（重畫就亮）
   APP.on('dock', function (res) { if (!st.shown) return; var hit = res.some(function (x) { return x.docking && x.docking.traded && (x.docking.a === st.serial || x.docking.b === st.serial); }); render(); if (hit) KIT.flash(); });

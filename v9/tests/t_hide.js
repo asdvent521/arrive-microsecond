@@ -1,4 +1,4 @@
-// 藏：換人看公開、只給鄰居看、全藏、整間屋只給鄰居看，各自看到什麼（磚都在門牆上）；「還有 N 筆蓋著」；全藏旁邊的小字；
+// 藏：換人看公開、只給鄰居看、全藏、整間屋只給鄰居看，各自看到什麼（磚都在日曆方塊上）；「還有 N 筆蓋著」；全藏旁邊的小字；
 // 看別人的屋，明細寫屋主的名字（不寫「我」）；門牌一句話、換人看得到；日曆一格一天、換月、點一格、在明細裡改藏。
 // node v9/tests/t_hide.js <test9.html>
 var lib = require('./lib'), assert = lib.assert;
@@ -48,7 +48,7 @@ var FIND = "(function(){var v=HOUSE.data(),t=v.today;var s=WORLD.screenOf({day:t
   assert((await H.ev("CORE.houseOf(APP.me()).visibility")) === 'neighbors', '我的達秒屋：整間屋只給鄰居看');
   await becomeMe(J3); await H.ev("APP.goHouse('" + J1 + "');HOUSE.render({resetCamera:true})"); await pg.waitForTimeout(400);
   assert((await pg.textContent('#hwho')).indexOf('只給鄰居看') >= 0 && (await H.ev("HOUSE.data().closed")) && (await H.ev("WORLD.info().lit + WORLD.info().cover + WORLD.info().marks")) === 0, '陌生人：掛「只給鄰居看」的牌子，門牆的磚沒有亮暗');
-  assert((await H.ev("WORLD.info().blocks")) === (await H.ev("CORE.houseOf(APP.roleOf('" + J1 + "')).blocks.length")) && (await H.ev("HOUSE.data().sign")) === '', '只給鄰居看：外觀（自己蓋的部分）照樣看得到，門牌上的字看不到');
+  assert((await H.ev("WORLD.info().blocks")) === (await H.ev("CORE.viewHouse(APP.state(),'" + J1 + "','" + J3 + "').look.n")) && (await H.ev("WORLD.info().cal")) === (await H.ev("CORE.houseOf(APP.roleOf('" + J1 + "')).cal.blocks.length")) && (await H.ev("HOUSE.data().sign")) === '', '只給鄰居看：外觀（自己蓋的部分、日曆方塊的形狀）照樣看得到，門牌上的字看不到');
   var s0 = await H.ev("(function(){var s=WORLD.screenOf({day:HOUSE.data().today});return s;})()"); await pg.mouse.click(s0.x, s0.y); await pg.waitForTimeout(200);
   assert(!(await H.popOpen()) && (await pg.textContent('#hmsg')).indexOf('點不開') >= 0, '點磚點不開');
   await H.tap3d('door', '門'); assert((await H.sheetName()) === 'other:role', '門照樣打得開：到他的表格世界');

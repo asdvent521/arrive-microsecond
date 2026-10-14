@@ -1,5 +1,5 @@
 // 新手教學（DESIGN 7-4，八步）：創角色（建好到自己的達秒屋外面）→ 在達秒屋外面按隨機、點門進他的表格世界 → 公告欄找引路人的序號、序號框跳過去
-// → 看他的家規 → 預約選他的「空的」（預約時就確認到達）→ 那一微秒 → 背包兌現 → 去我的達秒屋（你 0 歲，第一塊磚亮了）。
+// → 看他的家規 → 預約選他的「空的」（預約時就確認到達）→ 那一微秒 → 背包兌現 → 去我的達秒屋（你 0 歲，第一塊日曆上今天那塊磚亮了，鏡頭靠近）。
 // 教學的對接不算數、標「教學」；可以跳過（只做創角色，空物件的提醒照樣出現）；全部還原又從創角色開始。
 // node v9/tests/t_tutorial.js <test9.html>
 var lib = require('./lib'), assert = lib.assert;
@@ -17,13 +17,14 @@ var J1 = '00000000001', J4 = '00000000004';
   await waitStep(2); await pg.waitForTimeout(400);
   assert((await H.ev("APP.me().serial")) === J1 && (await H.ev("APP.view().name + ' ' + APP.view().serial")) === 'house ' + J1 && (await pg.isVisible('#view-house')) && (await pg.isHidden('#view-table')), '建立：J1 當下生效，跳到自己的達秒屋外面');
   assert((await pg.textContent('#htut')).indexOf('② 找陌生人一：隨機') >= 0 && (await pg.isVisible('#htut [data-hact="tutSkip"]')), '達秒屋外面也有教學提示和「跳過教學」，教學到 ②');
-  assert((await H.ev("WORLD.info().bricks")) === 1 && (await pg.textContent('#hwho')).indexOf('0 歲') >= 0, '剛出生：門牆上一塊磚、0 歲');
-  assert((await H.ev("WORLD.info().blocks")) === (await H.ev("CORE.template('house').length")) && (await H.ev("WORLD.info().blocks")) > 50, '建好角色就有一間預設小屋（' + (await H.ev("WORLD.info().blocks")) + ' 塊）');
-  assert((await pg.textContent('#htut')).indexOf('看看他的大門') >= 0, '第 2 步提示：看看他的大門');
+  assert((await H.ev("WORLD.info().bricks")) === 1 && (await pg.textContent('#hwho')).indexOf('0 歲') >= 0, '剛出生：日曆上一塊磚、0 歲');
+  assert((await H.ev("WORLD.info().blocks")) === (await H.ev("CORE.template('house').length")) - 1 && (await H.ev("WORLD.info().blocks")) > 50 && (await H.ev("WORLD.info().cal")) === 1, '建好角色就有一間預設小屋（' + (await H.ev("WORLD.info().blocks")) + ' 塊）、一扇門和第一塊日曆');
+  assert((await pg.textContent('#htut')).indexOf('看看他的日曆') >= 0, '第 2 步提示：看看他的日曆');
   // ② 在達秒屋外面按隨機 → 陌生人的達秒屋外面，點門進他的表格世界
   await H.hclick('#hRandom'); await pg.waitForTimeout(500);
   var other = await H.ev("APP.view().serial");
   assert((await H.ev("APP.view().name")) === 'house' && other !== J1 && (await step()) === 2, '按「隨機」跳到陌生人的達秒屋外面（點門才算走完 ②）');
+  await H.ev("(function(){var d=HOUSE.data().look.door;WORLD.setCamera({target:[d[0]+0.5,1,d[2]+0.5],theta:0,phi:1.3,dist:6});WORLD.renderNow();})()"); await pg.waitForTimeout(200);   // 鏡頭轉到他的門前
   await H.tap3d('door', '他的門'); await waitStep(3);
   assert((await H.ev("TABLE.ui.other")) === other && (await pg.isVisible('#view-table')) && (await pg.textContent('#tutbar')).indexOf('③') >= 0, '點門進他的表格世界，教學到 ③');
   await H.nav('today');
@@ -61,7 +62,7 @@ var J1 = '00000000001', J4 = '00000000004';
   assert((await H.ev("APP.view().name + ' ' + APP.view().serial")) === 'house ' + J1 && (await H.popTitle()).indexOf('你 0 歲，第一塊磚亮了') >= 0, '到了自己的達秒屋：跳出「你 0 歲，第一塊磚亮了」，教學結束');
   assert((await H.ev("WORLD.info().lit")) === 1 && (await pg.isHidden('#htut')), '今天那塊磚亮了；教學提示收起來');
   var fc = await H.ev("(function(){var i=WORLD.info(),s=WORLD.screenOf({day:HOUSE.data().born}),c=document.querySelector('#hstage canvas').getBoundingClientRect();var el=document.elementFromPoint(s.x,s.y);return {focus:i.focus,born:HOUSE.data().born,dist:i.dist,dx:Math.abs(s.x-c.width/2)/c.width,dy:Math.abs(s.y-c.height/2)/c.height,seen:!!el&&el.tagName==='CANVAS'};})()");
-  assert(fc.focus === fc.born && fc.dist < 4 && fc.dx < 0.15 && fc.dy < 0.35 && fc.seen, '鏡頭靠近門牆上的第一塊磚、框起來，說明框沒有蓋住它（距離 ' + fc.dist.toFixed(1) + '，離正中 ' + (fc.dx * 100).toFixed(0) + '%／' + (fc.dy * 100).toFixed(0) + '%）');
+  assert(fc.focus === fc.born && fc.dist < 4 && fc.dx < 0.15 && fc.dy < 0.35 && fc.seen, '鏡頭靠近第一塊日曆上今天那塊磚、框起來，說明框沒有蓋住它（距離 ' + fc.dist.toFixed(1) + '，離正中 ' + (fc.dx * 100).toFixed(0) + '%／' + (fc.dy * 100).toFixed(0) + '%）');
   if (process.argv[3]) await pg.screenshot({ path: process.argv[3] + '/v9_tut_firstbrick.png' });
   await H.popOk();
   var st = JSON.parse(await H.ev("JSON.stringify({d:APP.state().dockings.filter(function(d){return d.a==='" + J1 + "'||d.b==='" + J1 + "';}).map(function(d){return [d.traded,d.tutorial];}),n:CORE.dockCount(APP.state(),'" + J1 + "'),ratio:CORE.ratio(APP.state(),'" + J1 + "').text,h:APP.state().holds.filter(function(h){return h.issuer==='" + J1 + "'||h.holder==='" + J1 + "';}).map(function(h){return h.status;})})"));
