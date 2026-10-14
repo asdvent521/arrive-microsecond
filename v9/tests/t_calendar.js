@@ -73,6 +73,11 @@ var J1 = '00000000001', J3 = '00000000003';
   var ti = await H.ev("(function(){var i=WORLD.info(),list=CORE.houseOf(APP.me()).cal.blocks,last=list[list.length-1],s=WORLD.screenOf({cal:last}),c=document.querySelector('#hstage canvas').getBoundingClientRect();return {cal:i.cal,bricks:i.bricks,calls:i.calls,dist:i.dist,dx:s?Math.abs(s.x-c.width/2)/c.width:9,seen:!!s&&document.elementFromPoint(s.x,s.y).tagName==='CANVAS'};})()");
   assert(ti.cal === tall.n && ti.calls <= 50 && ti.dx < 0.2 && ti.seen && ti.dist < 20, '看屋：' + ti.cal + ' 塊日曆、' + ti.bricks + ' 塊磚，繪製 ' + ti.calls + ' 次；鏡頭停在這個月那塊附近（距離 ' + ti.dist.toFixed(1) + '），不是整面縮很小');
   if (shots) await pg.screenshot({ path: shots + '/v9_cal_4_tall.png' });
+  // 日曆貼圖大小（第 8 輪）：任何歲數都不超過 2048×2048；這間 60 歲的實際貼圖也是
+  var sizes = await H.ev("[129,300,512,720,1200].map(function(n){var z=WORLD.atlasSize(n);return [n,z.w,z.h,z.tile];})");
+  assert(sizes.every(function (z) { return z[1] <= 2048 && z[2] <= 2048 && z[3] >= 32; }), '日曆貼圖：' + sizes.map(function (z) { return z[0] + ' 塊 ' + z[1] + '×' + z[2] + '（每格 ' + z[3] + '）'; }).join('、') + '，都不超過 2048');
+  var real = await H.ev("(function(){var m=null;WORLD.scene&&0;return WORLD.texSize?WORLD.texSize():null;})()");
+  assert(real && real.w <= 2048 && real.h <= 2048, '60 歲這間實際的貼圖 ' + (real ? real.w + '×' + real.h : '?'));
   await pg.mouse.move(390, 200); await pg.mouse.wheel(0, 900); await pg.waitForTimeout(200); await H.hclick('#hLook'); await pg.waitForTimeout(900);
   var back = await H.ev("(function(){var list=CORE.houseOf(APP.me()).cal.blocks,s=WORLD.screenOf({cal:list[list.length-1]}),c=document.querySelector('#hstage canvas').getBoundingClientRect();return s&&Math.abs(s.x-c.width/2)/c.width<0.2&&WORLD.info().dist<20;})()");
   assert(back, '拉遠以後按「看日曆」：回到這個月那塊');

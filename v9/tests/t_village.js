@@ -1,5 +1,5 @@
 // 村子：用手指邀鄰居（他的那張紙）、換人在事件簿最上面看到提醒、更多→鄰居和村子同意、到達秒屋挑地（從上面看、點一塊框起來的地、朝向）、走過去（點別間、畫面滑過去、停在日曆那面）、
-// 「看村子」拉遠、鄰居看得到只給鄰居看的屋和日曆紙、申請搬進要大家同意、換位置、搬走；10 間屋每間塞滿（也試 60 年份的高日曆）繪製次數不超過 80；轉橫、直放。
+// 「看村子」拉遠（日曆很高時停在這個月那塊附近、看得到點得到隔壁）、空出來的地先選好（補十八）、鄰居看得到只給鄰居看的屋和日曆紙、申請搬進要大家同意、換位置、搬走；10 間屋每間塞滿（也試 60 年份的高日曆）繪製次數不超過 80；轉橫、直放。
 // node v9/tests/t_village.js <test9.html> [截圖資料夾]
 var lib = require('./lib'), assert = lib.assert;
 var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '00000000005', OUT = process.argv[3];
@@ -70,6 +70,18 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '0000000000
   assert((await H.ev("CORE.villageOf(APP.state(),'" + J3 + "').members.find(function(m){return m.serial==='" + J3 + "';}).pos.join()")) === '3,0', '換到 [3,0]');
   await H.hclick('#hBack'); await H.nav('village'); await H.clickText('搬走', '#tmain'); await H.popOk('搬走');
   assert((await H.ev("!CORE.villageOf(APP.state(),'" + J3 + "')")) && (await H.ev("CORE.villageOf(APP.state(),'" + J1 + "').members.length")) === 2 && (await H.msg()) === '搬走了', '搬走：不用誰同意，村子剩兩間');
+  // 5b. 空出來的地先選好（補十八）：小樂換過位置又搬走，村裡有空出來的地 → 阿澄搬進來挑地時，那塊已經選好、有那句話，按「放在選好的這塊」
+  var sug = await H.ev("JSON.stringify(CORE.suggestedSpot(APP.state(),CORE.villageOf(APP.state(),'" + J1 + "').id))");
+  assert(sug !== 'null', '村裡有空出來的地：' + sug);
+  await H.becomeMe(J2); await H.serial('J1'); await H.clickText('申請搬去他那個村子', '#tmain'); await H.popOk('申請'); await H.clickText('回我自己', '#tother');
+  await H.ev("(function(){var S=APP.state(),v=CORE.villageOf(S,'" + J1 + "'),p=v.pending.find(function(x){return x.who==='" + J2 + "';});v.members.forEach(function(m){CORE.approveVillage(S,m.serial,v.id,p.id);});APP.changed();})()");
+  await H.nav('village'); await H.clickText('去挑地', '#tmain'); await pg.waitForTimeout(700);
+  var pt = await pg.textContent('#hpickText');
+  assert(pt.indexOf('這裡原本有人住，補進來村子比較完整') >= 0 && JSON.stringify((await info()).selSpot) === JSON.stringify(JSON.parse(sug).join()) && (await pg.isVisible('#hPickSel')), '挑地：那塊已經選好（塗黃）、寫「這裡原本有人住，補進來村子比較完整」');
+  if (OUT) await pg.screenshot({ path: OUT + '/v9_village_6_suggest.png' });
+  await H.hclick('#hPickSel'); assert((await H.popTitle()) === '放在這裡？', '按「放在選好的這塊」問一下'); await H.popOk('放這裡'); await pg.waitForTimeout(500);
+  assert((await H.ev("JSON.stringify(CORE.villageOf(APP.state(),'" + J2 + "').members.find(function(m){return m.serial==='" + J2 + "';}).pos)")) === sug && (await H.ev("JSON.stringify(CORE.suggestedSpot(APP.state(),CORE.villageOf(APP.state(),'" + J1 + "').id))")) !== sug, '阿澄補進那塊，那塊就不再是空出來的地');
+  await H.ev("(function(){CORE.leaveVillage(APP.state(),'" + J2 + "');APP.changed();})()"); await H.hclick('#hBack');
   // 6. 10 間屋、每間塞滿：一個畫面繪製次數不超過 80；直放也畫得出來（換回 J1 看自己的村子）
   await H.becomeMe(J1);
   var big = await H.ev("(function(){var S=APP.state(),t=APP.now(),v=CORE.villageOf(S,'" + J1 + "'),K=Object.keys(CORE.BLOCKS).filter(function(k){return k!=='door';}),made=[];for(var i=0;i<8;i++){var r=CORE.createRole(S,{name:'村民'+i,dailyPoints:100,rules:{},resources:[]},t);r.born-=9000;made.push(r.serial);}S.roles.filter(function(r){return v.members.some(function(m){return m.serial===r.serial;})||made.indexOf(r.serial)>=0;}).forEach(function(r){r.born-=9000;});CORE.growCalendars(S,t);var sp=CORE.freeSpots(S,v.id);made.forEach(function(ser,i){var p=CORE.applyVillage(S,ser,'" + J1 + "',t);v.members.forEach(function(m){CORE.approveVillage(S,m.serial,v.id,p.id);});var spots=CORE.freeSpots(S,v.id);CORE.joinVillage(S,ser,v.id,p.id,spots[i%spots.length],[0,90,180,270][i%4],t);});v.members.forEach(function(m){var r=APP.roleOf(m.serial),h=CORE.houseOf(r),p=CORE.plotAt(r,t),res=CORE.reserved(h,p),L=[];for(var x=p.min;x<=p.max;x++)for(var y=0;y<p.height;y++)for(var z=p.min;z<=p.max;z++){var key=x+','+y+','+z;if(res.cal[key]||res.front[key]||res.door[key]||res.dfront[key])continue;var k=K[(x*7+y*3+z*5+999)%K.length];L.push(CORE.BLOCKS[k].type==='prop'?[x,y,z,k,90]:[x,y,z,k]);}CORE.setBlocks(S,m.serial,L,t);});APP.changed();return {n:v.members.length,size:CORE.plotAt(APP.roleOf('" + J1 + "'),t).size,blocks:CORE.houseOf(APP.roleOf('" + J1 + "')).blocks.length};})()");
@@ -83,10 +95,21 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '0000000000
   await H.ev("APP.goHouse('" + J1 + "');HOUSE.render({resetCamera:true});WORLD.renderNow()"); if (await H.popOpen()) await H.popOk(); await H.ev("WORLD.renderNow()");
   var ti = await info();
   assert(tallV.every(function (x) { return x[0] >= 59 && x[1] >= 700 && x[2] > 300; }) && ti.houses === 10 && ti.calls <= 80, '10 間屋、每間 60 年份的高日曆（' + tallV[0][1] + ' 塊、高 ' + tallV[0][2] + '）、每間塞滿：繪製 ' + ti.calls + ' 次');
-  await H.hclick('#hVillage'); await pg.waitForTimeout(1100); await H.ev("WORLD.renderNow()");
-  var tv = await H.ev("(function(){var i=WORLD.info(),list=CORE.houseOf(APP.me()).cal.blocks,s=WORLD.screenOf({cal:list[list.length-1]});return {calls:i.calls,s:!!s&&s.y>0&&s.y<innerHeight&&s.x>0&&s.x<innerWidth};})()");
-  assert(tv.calls <= 80 && tv.s, '高日曆的村子拉遠：繪製 ' + tv.calls + ' 次，這個月那塊照得到');
-  if (OUT) await pg.screenshot({ path: OUT + '/v9_village_5_tall.png' });
+  // 看村子（第 8 輪）：跟看屋差不多近，這個月那塊看得清楚；隔壁一間的塔頭在畫面裡、點得到、點了走過去。轉橫和直放各一次
+  var checkTall = async function (tag) {
+    await H.ev("HOUSE.render({resetCamera:true});WORLD.renderNow()"); if (await H.popOpen()) await H.popOk();
+    var base = await H.ev("(function(){var l=CORE.houseOf(APP.me()).cal.blocks;return WORLD.calScreenSize(l[l.length-1]);})()");
+    await H.hclick('#hVillage'); await pg.waitForTimeout(1100); await H.ev("WORLD.renderNow()");
+    var tv = await H.ev("(function(){var i=WORLD.info(),l=CORE.houseOf(APP.me()).cal.blocks,last=l[l.length-1],s=WORLD.screenOf({cal:last}),sz=WORLD.calScreenSize(last),c=document.querySelector('#hstage canvas').getBoundingClientRect(),vp=WORLD.villagePose(),n=vp.neighbor,ns=n?WORLD.screenOf({house:n}):null,el=ns?document.elementFromPoint(ns.x,ns.y):null,h=ns?WORLD.hitAt(ns.x,ns.y):null;return {calls:i.calls,inView:!!s&&s.x>c.left&&s.x<c.right&&s.y>c.top+40&&s.y<c.bottom-40,sz:sz,n:n,ns:ns,canvas:!!el&&el.tagName==='CANVAS',hit:h&&h.kind==='house'&&h.serial===n};})()");
+    assert(tv.calls <= 80 && tv.inView && tv.sz && tv.sz.h >= base.h * 0.5, tag + '：高日曆的村子看村子，繪製 ' + tv.calls + ' 次，這個月那塊在畫面裡、高 ' + Math.round(tv.sz.h) + ' 像素（看屋時 ' + Math.round(base.h) + '）');
+    assert(tv.n && tv.ns && tv.canvas && tv.hit, tag + '：隔壁一間（' + tv.n + '）的塔頭在畫面上、是畫布、點得到');
+    if (OUT) await pg.screenshot({ path: OUT + '/v9_village_5_tall_' + tag + '.png' });
+    await H.tap3d({ house: tv.n }, '隔壁那間'); await pg.waitForTimeout(1300);
+    assert((await info()).serial === tv.n && !(await info()).animating, tag + '：點隔壁那間，走過去');
+    await H.ev("APP.goHouse('" + J1 + "')"); await pg.waitForTimeout(300);
+  };
+  await checkTall('轉橫');
+  await pg.setViewportSize({ width: 360, height: 780 }); await pg.waitForTimeout(300); await checkTall('直放'); await pg.setViewportSize({ width: 780, height: 360 }); await pg.waitForTimeout(300);
   await pg.setViewportSize({ width: 360, height: 780 }); await pg.waitForTimeout(300); await H.ev("HOUSE.render({resetCamera:true});WORLD.renderNow()");
   var pv = await info(); assert(pv.houses === 10 && pv.calls <= 80 && (await H.ev("(function(){var s=WORLD.screenOf({cal:CORE.houseOf(APP.me()).cal.blocks.filter(Boolean).slice(-1)[0]});return !!s&&s.y>60&&s.y<innerHeight-60;})()")), '直放：村子照樣畫得出來，這個月那塊日曆在畫面裡');
   if (OUT) await pg.screenshot({ path: OUT + '/v9_village_4_portrait.png' });

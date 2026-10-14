@@ -1183,6 +1183,26 @@ ok('村子（續）：三間排一排，中間搬走或被請走，兩邊還是�
   assert.ok(!C.villageOf(s2, J2) && C.isNeighbor(s2, J1, J3) && v2.members.length === 2, '中間被請走：兩邊還是鄰居');
   var r2 = JSON.parse(JSON.stringify(s2)), o2 = { roles: r2.roles.map(C.cleanRole), notices: [] }; C.cleanVillages(o2, r2.villages); assert.strictEqual(o2.villages[0].members.length, 2);
 });
+ok('空出來的地先選好（補十八）：三間排一排、中間搬走或被請走 → 下一個搬進來的預設選中間那塊；選別塊也可以；補進去以後就沒有預設；存檔讀回來還記得', function () {
+  var J4 = '00000000004', J5 = '00000000005';
+  var mk = function () { var s = base(); [J4, J5].forEach(function (x, i) { C.createRole(s, { serial: x, name: ['丁', '戊'][i], dailyPoints: 100, rules: {}, resources: [] }, T0); });
+    var inv = C.inviteNeighbor(s, J1, J2, T0), v = C.villageOf(s, J1); C.joinVillage(s, J2, v.id, inv.id, [2, 0], 0, T0);
+    var ap = C.applyVillage(s, J3, J1, T0); C.approveVillage(s, J1, v.id, ap.id); C.approveVillage(s, J2, v.id, ap.id); C.joinVillage(s, J3, v.id, ap.id, [4, 0], 0, T0); return { s: s, v: v }; };
+  var a = mk(), s = a.s, v = a.v;
+  assert.strictEqual(C.suggestedSpot(s, v.id), null, '沒有空出來的地：沒有預設');
+  C.leaveVillage(s, J2); assert.deepStrictEqual(C.suggestedSpot(s, v.id), [2, 0], '中間搬走：預設選中間那塊');
+  var raw = JSON.parse(JSON.stringify(s)), out = { roles: raw.roles.map(C.cleanRole), notices: [] }; C.cleanVillages(out, raw.villages);
+  assert.deepStrictEqual(out.villages[0].vacated, [[2, 0]], '存檔讀回來還記得');
+  var old = JSON.parse(JSON.stringify(raw.villages)); delete old[0].vacated; C.cleanVillages(out, old); assert.ok(out.villages.length === 1 && !out.villages[0].vacated, '舊存檔沒有這個也行');
+  var p4 = C.applyVillage(s, J4, J1, T0); C.approveVillage(s, J1, v.id, p4.id); C.approveVillage(s, J3, v.id, p4.id);
+  C.joinVillage(s, J4, v.id, p4.id, [0, 2], 0, T0); assert.deepStrictEqual(C.suggestedSpot(s, v.id), [2, 0], '丁選了別塊也可以，中間那塊還是空地');
+  var p5 = C.applyVillage(s, J5, J1, T0); [J1, J3, J4].forEach(function (x) { C.approveVillage(s, x, v.id, p5.id); });
+  C.joinVillage(s, J5, v.id, p5.id, [2, 0], 90, T0); assert.strictEqual(C.suggestedSpot(s, v.id), null, '戊補進中間：就沒有預設了');
+  // 中間被請走也一樣；換位置過去也算補上
+  var b = mk(); C.askLeave(b.s, J1, J2, T0); C.approveVillage(b.s, J3, b.v.id, C.villageInfo(b.s, J1).pending[0].id);
+  assert.deepStrictEqual(C.suggestedSpot(b.s, b.v.id), [2, 0], '中間被請走：預設選中間那塊');
+  C.moveHouse(b.s, J3, [2, 0], 0); assert.deepStrictEqual(C.suggestedSpot(b.s, b.v.id), [4, 0], '丙換位置到中間：中間不算空地，丙原本那塊空出來（靠著丙）');
+});
 ok('鄰居：看得到彼此「只給鄰居看」的屋和那幾筆；非鄰居看不到；從只給鄰居看的那間看不顯示村子；從公開的那間看得到全村', function () {
   var s = base(); var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['y']); C.judge(s, T0 + 60e6);
   var e = s.entries.find(function (x) { return x.status === 'traded'; }); C.setVis(s, J1, e.id, 'neighbors'); C.setHouse(s, J1, { visibility: 'neighbors' });

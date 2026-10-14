@@ -47,10 +47,12 @@ var WORLD = (function () {
     return new T.CanvasTexture(c);
   }
   // 所有月份的正面畫在同一張貼圖上：一塊一格（月份字、每一天的空位），正面的網格用 UV 對過去
-  // 日曆往上長不會放滿（補十七）：月份多了貼圖每格變小、一排放 32 格，60 年（720 塊）也在 2048×1472 以內，手機的貼圖上限放得下
-  var TILE = 128, ATLAS_COLS = 16;
+  // 貼圖大小（第 8 輪）：任何歲數都不超過 2048×2048。256 塊以內一格 128、一排 16 格（最多 2048×2048）；
+  // 1024 塊以內一格 64、一排 32 格（60 年 720 塊是 2048×1472）；再多一格 32、一排 64 格。格子小時月份字放大一點，照樣看得清楚
+  var TILE = 128, ATLAS_COLS = 16, lastAtlas = null;
+  function atlasSize(n) { n = Math.max(1, n); var tile = n <= 256 ? 128 : n <= 1024 ? 64 : 32, cols = 2048 / tile, rows = Math.ceil(n / cols); return { tile: tile, cols: cols, w: tile * Math.min(cols, n), h: tile * rows }; }
   function atlasTexture(months) {
-    var n = Math.max(1, months.length); TILE = n > 512 ? 64 : 128; ATLAS_COLS = n > 128 ? 32 : 16; var rows = Math.ceil(n / ATLAS_COLS);
+    var n = Math.max(1, months.length), sz = atlasSize(n); TILE = sz.tile; ATLAS_COLS = sz.cols; var rows = Math.ceil(n / ATLAS_COLS);
     var c = document.createElement('canvas'); c.width = TILE * Math.min(ATLAS_COLS, n); c.height = TILE * rows; var g = c.getContext('2d');
     g.fillStyle = CAL_FACE; g.fillRect(0, 0, c.width, c.height);
     var ppu = TILE / 2;   // 一塊 2×2 格
@@ -60,11 +62,12 @@ var WORLD = (function () {
       var first = new Date(Date.UTC(ym.y, ym.m - 1, 1)).getUTCDay(), days = new Date(Date.UTC(ym.y, ym.m, 0)).getUTCDate();
       g.fillStyle = ym.preview ? '#7E7568' : DAY_EMPTY;
       for (var d = 0; d < days; d++) { var row = Math.floor((first + d) / 7), col = (first + d) % 7; g.fillRect(ox + (col * P + (P - BS) / 2) * ppu, oy + (LBL + row * RP + (RP - BS) / 2) * ppu, BS * ppu, BS * ppu); }
-      g.fillStyle = '#EDE4CC'; g.font = '600 ' + Math.round(LBL * ppu * 0.68) + 'px ' + FONT; g.textBaseline = 'middle'; g.textAlign = 'left';
+      g.fillStyle = '#EDE4CC'; g.font = '600 ' + Math.max(9, Math.round(LBL * ppu * (TILE >= 128 ? 0.68 : 0.95))) + 'px ' + FONT; g.textBaseline = 'middle'; g.textAlign = 'left';
       var label = ym.first ? '起點 ' + ym.y + ' 年 ' + ym.m + ' 月' : ym.m === 1 ? ym.y + ' 年 1 月' : ym.m + ' 月';
       if (ym.preview) label = '下個月 ' + ym.m + ' 月';
       g.fillText(label, ox + 3, oy + LBL * ppu / 2, TILE - 6);
     });
+    lastAtlas = { w: c.width, h: c.height };
     var tex = new T.CanvasTexture(c); tex.anisotropy = 4; tex.flipY = false; return tex;
   }
   function litColor(level) { return new T.Color(level >= 3 ? '#FFF4B8' : level === 2 ? '#FFD54F' : '#F2A93B'); }
@@ -248,7 +251,8 @@ var WORLD = (function () {
     houses.forEach(function (h) {
       var view = h.view, M = houseMatrix(h.pos, h.rot), plot = view.plot, vx = makeVox(plot, view.look.blocks, view.cal.blocks), tv = function (x, y, z) { return new T.Vector3(x, y, z).applyMatrix4(M); };
       var calTop = view.cal.blocks.reduce(function (t, p) { return p && p[1] + 2 > t ? p[1] + 2 : t; }, plot.height);   // 日曆可能比地皮高很多：點得到整座塔
-      farBoxes.push({ serial: h.serial, M: M, inv: new T.Matrix4().copy(M).invert(), lo: [plot.min, 0, plot.min], hi: [plot.max + 1, calTop, plot.max + 1] });
+      var lastCal = null; view.cal.blocks.forEach(function (p) { if (p) lastCal = p; });
+      farBoxes.push({ serial: h.serial, M: M, inv: new T.Matrix4().copy(M).invert(), lo: [plot.min, 0, plot.min], hi: [plot.max + 1, calTop, plot.max + 1], top: lastCal ? tv(lastCal[0] + CW / 2, lastCal[1] + CH / 2, ZF) : tv(0, 2, 0) });   // top：他這個月那塊（塔頭）
       [[plot.min, plot.min], [plot.max + 1, plot.min], [plot.max + 1, plot.max + 1], [plot.min, plot.min], [plot.max + 1, plot.max + 1], [plot.min, plot.max + 1]].forEach(function (c) { var q = tv(c[0], -0.005, c[1]); plotQ.pos.push(q.x, q.y, q.z); plotQ.nor.push(0, 1, 0); });
       view.look.blocks.forEach(function (b) {
         var t = typeOf(b[3]); if (t === 'door' || t === 'prop') return;
@@ -272,8 +276,9 @@ var WORLD = (function () {
     counts.farFaces = faces; counts.houses = houses.length + 1; tgt = was;
   }
   // 挑地：能放的地畫框（半透明的地加一圈線），點一塊就是選那一塊
-  function buildSpots(list) {
+  function buildSpots(list, sel) {
     var was = tgt; tgt = root; var half = CORE.PLOT_MAX / 2, q = { pos: [], nor: [] }, ln = [];
+    if (sel) { var sq = add(new T.Mesh(new T.PlaneGeometry(CORE.PLOT_MAX, CORE.PLOT_MAX), new T.MeshBasicMaterial({ color: '#E8B53A', transparent: true, opacity: 0.55, depthWrite: false })), 'spotsel'); sq.rotation.x = -Math.PI / 2; sq.position.set(sel[0] * CELL, 0.05, sel[1] * CELL); counts.selSpot = sel.join(); }   // 先幫他選好的那一塊：塗黃
     list.forEach(function (p) { var cx = p[0] * CELL, cz = p[1] * CELL, c = [[cx - half, cz - half], [cx + half, cz - half], [cx + half, cz + half], [cx - half, cz + half]]; [0, 1, 2, 0, 2, 3].forEach(function (i) { q.pos.push(c[i][0], 0.03, c[i][1]); q.nor.push(0, 1, 0); }); for (var i = 0; i < 4; i++) { var a = c[i], b = c[(i + 1) % 4]; ln.push(a[0], 0.06, a[1], b[0], 0.06, b[1]); } });
     if (q.pos.length) { var g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(q.pos, 3)); g.setAttribute('normal', new T.Float32BufferAttribute(q.nor, 3)); add(new T.Mesh(g, new T.MeshBasicMaterial({ color: '#8FB3D9', transparent: true, opacity: 0.35, depthWrite: false })), 'spots'); var lg = new T.BufferGeometry(); lg.setAttribute('position', new T.Float32BufferAttribute(ln, 3)); add(new T.LineSegments(lg, new T.LineBasicMaterial({ color: '#2D5A86' })), 'spotlines'); }
     counts.spots = list.length; tgt = was;
@@ -293,7 +298,7 @@ var WORLD = (function () {
     hgM = me ? houseMatrix(me.pos, me.rot) : new T.Matrix4(); hgInv = new T.Matrix4().copy(hgM).invert(); hg.matrix.copy(hgM); hg.matrixAutoUpdate = false; hg.rot = me ? me.rot : 0;
     buildGround(view.plot); buildCalendar(view); buildDoor(view); buildBlocks(view);
     if (vv) buildFar(vv.houses.filter(function (h) { return h.serial !== view.serial; })); else counts.houses = 1;
-    if (spots) buildSpots(spots);
+    if (spots) buildSpots(spots, opts.selSpot);
     root.updateMatrixWorld(true);   // 新蓋的東西馬上點得到，不用等下一次畫
     if (opts.travel) { var to = calPose(), TAU = Math.PI * 2; from.theta = ((from.theta % TAU) + TAU) % TAU; if (from.theta - to.theta > Math.PI) from.theta -= TAU; if (to.theta - from.theta > Math.PI) from.theta += TAU; anim = { from: from, to: to, t0: performance.now(), ms: 1000 }; }   // 點村裡另一間：畫面滑過去，停在那一間日曆那一面
     else if (spots) { anim = null; setPose(villagePose()); }
@@ -316,8 +321,31 @@ var WORLD = (function () {
     var r = Math.max(Math.max.apply(null, xs) - Math.min.apply(null, xs), Math.max.apply(null, zs) - Math.min.apply(null, zs)) / 2 + CELL * 0.45;
     // 日曆比地皮高（補十七）：從這個月那塊的高度、接近水平看過去，全村的塔頭並排、這個月那塊在畫面中間附近（不是從上面把整座塔縮成細線）
     var mb = monthBlock(), tall = current && mb[1] + CH > current.plot.height;
-    if (tall) return { target: toWorld(new T.Vector3(mb[0] + CW / 2, mb[1] + CH / 2, ZF)), theta: rotRad() + 0.35, phi: 1.2, dist: fitDist(Math.min(r, CELL * 1.2)) };
+    if (tall) return tallVillagePose(mb);
     return { target: new T.Vector3(cx, 0, cz), theta: rotRad(), phi: 0.42, dist: fitDist(r) };
+  }
+  // 日曆比地皮高時看村子（第 8 輪）：跟看屋差不多近，這個月那塊在前面、看得清楚；鏡頭順著「這一塊 → 最近那一間的塔頭」那條線往後退一點、偏一點，
+  // 隔壁的塔頭就落在後面、同一個畫面裡（直放也放得下）；鏡頭盡量從日曆正面那一側看（先挑在背後或旁邊的鄰居）
+  function tallVillagePose(mb) {
+    var A = toWorld(new T.Vector3(mb[0] + CW / 2, mb[1] + CH / 2, ZF)), f = new T.Vector3(0, 0, 1).transformDirection(hgM).setY(0).normalize();
+    var best = null, bs = Infinity;
+    farBoxes.forEach(function (fb) { var d = new T.Vector3(fb.top.x - A.x, 0, fb.top.z - A.z), len = d.length(); if (len < 1e-6) return; var score = len * (1 + Math.max(0, d.clone().normalize().dot(f))); if (score < bs) { bs = score; best = fb; } });
+    if (!best) return { target: A, theta: rotRad(), phi: 1.38, dist: fitDist(3.0) };
+    var B = new T.Vector3(best.top.x, Math.min(best.top.y, A.y), best.top.z), dir = new T.Vector3(B.x - A.x, 0, B.z - A.z).normalize();
+    var side = new T.Vector3(dir.z, 0, -dir.x); if (side.dot(f) < 0) side.negate();
+    // 這個畫面（扣掉上下兩條列）實際看得到多寬、多高的角度：直放時橫的很窄
+    var fullH = vh + Math.abs(insets.t - insets.b), band = Math.max(80, vh - insets.t - insets.b), tv = Math.tan(camera.fov * Math.PI / 360);
+    var halfH = Math.atan(tv * vw / fullH) * 0.8, halfV = Math.atan(tv * band / fullH) * 0.8, base = Math.max(12, fitDist(3.0) * 1.15), pick = null;
+    var A2 = A.clone(); A2.y -= 0.8;   // 這個月那塊往下一點當基準：上面還有預告框
+    // 先試從日曆正面那一側斜看（看得到正面），放不下就慢慢轉到順著那條線、再退遠一點，直到這一塊和隔壁的塔頭都在畫面裡
+    [0.45, 0.3, 0.15, 0].some(function (fa) { return [1, 1.4, 1.8].some(function (k) {
+      var w = dir.clone().negate().addScaledVector(f, fa).addScaledVector(side, 0.22).normalize(), P = A2.clone().addScaledVector(w, base * k); P.y += 1.2;
+      var ua = A2.clone().sub(P).normalize(), ub = B.clone().sub(P).normalize(), mid = ua.clone().add(ub).normalize();
+      var yaw = function (u) { return Math.atan2(u.x, u.z); }, dy = Math.abs(((yaw(ua) - yaw(ub) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI), dp = Math.abs(Math.asin(ua.y) - Math.asin(ub.y));
+      if (dy / 2 <= halfH && dp / 2 <= halfV) { pick = { P: P, mid: mid, d: A2.distanceTo(P) }; return true; } return false; }); });
+    if (!pick) { var w0 = dir.clone().negate().addScaledVector(side, 0.22).normalize(), P0 = A2.clone().addScaledVector(w0, base * 2.2); pick = { P: P0, mid: A2.clone().lerp(B, 0.5).sub(P0).normalize(), d: A2.distanceTo(P0) }; }
+    var Tg = pick.P.clone().addScaledVector(pick.mid, pick.d), v = pick.P.clone().sub(Tg), dist = v.length();
+    return { target: Tg, theta: Math.atan2(v.x, v.z), phi: Math.acos(Math.max(-1, Math.min(1, v.y / dist))), dist: dist, neighbor: best.serial };
   }
   function setPose(p) { cam.target.copy(p.target); cam.theta = p.theta; cam.phi = p.phi; cam.dist = p.dist; }
   // 鏡頭滑到某個位置（走角度短的那一邊）
@@ -445,8 +473,9 @@ var WORLD = (function () {
     else if (target.preview) { if (!current.cal.preview) return null; var pv = current.cal.preview.pos; p = new T.Vector3(pv[0] + CW / 2, pv[1] + CH / 2, ZF); }
     else if (target.block) { var bl = target.block, n = target.n || [0, 1, 0]; p = new T.Vector3(bl[0] + 0.5 + n[0] * 0.5, bl[1] + 0.5 + n[1] * 0.5, bl[2] + 0.5 + n[2] * 0.5); if (target.prop) p.set(bl[0] + 0.5, bl[1] + 0.3, bl[2] + 0.5); }
     else if (target.ground) p = new T.Vector3(target.ground[0] + 0.5, 0, target.ground[1] + 0.5);
-    else if (target.house) { var fb = farBoxes.find(function (x) { return x.serial === target.house; }); if (!fb) return null; p = new T.Vector3((fb.lo[0] + fb.hi[0]) / 2, Math.min(fb.hi[1] - 1, Math.max(2, cam.target.y)), (fb.lo[2] + fb.hi[2]) / 2).applyMatrix4(fb.M); p.isWorld = true; }
+    else if (target.house) { var fb = farBoxes.find(function (x) { return x.serial === target.house; }); if (!fb) return null; p = fb.top.y > 6 && cam.target.y > 6 ? new T.Vector3(fb.top.x, Math.min(fb.top.y, cam.target.y), fb.top.z) : new T.Vector3((fb.lo[0] + fb.hi[0]) / 2, 2, (fb.lo[2] + fb.hi[2]) / 2).applyMatrix4(fb.M); p.isWorld = true; }
     else if (target.spot) { p = new T.Vector3(target.spot[0] * CELL, 0, target.spot[1] * CELL); p.isWorld = true; }
+    else if (target.point) { p = target.point.clone(); p.isWorld = true; }
     if (!p) return null;
     if (!p.isWorld) p = toWorld(p);
     p.project(camera); var r = renderer.domElement.getBoundingClientRect();
@@ -455,11 +484,14 @@ var WORLD = (function () {
   }
   function renderNow() { if (renderer) { if (anim) { anim.t0 = -1e9; stepAnim(performance.now()); } renderer.render(scene, camera); lastCalls = renderer.info.render.calls; dirty = false; } }
   api = {
-    available: true, init: init, show: show, resize: resize, setInsets: setInsets, hitAt: hitAt, screenOf: screenOf, focusDay: focusDay, lookCalendar: lookCalendar, lookVillage: lookVillage,
+    available: true, atlasSize: atlasSize, texSize: function () { return lastAtlas; }, init: init, show: show, resize: resize, setInsets: setInsets, hitAt: hitAt, screenOf: screenOf, focusDay: focusDay, lookCalendar: lookCalendar, lookVillage: lookVillage,
     onTap: function (fn) { onTap = fn; },
     pause: function () { paused = true; if (raf) { cancelAnimationFrame(raf); raf = 0; } }, resume: function () { paused = false; dirty = true; loop(); },
-    info: function () { var c = (counts.unlit || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.lit || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length - 1 + (hg ? hg.children.length : 0) : 0, serial: current ? current.serial : null, building: building, focus: focus, animating: !!anim, previewThrough: !!counts.previewThrough, houses: counts.houses || 0, farFaces: counts.farFaces || 0, spots: counts.spots || 0, rot: hg ? hg.rot || 0 : 0 }; },
+    info: function () { var c = (counts.unlit || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.lit || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length - 1 + (hg ? hg.children.length : 0) : 0, serial: current ? current.serial : null, building: building, focus: focus, animating: !!anim, previewThrough: !!counts.previewThrough, houses: counts.houses || 0, farFaces: counts.farFaces || 0, spots: counts.spots || 0, selSpot: counts.selSpot || null, rot: hg ? hg.rot || 0 : 0 }; },
     calPose: function () { return current ? calPose() : null; },
+    villagePose: function () { if (!current) return null; var p = villagePose(); return { target: p.target.toArray(), theta: p.theta, phi: p.phi, dist: p.dist, neighbor: p.neighbor || null }; },
+    // 畫面上看到的這個月那塊有多大（像素，高和寬）
+    calScreenSize: function (pos) { if (!current) return null; var c = [[0, 0], [CW, 0], [0, CH], [CW, CH]].map(function (o) { return screenOf({ point: toWorld(new T.Vector3(pos[0] + o[0], pos[1] + o[1], ZF)) }); }); if (c.some(function (x) { return !x; })) return null; var xs = c.map(function (q) { return q.x; }), ys = c.map(function (q) { return q.y; }); return { w: Math.max.apply(null, xs) - Math.min.apply(null, xs), h: Math.max.apply(null, ys) - Math.min.apply(null, ys) }; },
     setCamera: function (p) { anim = null; if (p.target) cam.target.set(p.target[0], p.target[1], p.target[2]); if (p.theta != null) cam.theta = p.theta; if (p.phi != null) cam.phi = p.phi; if (p.dist != null) cam.dist = p.dist; applyCam(); loop(); },
     renderNow: renderNow, camera: function () { return cam; }, needsRender: function () { return dirty; }
   };

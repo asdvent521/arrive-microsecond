@@ -33,7 +33,12 @@ var HOUSE = (function () {
     $('hwho').innerHTML = '<b>' + esc(CORE.abbrev(r.serial) + ' ' + r.name) + '</b> 的達秒屋' + (v.closed ? ' <span class="tag off">只給鄰居看</span>' : '<span class="small muted"> ' + esc(v.age.text + (v.sign ? '・「' + v.sign + '」' : '')) + '</span>') + (inVillage ? ' <span class="tag">村子 ' + vv.houses.length + ' 間</span>' : '');
     $('hVillage').hidden = !inVillage || !!st.pick;
     $('hpick').hidden = !st.pick;
-    if (st.pick) { $('hRots').querySelectorAll('[data-rot]').forEach(function (b) { b.classList.toggle('on', +b.dataset.rot === st.rot); }); $('hpickText').textContent = (st.pick.pending ? '點一塊框起來的地，把你的房子放進村子' : '點一塊框起來的地換位置') + '（朝向 ' + st.rot + '°）'; }
+    if (st.pick) {
+      $('hRots').querySelectorAll('[data-rot]').forEach(function (b) { b.classList.toggle('on', +b.dataset.rot === st.rot); });
+      var sel = st.pick.sel;
+      $('hpickText').textContent = sel ? '已經幫你選好 [' + sel[0] + ', ' + sel[1] + ']：這裡原本有人住，補進來村子比較完整。也可以點別塊（朝向 ' + st.rot + '°）' : (st.pick.pending ? '點一塊框起來的地，把你的房子放進村子' : '點一塊框起來的地換位置') + '（朝向 ' + st.rot + '°）';
+      $('hPickSel').hidden = !sel; $('hPickSel').textContent = st.pick.pending ? '放在選好的這塊' : '換到選好的這塊';
+    }
     $('hBuild').hidden = !own || !WORLD.available || !!st.pick; $('hBuild').textContent = st.building ? '蓋好了' : '蓋'; $('hBuild').classList.toggle('pri', st.building);
     $('hDoor').hidden = st.building || !!st.pick; $('hLook').hidden = !!st.pick;
     $('hDoor').textContent = own ? '進門（我的資源表）' : '進門（他的資源表）';
@@ -49,7 +54,7 @@ var HOUSE = (function () {
     $('hhint').textContent = st.pick ? '從上面看整個村子：框起來的是能放的地' : st.building ? (st.mode === 'add' ? (st.kind === 'door' ? '選了門：點一個地方門就搬過去；點門轉方向。' : '選一種方塊，點一個面加一塊；點擺設或門轉方向。') : '拆：點一塊就拿掉（日曆和門拆不掉）。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點日曆上的磚看那天，點門進' + (own ? '我' : '他') + '的資源表' + (inVillage ? '；點村裡別間屋走過去' : '') + (v.cal.preview && v.cal.preview.removes ? '；下個月的日曆會拆 ' + v.cal.preview.removes + ' 塊' : '') : '3D 用不了：達秒屋顯示成日曆紙，點一格跟點一塊磚一樣');
     tutBar();
     if (WORLD.available) { var vb = $('view-house').getBoundingClientRect(), hb = document.querySelector('.hbar').getBoundingClientRect(), fb = document.querySelector('.hfoot').getBoundingClientRect(); WORLD.setInsets(hb.bottom - vb.top, vb.bottom - fb.top); }
-    if (WORLD.available) { WORLD.show(v, { building: st.building, resetCamera: opts && opts.resetCamera, village: vv, travel: st.travel, spots: spots() }); st.travel = false; }
+    if (WORLD.available) { WORLD.show(v, { building: st.building, resetCamera: opts && opts.resetCamera, village: vv, travel: st.travel, spots: spots(), selSpot: st.pick ? st.pick.sel : null }); st.travel = false; }
     if (own && v.calRemoved && !KIT.isOpen()) { var n = CORE.ackCalRemoved(APP.state(), me().serial); APP.changed(); KIT.pop('日曆長到這裡，拆了 ' + n + ' 塊', '日曆每個月長一塊，長到的地方和它正面前面的方塊會拆掉。在「蓋」裡可以改下一塊往哪長。'); }
     if (!WORLD.available) { if (!st.cal) { var ym = KIT.ymOf(CORE.dayNum(APP.now())); st.cal = { y: ym.y, m: ym.m }; } $('hcal').innerHTML = '<div class="scroll"><div class="stage">' + KIT.calSheet(st.serial, viewer(), st.cal.y, st.cal.m) + '</div></div>'; }
   }
@@ -147,6 +152,7 @@ var HOUSE = (function () {
     else if (a === 'door') goDoor();
     else if (a === 'look') { if (WORLD.available) WORLD.lookCalendar(); }
     else if (a === 'village') { if (WORLD.available) WORLD.lookVillage(); }
+    else if (a === 'pickSel') { if (st.pick && st.pick.sel) pickSpot(st.pick.sel); }
     else if (a === 'pickCancel') { st.pick = null; APP.goTable(null, 'village'); }
     else if (a === 'myHouse') APP.goHouse(me().serial);
     else if (a === 'tutSkip') { APP.tutSkip(); msg('跳過了教學。想只收不給，記得要有 0 點的空物件。'); tutBar(); }
@@ -158,7 +164,7 @@ var HOUSE = (function () {
     if (v.name === 'house') {
       var changedHouse = st.serial !== v.serial; st.serial = v.serial; if (changedHouse) { st.building = false; st.undo = []; st.cal = null; }
       if (v.build && mine()) st.building = true;
-      st.travel = !!v.travel; st.pick = v.pick || null; if (st.pick) { st.building = false; st.rot = 0; }
+      st.travel = !!v.travel; st.pick = v.pick || null; if (st.pick) { st.building = false; st.rot = 0; try { st.pick.sel = CORE.suggestedSpot(APP.state(), st.pick.village, st.pick.pending ? null : me().serial); } catch (e) { st.pick.sel = null; } }   // 空出來的地先選好（補十八）
       st.shown = true; $('view-house').hidden = false; document.body.classList.add('in-house'); ensure();
       if (WORLD.available) { WORLD.resume(); WORLD.resize(); }
       render({ resetCamera: changedHouse });

@@ -1346,7 +1346,7 @@ var CORE = (function () {
     var w = waitingFor(v, p); if (w.length) bad('還有人沒同意：' + w.map(function (x) { return nameOf(state, x); }).join('、'));
     if (villageOf(state, me)) bad('一個人只住一個村子，先搬走');
     var pr = spotProblem(v, pos, rot, null); if (pr) bad(pr);
-    v.members.push({ serial: me, pos: [pos[0], pos[1]], rot: cleanRot(rot) }); v.pending = v.pending.filter(function (x) { return x !== p; }); delete v.proposed;
+    v.members.push({ serial: me, pos: [pos[0], pos[1]], rot: cleanRot(rot) }); v.pending = v.pending.filter(function (x) { return x !== p; }); delete v.proposed; unvacate(v, pos);
     state.records.push({ kind: 'village', at: now, serial: me, text: abbrev(me) + ' ' + nameOf(state, me) + ' 搬進了村子' });
     return v;
   }
@@ -1354,9 +1354,20 @@ var CORE = (function () {
     var v = villageOf(state, me); if (!v || v.proposed) bad('你沒有住在村子裡');
     var pr = spotProblem(v, pos, rot, me); if (pr) bad(pr);
     var m = memberOf(v, me), old = { pos: m.pos.slice(), rot: m.rot }; m.pos = [pos[0], pos[1]]; m.rot = cleanRot(rot);
+    unvacate(v, pos); if (old.pos[0] !== pos[0] || old.pos[1] !== pos[1]) vacate(v, old.pos);   // 換過去的那塊不再算空地；原本那塊空出來
     return old;
   }
+  // 空出來的地（補十八）：以前有人住、現在空著；有人搬進去或換位置過去就拿掉
+  function vacate(v, pos) { v.vacated = v.vacated || []; if (!v.vacated.some(function (q) { return q[0] === pos[0] && q[1] === pos[1]; })) v.vacated.push([pos[0], pos[1]]); }
+  function unvacate(v, pos) { if (v.vacated) v.vacated = v.vacated.filter(function (q) { return q[0] !== pos[0] || q[1] !== pos[1]; }); }
+  // 新鄰居挑地（或換位置）時先幫他選好的那一塊：空出來、現在沒人、靠著村裡的屋；最早空出來的先；沒有就 null
+  function suggestedSpot(state, vid, except) {
+    var v = villageById(state, vid);
+    var q = (v.vacated || []).find(function (p) { return !spotTaken(v, p, except) && nearSome(v, p, except); });
+    return q ? [q[0], q[1]] : null;
+  }
   function dropMember(state, v, serial, why) {
+    var gone = memberOf(v, serial); if (gone) vacate(v, gone.pos);
     v.members = v.members.filter(function (m) { return m.serial !== serial; }); v.pending = v.pending.filter(function (p) { return p.who !== serial && p.by !== serial; });
     v.pending.forEach(function (p) { p.approvals = p.approvals.filter(function (x) { return x !== serial; }); });
     state.records.push({ kind: 'village', at: nowUs(), serial: serial, text: abbrev(serial) + ' ' + nameOf(state, serial) + ' ' + (why || '搬走了') });
@@ -1374,7 +1385,7 @@ var CORE = (function () {
   // 給畫面：村子有誰、各在哪、待同意的（誰還沒同意）
   function villageInfo(state, serial) {
     var v = villageOf(state, serial); if (!v) return null;
-    return { id: v.id, proposed: !!v.proposed, members: v.members.map(function (m) { return { serial: m.serial, name: nameOf(state, m.serial), pos: m.pos.slice(), rot: m.rot }; }),
+    return { id: v.id, proposed: !!v.proposed, vacated: (v.vacated || []).map(function (q) { return q.slice(); }), members: v.members.map(function (m) { return { serial: m.serial, name: nameOf(state, m.serial), pos: m.pos.slice(), rot: m.rot }; }),
       pending: v.pending.map(function (p) { return { id: p.id, kind: p.kind, who: p.who, whoName: nameOf(state, p.who), by: p.by, byName: nameOf(state, p.by), waiting: waitingFor(v, p), approved: p.approvals.indexOf(serial) >= 0, mine: p.who === serial, ready: !waitingFor(v, p).length }; }) };
   }
   // 我被邀的（還沒住進去的人）：哪個村子、誰邀的、大家同意了沒
@@ -1395,6 +1406,8 @@ var CORE = (function () {
     var kept = []; members.forEach(function (m) { if (!kept.some(function (k) { return k.pos[0] === m.pos[0] && k.pos[1] === m.pos[1]; })) kept.push(m); });   // 重疊的丟掉；中間空掉、離得遠照樣是同一個村子
     var out = { id: str(v.id, 60, '村子'), members: kept, pending: list(v.pending || [], 200, '村子').map(function (p) { obj(p, '村子'); return { id: str(p.id, 60, '村子'), kind: p.kind === 'expel' ? 'expel' : 'join', who: str(p.who, 11, '村子'), by: str(p.by, 11, '村子'), approvals: list(p.approvals || [], 500, '村子').map(function (x) { return str(x, 11, '村子'); }), atUs: num(p.atUs, '村子') }; }).filter(function (p) { return roleOf(state, p.who) && roleOf(state, p.by); }), atUs: num(v.atUs, '村子') };
     if (v.proposed) out.proposed = true;
+    var vac = []; list(v.vacated || [], 500, '空地').forEach(function (p) { try { var q = vec(p, 2, '空地'); if (q[0] % 1 === 0 && q[1] % 1 === 0 && !kept.some(function (m) { return m.pos[0] === q[0] && m.pos[1] === q[1]; }) && !vac.some(function (x) { return x[0] === q[0] && x[1] === q[1]; })) vac.push(q); } catch (e) { /* 壞掉的丟掉 */ } });
+    if (vac.length) out.vacated = vac;   // 舊存檔沒有這個也行
     if (out.proposed ? out.members.length !== 1 || !out.pending.length : out.members.length < 2) return null;
     return out;
   }
@@ -1843,7 +1856,7 @@ var CORE = (function () {
     addSlot: addSlot, slotOf: slotOf, participants: participants, book: book, cancelBooking: cancelBooking, setWants: setWants, wantsOf: wantsOf, wantsValid: wantsValid, wantsGone: wantsGone, goneText: goneText, wantTotal: wantTotal, setMaxGive: setMaxGive, maxGiveOf: maxGiveOf, contactVisible: contactVisible,
     DOCK_WINDOW_US: DOCK_WINDOW_US, missed: missed, setPresent: setPresent, isPresent: isPresent, judge: judge, expire: expire, myBookings: myBookings, settleDirection: settleDirection,
     itemsText: itemsText, holdStatus: holdStatus, expireHolds: expireHolds, holdsOf: holdsOf, heldPoints: heldPoints, holdings: holdings, redeem: redeem,
-    VILLAGE_CELL: VILLAGE_CELL, villagesOf: villagesOf, villageOf: villageOf, neighborsOf: neighborsOf, freeSpots: freeSpots, spotProblem: spotProblem, inviteNeighbor: inviteNeighbor, applyVillage: applyVillage, approveVillage: approveVillage, rejectVillage: rejectVillage, joinVillage: joinVillage, moveHouse: moveHouse, leaveVillage: leaveVillage, askLeave: askLeave, villageInfo: villageInfo, myInvites: myInvites, viewVillage: viewVillage, cleanVillages: cleanVillages, connected: connected,
+    VILLAGE_CELL: VILLAGE_CELL, villagesOf: villagesOf, villageOf: villageOf, neighborsOf: neighborsOf, freeSpots: freeSpots, suggestedSpot: suggestedSpot, spotProblem: spotProblem, inviteNeighbor: inviteNeighbor, applyVillage: applyVillage, approveVillage: approveVillage, rejectVillage: rejectVillage, joinVillage: joinVillage, moveHouse: moveHouse, leaveVillage: leaveVillage, askLeave: askLeave, villageInfo: villageInfo, myInvites: myInvites, viewVillage: viewVillage, cleanVillages: cleanVillages, connected: connected,
     circlesOf: circlesOf, noticeOf: noticeOf, edgesOf: edgesOf, linkNotice: linkNotice, chooseCircle: chooseCircle, openCircleSlot: openCircleSlot, bookCircle: bookCircle, presetCircle: presetCircle, giftChain: giftChain, linksUnder: linksUnder, chainOf: chainOf, myCircles: myCircles, doneByOf: doneByOf, ackDoneBy: ackDoneBy, dropNotice: dropNotice,
     defaultWorld: defaultWorld, fresh: fresh, load: load, save: save, findRole: findRole, roleOf: roleOf, GUIDE: GUIDE, isGuide: isGuide, createPlayer: createPlayer, demoMe: demoMe, blankRole: blankRole
   };
