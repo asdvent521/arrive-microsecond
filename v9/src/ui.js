@@ -70,7 +70,7 @@ var KIT = (function () {
     var rules = '<details class="small"><summary>那天生效的規則表和資源表</summary><div>用途：' + esc(d.rules.uses.join('；') || '（沒寫）') + '</div><div>對接條件：' + esc(d.rules.conditions.join('；') || '沒有條件') + '</div><div>家規：' + esc(d.rules.village || '（沒有）') + '</div><div>資源：' + esc(d.resources.map(function (x) { return x.name + ' ' + x.price + ' 點'; }).join('、') || '（沒有）') + '</div></details>';
     pop((owner ? owner.name + ' ' : '') + d.label, { html: (rows || (d.covered ? '' : '<div class="small muted">這一天沒有紀錄。</div>')) + covered + rules }, [{ label: '好', pri: true }]);
     $('popBody').querySelectorAll('[data-vis]').forEach(function (sel) { sel.onchange = function () { var r = APP.run(function () { CORE.setVis(APP.state(), me, sel.dataset.vis, sel.value); }); if (!r.ok) alertMsg(r.msg); dayPop(ownerSerial, day, onChange); if (onChange) onChange(); }; });
-    $('popBody').querySelectorAll('[data-goserial]').forEach(function (b) { b.onclick = function () { close(); APP.goTable(b.dataset.goserial, 'role', 'link'); }; });
+    $('popBody').querySelectorAll('[data-goserial]').forEach(function (b) { b.onclick = function () { close(); APP.goTable(b.dataset.goserial, 'res', 'link'); }; });
   }
   function tagFor(e) { var cls = { traded: '', nodock: 'bad', invalid: 'bad', miss: 'bad', booked: 'wait' }[e.status]; return '<span class="tag ' + (cls == null ? 'off' : cls) + '">' + esc(e.result) + '</span>'; }
   function alertMsg(t) { var el = document.createElement('div'); el.className = 'small warn'; el.textContent = t; $('popBody').prepend(el); }

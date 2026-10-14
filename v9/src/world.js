@@ -114,10 +114,12 @@ var WORLD = (function () {
     // 預告框：下一塊的位置，半透明的框（屋主看時上面寫會拆幾塊，由畫面層顯示在文字裡）
     if (cal.preview) {
       var pp = cal.preview.pos, pf = { pos: [], uv: [], nor: [] }; quad(pp, months.length - 1, pf);
-      mkFace(pf, new T.MeshLambertMaterial({ map: tex, transparent: true, opacity: 0.45, depthWrite: false }), 'previewface');
-      var box = add(new T.Mesh(new T.BoxGeometry(CW, CH, CD), new T.MeshLambertMaterial({ color: '#8FB3D9', transparent: true, opacity: 0.22, depthWrite: false })), 'preview');
-      box.position.set(pp[0] + CW / 2, pp[1] + CH / 2, CORE.CAL_Z + CD / 2); box.renderOrder = 1;
-      var edge = add(new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(CW + 0.02, CH + 0.02, CD + 0.02)), new T.LineBasicMaterial({ color: '#2D5A86' })), 'previewedge'); edge.position.copy(box.position);
+      mkFace(pf, new T.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.6, depthWrite: false, depthTest: false }), 'previewface'); root.children[root.children.length - 1].renderOrder = 12;
+      // 預告框被房子蓋住也看得到：框線和半透明的框都不管深度（穿過方塊畫出來），畫在最後
+      var box = add(new T.Mesh(new T.BoxGeometry(CW, CH, CD), new T.MeshBasicMaterial({ color: '#8FB3D9', transparent: true, opacity: 0.28, depthWrite: false, depthTest: false })), 'preview');
+      box.position.set(pp[0] + CW / 2, pp[1] + CH / 2, CORE.CAL_Z + CD / 2); box.renderOrder = 10;
+      var edge = add(new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(CW + 0.02, CH + 0.02, CD + 0.02)), new T.LineBasicMaterial({ color: '#2D5A86', depthTest: false, transparent: true })), 'previewedge'); edge.position.copy(box.position); edge.renderOrder = 11;
+      counts.previewThrough = true;
     }
     // 磚：沒亮、亮、蓋布、虛線（未來的預約），加上小記號；只畫在房子上有位置的
     var unlit = [], lit = [], cover = [], fut = [], mark = [];
@@ -377,7 +379,7 @@ var WORLD = (function () {
     available: true, init: init, show: show, resize: resize, setInsets: setInsets, hitAt: hitAt, screenOf: screenOf, focusDay: focusDay, lookCalendar: lookCalendar,
     onTap: function (fn) { onTap = fn; },
     pause: function () { paused = true; if (raf) { cancelAnimationFrame(raf); raf = 0; } }, resume: function () { paused = false; dirty = true; loop(); },
-    info: function () { var c = (counts.unlit || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.lit || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length : 0, serial: current ? current.serial : null, building: building, focus: focus, animating: !!anim }; },
+    info: function () { var c = (counts.unlit || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.lit || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length : 0, serial: current ? current.serial : null, building: building, focus: focus, animating: !!anim, previewThrough: !!counts.previewThrough }; },
     calPose: function () { return current ? calPose() : null; },
     setCamera: function (p) { anim = null; if (p.target) cam.target.set(p.target[0], p.target[1], p.target[2]); if (p.theta != null) cam.theta = p.theta; if (p.phi != null) cam.phi = p.phi; if (p.dist != null) cam.dist = p.dist; applyCam(); loop(); },
     renderNow: renderNow, camera: function () { return cam; }, needsRender: function () { return dirty; }

@@ -10,7 +10,7 @@ body() {
   cat head.html
   if [ -z "$NO_THREE" ]; then echo '<script>'; cat vendor/three.min.js; echo; echo '</script>'; fi
   echo '<script>'
-  for f in core.js app.js ui.js world.js table.js house.js; do cat "$f"; echo; done
+  for f in core.js app.js ui.js world.js sheets.js house.js; do cat "$f"; echo; done
   echo '</script>'
 }
 if [ "$1" = "fragment" ]; then

@@ -9,7 +9,7 @@ var J1 = '00000000001', J3 = '00000000003';
   var preview = function () { return H.ev("JSON.stringify(HOUSE.data().cal.preview)").then(JSON.parse); };
   var door = function () { return H.ev("JSON.stringify(CORE.doorOf(CORE.houseOf(APP.roleOf('" + J1 + "'))))").then(JSON.parse); };
   var count = function () { return H.ev("CORE.viewHouse(APP.state(),'" + J1 + "','" + J1 + "').look.n"); };
-  var becomeMe = async function (serial) { await H.ev("APP.goTable(null,'role')"); await H.nav('role'); var i = await H.ev("APP.state().roles.findIndex(function(r){return r.serial==='" + serial + "';})"); await H.edit('#tmain select[data-ed="me"]', i); assert((await H.ev("APP.me().serial")) === serial, '換人成 ' + serial); };
+  var becomeMe = H.becomeMe;
   await H.fresh();
   // 1. 「我的達秒屋」：日曆幾塊、下一塊往哪長
   await H.nav('house'); var main = await H.main();
@@ -18,6 +18,7 @@ var J1 = '00000000001', J3 = '00000000003';
   var c0 = await cal(); assert(c0.dir === 'up' && JSON.stringify(c0.blocks) === '[[-2,0]]', '新角色：第一塊在起點 [-2,0]，預設往上');
   var pv = await preview(); assert(pv && JSON.stringify(pv.pos) === '[-2,2]' && pv.removes === 6 && (await pg.textContent('#hDirNote')).indexOf('會拆 6 塊') >= 0, '預告框：下一塊在 [-2,2]，會拆 6 塊（牆和屋頂）');
   assert((await H.ev("JSON.stringify(WORLD.screenOf({preview:true}))")) !== 'null' && (await H.ev("WORLD.info().meshes")) > 0, '預告框畫在畫面上');
+  assert((await H.ev("WORLD.info().previewThrough")) === true, '預告框在房子裡面、被方塊擋住時也看得到（不吃深度）');
   if (shots) await pg.screenshot({ path: shots + '/v9_cal_1_preview.png' });
   // 2. 改方向：往右長不了（門和門前擋著），旁邊寫這次會往上；往左會拆 3 塊；預告框跟著動
   await H.hclick('#hDirs [data-dir="right"]'); await pg.waitForTimeout(200);

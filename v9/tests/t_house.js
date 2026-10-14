@@ -70,16 +70,16 @@ var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){
   // 5. 點門：到他的表格世界；「進門」按鈕也行
   await H.ev("(function(){var d=HOUSE.data().look.door;WORLD.setCamera({target:[d[0]+0.5,1,d[2]+0.5],theta:0,phi:1.3,dist:6});WORLD.renderNow();})()"); await pg.waitForTimeout(200);
   await H.tap3d('door', '門'); await pg.waitForTimeout(300);
-  assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.sheetName()) === 'other:role' && (await pg.textContent('#tother')).indexOf('J2 阿澄') >= 0, '點門：到阿澄的表格世界');
-  await H.clickText('看他的達秒屋', '#tother'); await pg.waitForTimeout(400); await H.hclick('#hDoor'); await pg.waitForTimeout(300);
-  assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.sheetName()) === 'other:role', '「進門」按鈕也到他的表格世界');
-  // 他的表格世界最上面有「看他的達秒屋」
-  await H.clickText('看他的達秒屋', '#tother'); await pg.waitForTimeout(400);
-  assert(!(await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("WORLD.info().serial")) === J2, '他的表格世界最上面「看他的達秒屋」');
-  // 6. 隨機：跳到一間還在玩、不是自己的達秒屋；回我的表格世界
-  var ok6 = true; for (var i = 0; i < 10; i++) { await H.hclick('#hRandom'); await pg.waitForTimeout(150); var w = await H.ev("WORLD.info().serial"); if (!w || w === J1) ok6 = false; }
-  assert(ok6, '按「隨機」10 次，都跳到不是自己的達秒屋');
-  await H.hclick('#hBack'); assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("TABLE.ui.other")) === null, '「回我的表格世界」');
+  assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.sheetName()) === 'other:res' && (await pg.textContent('#tother')).indexOf('J2 阿澄') >= 0, '點門：到阿澄的資源表那張紙');
+  await H.clickText('看他的達秒屋', '#tmain'); await pg.waitForTimeout(400); await H.hclick('#hDoor'); await pg.waitForTimeout(300);
+  assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.sheetName()) === 'other:res', '「進門」按鈕也到他的資源表那張紙');
+  // 他的那張紙下面有「看他的達秒屋」
+  await H.clickText('看他的達秒屋', '#tmain'); await pg.waitForTimeout(400);
+  assert(!(await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("WORLD.info().serial")) === J2, '他的那張紙下面「看他的達秒屋」');
+  // 6. 骰子＋去：到一間還在玩、不是自己的達秒屋；回我的四張紙
+  var ok6 = true; for (var i = 0; i < 10; i++) { await H.hclick('#hDice'); await pg.waitForTimeout(100); await H.hclick('#hSerialGo'); await pg.waitForTimeout(150); var w = await H.ev("WORLD.info().serial"); if (!w || w === J1) ok6 = false; }
+  assert(ok6, '骰子再按「去」10 次，都到不是自己的達秒屋');
+  await H.hclick('#hBack'); assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("SHEETS.ui.other")) === null, '「回我的四張紙」');
   // 7. 成交那一刻開著自己的達秒屋：白光一閃，今天那塊磚亮起來
   await H.nav('house'); await H.clickText('去我的達秒屋', '#tmain'); await pg.waitForTimeout(400);
   var litBefore = await H.ev("WORLD.info().lit");

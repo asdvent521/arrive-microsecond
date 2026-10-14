@@ -1,5 +1,5 @@
 /* ===== v9 達秒屋的畫面：外面整個畫面就是達秒屋 =====
- * 最上面一列：序號框、去、隨機、誰的達秒屋、回我的表格世界。自己的屋多一個「蓋」；「看日曆」鏡頭轉回這個月那一塊日曆。
+ * 最上面一列：序號或密鑰框、去、骰子（骰一個序號進框裡）、誰的達秒屋、回我的四張紙。自己的屋多一個「蓋」；「看日曆」鏡頭轉回這個月那一塊日曆。
  * 點日曆上的磚看那天、點門到他的表格世界；蓋的時候：選方塊、點一個面加一塊、切到「拆」點一塊拿掉、點擺設轉方向、選門搬門、日曆往哪長、復原上一步、範本。
  * 3D 用不了就顯示成日曆。只呼叫 APP、CORE、KIT、WORLD。
  */
@@ -30,7 +30,7 @@ var HOUSE = (function () {
     $('hwho').innerHTML = '<b>' + esc(CORE.abbrev(r.serial) + ' ' + r.name) + '</b> 的達秒屋' + (v.closed ? ' <span class="tag off">只給鄰居看</span>' : '<span class="small muted"> ' + esc(v.age.text + (v.sign ? '・「' + v.sign + '」' : '')) + '</span>');
     $('hBuild').hidden = !own || !WORLD.available; $('hBuild').textContent = st.building ? '蓋好了' : '蓋'; $('hBuild').classList.toggle('pri', st.building);
     $('hDoor').hidden = st.building;
-    $('hDoor').textContent = own ? '進門（我的表格世界）' : '進門（他的表格世界）';
+    $('hDoor').textContent = own ? '進門（我的資源表）' : '進門（他的資源表）';
     $('hbuild').hidden = !st.building;
     if (st.building) {
       $('hblk').querySelectorAll('[data-blk]').forEach(function (b) { b.classList.toggle('on', b.dataset.blk === st.kind); });
@@ -40,7 +40,7 @@ var HOUSE = (function () {
       var pv = v.cal.preview, note = !pv ? '這一面放滿了，下一塊沒地方長' : pv.fallback ? '這個方向長不了，這次會放到最近的空位' : pv.dir !== v.cal.dir ? '這個方向長不了，這次會往' + CORE.CAL_DIRS[pv.dir] : '下個月長在框那裡';
       $('hDirNote').textContent = note + (pv && pv.removes ? '，會拆 ' + pv.removes + ' 塊' : '');
     }
-    $('hhint').textContent = st.building ? (st.mode === 'add' ? (st.kind === 'door' ? '選了門：點一個地方門就搬過去；點門轉方向。' : '選一種方塊，點一個面加一塊；點擺設或門轉方向。') : '拆：點一塊就拿掉（日曆和門拆不掉）。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點日曆上的磚看那天，點門進' + (own ? '我' : '他') + '的表格世界' + (v.cal.preview && v.cal.preview.removes ? '；下個月的日曆會拆 ' + v.cal.preview.removes + ' 塊' : '') : '3D 用不了：達秒屋顯示成日曆，點一格跟點一塊磚一樣');
+    $('hhint').textContent = st.building ? (st.mode === 'add' ? (st.kind === 'door' ? '選了門：點一個地方門就搬過去；點門轉方向。' : '選一種方塊，點一個面加一塊；點擺設或門轉方向。') : '拆：點一塊就拿掉（日曆和門拆不掉）。') + '地皮 ' + v.plot.size + '×' + v.plot.size + '、高 ' + v.plot.height + '，蓋了 ' + v.look.n + ' 塊' : (WORLD.available ? '一指拖著轉、兩指縮放；點日曆上的磚看那天，點門進' + (own ? '我' : '他') + '的資源表' + (v.cal.preview && v.cal.preview.removes ? '；下個月的日曆會拆 ' + v.cal.preview.removes + ' 塊' : '') : '3D 用不了：達秒屋顯示成日曆，點一格跟點一塊磚一樣');
     tutBar();
     if (WORLD.available) { var vb = $('view-house').getBoundingClientRect(), hb = document.querySelector('.hbar').getBoundingClientRect(), fb = document.querySelector('.hfoot').getBoundingClientRect(); WORLD.setInsets(hb.bottom - vb.top, vb.bottom - fb.top); }
     if (WORLD.available) WORLD.show(v, { building: st.building, resetCamera: opts && opts.resetCamera });
@@ -50,7 +50,7 @@ var HOUSE = (function () {
   function tutBar() {
     var on = APP.tutActive() && !APP.isBlank(), stp = on ? APP.steps() : null;
     $('htut').hidden = !on;
-    if (on) $('htut').innerHTML = '<span class="small">' + esc(stp.hint) + '</span>' + (APP.tut().step === 8 ? '<button type="button" class="btn sm pri" data-hact="myHouse">去我的達秒屋</button>' : '') + '<button type="button" class="btn sm warn" data-hact="tutSkip">跳過教學</button>';
+    if (on) $('htut').innerHTML = '<span class="small">' + esc(stp.hint) + '</span>' + (APP.tut().step === 6 ? '<button type="button" class="btn sm pri" data-hact="myHouse">去我的達秒屋</button>' : '') + '<button type="button" class="btn sm warn" data-hact="tutSkip">跳過教學</button>';
   }
   function onTap(hit) {
     if (!hit) return;
@@ -97,12 +97,20 @@ var HOUSE = (function () {
     KIT.pop(what + '？', '現在蓋的 ' + n + ' 塊會被換掉（之後可以按「復原上一步」換回來）。', [{ label: '換掉', warn: true, fn: function () { act(function () { var S = APP.state(), s = me().serial, old = CORE.setBlocks(S, s, list(), APP.now(), true); return function () { CORE.setBlocks(S, s, old, APP.now(), true); }; }, what + '了'); } }, { label: '不要', pri: true }]);
   }
   function msg(t) { var el = $('hmsg'); el.textContent = t || ''; el.hidden = !t; clearTimeout(msg.t); if (t) msg.t = setTimeout(function () { el.hidden = true; }, 3500); }
-  function goDoor() { var s = st.serial; if (s !== me().serial) APP.tutEvent('door'); APP.goTable(s, 'role', 'door'); }
+  // 點門：到他的資源表那張紙（自己的門就是自己的資源表）
+  function goDoor() { APP.goTable(st.serial, 'res', 'door'); }
+  // 序號就到他的達秒屋外面；密鑰要在四張紙那邊輸入
   function goSerial() {
     var code = $('hSerialIn').value.trim(); if (!code) { msg('先輸入序號，例如 J2'); return; }
-    var r = CORE.findRole(APP.state(), code); if (!r) { msg('找不到序號 ' + code); return; }
-    if (r.serial === APP.GUIDE) APP.tutEvent('foundGuide');
+    var r = CORE.findRole(APP.state(), code); if (!r) { msg(APP.isBlank() ? '找不到序號 ' + code : '找不到序號 ' + code + '；密鑰要回四張紙那邊的框輸入'); return; }
+    APP.tutEvent('go', r.serial);
     APP.goHouse(r.serial);
+  }
+  function dice() {
+    var r = CORE.randomRole(APP.state(), viewer()); if (!r) { msg('沒有別人'); return; }
+    $('hSerialIn').value = CORE.abbrev(r.serial);
+    var b = $('hDice'); b.classList.remove('roll'); void b.offsetWidth; b.classList.add('roll');
+    APP.tutEvent('dice'); msg('骰到 ' + CORE.abbrev(r.serial) + ' ' + r.name + '，按「去」過去看；不喜歡再骰');
   }
   $('view-house').addEventListener('click', function (e) {
     var blk = e.target.closest('[data-blk]'); if (blk) { st.kind = blk.dataset.blk; st.mode = 'add'; render(); return; }
@@ -110,7 +118,7 @@ var HOUSE = (function () {
     var b = e.target.closest('[data-hact]'); if (!b) return;
     var a = b.dataset.hact;
     if (a === 'go') goSerial();
-    else if (a === 'random') { var r = CORE.randomRole(APP.state(), viewer()); if (!r) { msg('沒有別人'); return; } APP.tutEvent('houseRandom'); APP.goHouse(r.serial); }
+    else if (a === 'dice') dice();
     else if (a === 'back') APP.goTable(null, null);
     else if (a === 'build') { st.building = !st.building; st.mode = 'add'; render(); }
     else if (a === 'modeAdd') { st.mode = 'add'; render(); }
@@ -137,11 +145,11 @@ var HOUSE = (function () {
   APP.on('change', function () { if (st.shown) render(); });
   APP.on('tut', function () { if (st.shown) tutBar(); });
   APP.on('calGrow', function () { if (st.shown) render(); });
-  // 教學第 8 步：鏡頭靠近第一塊日曆上今天那塊磚，框起來
+  // 教學第 6 步：鏡頭靠近第一塊日曆上今天那塊磚，框起來
   APP.on('firstBrick', function () {
     var v = st.shown ? data() : null;
     if (v && WORLD.available) { render(); WORLD.focusDay(v.born); }
-    KIT.pop('你 0 歲，第一塊磚亮了', '就是上面日曆方塊上框起來的那一塊。每天一塊磚，成交的那天會亮；門以外的房子可以按「蓋」自己蓋。教學完成！', null, null, { low: true });
+    KIT.pop('你 0 歲，第一塊磚亮了', '就是上面日曆方塊上框起來的那一塊。每天一塊磚，成交的那天會亮；房子可以按「蓋」自己蓋。教學完成！', null, null, { low: true });
   });
   // 成交那一刻正好開著：白光一閃，今天那塊磚亮起來（重畫就亮）
   APP.on('dock', function (res) { if (!st.shown) return; var hit = res.some(function (x) { return x.docking && x.docking.traded && (x.docking.a === st.serial || x.docking.b === st.serial); }); render(); if (hit) KIT.flash(); });

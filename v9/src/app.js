@@ -1,5 +1,5 @@
 /* ===== v9 共用：狀態、存檔、今天的提醒、新手教學、那一微秒的判定、表格世界和達秒屋之間的切換 =====
- * 表格世界（table.js）和達秒屋（house.js）都只透過這裡和 CORE 做事，彼此不互相呼叫：要換到另一邊就叫 APP.goHouse／APP.goTable，由事件通知。
+ * 表格世界（sheets.js）和達秒屋（house.js）都只透過這裡和 CORE 做事，彼此不互相呼叫：要換到另一邊就叫 APP.goHouse／APP.goTable，由事件通知。
  */
 var APP = (function () {
   'use strict';
@@ -47,8 +47,7 @@ var APP = (function () {
     var r = CORE.createPlayer(state, f, now());
     me = r;
     if (skip) { tut().step = 'done'; tut().skipped = true; }
-    changed(); emit('me'); tutTick();
-    if (!skip) goHouse(r.serial);   // 創完角色，先到自己的達秒屋外面
+    changed(); emit('me'); tutTick();   // 創完角色留在四張紙上，教學第 2 步：按骰子
     return r;
   }
   // 測試和示範用：放一個示範的「我」（J1），教學算跳過
@@ -85,8 +84,8 @@ var APP = (function () {
     return { rows: out, next: next, hint: hint };
   }
 
-  /* ---------- 新手教學（DESIGN 7-4）：第 1 輪做 1～7 步，第 8 步（看自己的達秒屋）第 2 輪做 ---------- */
-  var GUIDE = CORE.GUIDE, TUT_SLOT_US = 60e6;   // 引路人的時段：走到預約那一步才開，大約一分鐘後
+  /* ---------- 新手教學（DESIGN 7-4）：六步，都在四張紙上做；最後一步看自己的達秒屋 ---------- */
+  var GUIDE = CORE.GUIDE, TUT_SLOT_US = 60e6;   // 引路人的時段：走到約他那一步才開，大約一分鐘後
   function tut() { return state.tutorial; }
   function tutActive() { return tut().step !== 'done'; }
   function guide() { return CORE.roleOf(state, GUIDE); }
@@ -94,33 +93,28 @@ var APP = (function () {
   function tutSlot() { var x = tut().slot ? CORE.slotOf(state, tut().slot) : null; return x ? x.slot : null; }
   function tutDocking() { var s = tutSlot(); if (!s) return null; return state.dockings.find(function (d) { return d.slot === s.id && d.traded && (d.a === me.serial || d.b === me.serial); }) || null; }
   function tutHold(issuer, holder) { var d = tutDocking(); if (!d) return null; return state.holds.find(function (h) { return h.docking === d.id && h.issuer === issuer && h.holder === holder; }) || null; }
-  // 每一步：名字、怎麼做、到哪一張表、做完沒
+  // 每一步：名字、怎麼做、在哪一張紙、做完沒
   var TUT = [
-    { id: 't1', name: '創角色', how: '在「我的／角色」填名字、每天的點（預設 2000）、第一樣東西「空的」（0 點，補 1 份），按「建立」', sheet: 'role', done: function () { return !isBlank(); } },
-    { id: 't2', name: '找陌生人一：隨機', how: '在達秒屋外面按「隨機」，跳到一個陌生人的達秒屋外面，看看他的日曆，點門進他的表格世界', sheet: 'house', done: function () { return !!tut().door; } },
-    { id: 't3', name: '找陌生人二：在公告欄找序號', how: '打開「公告欄／公告」，找到引路人的公告（需要：空的；可以給：空的），記下他的序號，在最上面的序號框輸入，按「去」（在達秒屋外面輸入就到他的達秒屋外面）', sheet: 'notices', done: function () { return !!tut().found; } },
-    { id: 't4', name: '看他的家規', how: '在引路人的表格世界打開「規則表」：家規那一段沒有家規網站，表示他不收留言', sheet: 'rules', who: GUIDE, done: function () { return !!tut().sawRules; } },
-    { id: 't5', name: '預約、選他的「空的」', how: '在引路人的「時段」按「約他」（到達的勾預設勾著，預約時就確認到達），再到「預約／我預約的」選他的「空的」。引路人一定會選你的「空的」', sheet: 'slots', who: GUIDE,
+    { id: 't1', name: '創角色', how: '資源表那張紙已經寫好第一行「空的」，填名字和每天的點，按「建立」', sheet: 'res', done: function () { return !isBlank(); } },
+    { id: 't2', name: '找陌生人：骰子', how: '按最上面的骰子骰出一個序號，按「去」，看他的資源表（也可以按「看他的達秒屋」）', sheet: 'res', done: function () { return !!tut().went; } },
+    { id: 't3', name: '約引路人、選他的「空的」', how: '到「公告欄」打「空的」找到引路人的公告，按「約他」；事件簿多一行（會到已經勾了），在那一行按「選他的東西」選他的「空的」。引路人一定會選你的「空的」', sheet: 'find',
       done: function () { var s = tutSlot(); if (!s || s.bookings.indexOf(me.serial) < 0 || !CORE.isPresent(state, me.serial, s.id)) return false; var g = guide(); return CORE.wantsValid(state, s, me.serial, GUIDE).some(function (id) { var x = CORE.resourceOf(CORE.version(g, s.atUs), id); return x && x.price === 0; }); } },
-    { id: 't6', name: '那一微秒', how: '大約一分鐘後，白光一閃，跳出成交結果：「我拿出：空的；拿到：引路人的空的」。不用守著', sheet: 'booked', done: function () { return !!tutDocking(); } },
-    { id: 't7', name: '兌現', how: '到「我的／背包」，在引路人的那一筆按「兌現」', sheet: 'bag', done: function () { var h = tutHold(GUIDE, me.serial); return !!h && h.status === 'redeemed'; } },
-    { id: 't8', name: '看自己的達秒屋', how: '按「去我的達秒屋」：你 0 歲，第一塊日曆上今天那塊磚亮了', sheet: 'house', done: function () { return !!tut().house; } }
+    { id: 't4', name: '那一微秒', how: '大約一分鐘後，白光一閃，跳出成交結果：「我給他：空的；我收到：引路人的空的」；那一行變成成交，對方簽名出現紅字「引路人」。不用守著', sheet: 'log', done: function () { return !!tutDocking(); } },
+    { id: 't5', name: '兌現', how: '在事件簿那一行按「兌現」', sheet: 'log', done: function () { var h = tutHold(GUIDE, me.serial); return !!h && h.status === 'redeemed'; } },
+    { id: 't6', name: '看自己的達秒屋', how: '按「去我的達秒屋」：你 0 歲，第一塊日曆上今天那塊磚亮了', sheet: 'house', done: function () { return !!tut().house; } }
   ];
-  var NO = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'];
+  var NO = ['①', '②', '③', '④', '⑤', '⑥'];
   function tutSteps() {
-    var T = tut(), rows = TUT.map(function (x, i) { return { id: x.id, no: NO[i], name: x.name, ok: i + 1 < T.step, status: x.how, sheet: x.sheet, who: x.who || null, tut: true }; });
+    var T = tut(), rows = TUT.map(function (x, i) { return { id: x.id, no: NO[i], name: x.name, ok: i + 1 < T.step, status: x.how, sheet: x.sheet, tut: true }; });
     var next = rows[T.step - 1] || null;
-    return { rows: rows, next: next, hint: next ? '教學 ' + next.no + ' ' + next.name + '：' + next.status : '', tutorial: true };
+    return { rows: rows, next: next, hint: next ? '新手教學 ' + next.no + ' ' + next.name + '：' + next.status : '', tutorial: true };
   }
-  // 畫面告訴我發生了什麼：按了隨機、用序號找到引路人、看了引路人的規則表
-  // 畫面告訴我發生了什麼：在達秒屋外面按了隨機、點門進了別人的表格世界、用序號找到引路人、看了引路人的規則表、到了自己的達秒屋
-  function tutEvent(name) {
+  // 畫面告訴我發生了什麼：按了骰子、按「去」到了別人那張紙、到了自己的達秒屋
+  function tutEvent(name, arg) {
     var T = tut(); if (!tutActive()) return;
-    if (name === 'houseRandom' && T.step === 2) T.random = true;
-    if (name === 'door' && T.step === 2 && T.random) T.door = true;
-    if (name === 'foundGuide' && T.step >= 3) T.found = true;
-    if (name === 'sawGuideRules' && T.step >= 4) T.sawRules = true;
-    if (name === 'myHouse' && T.step === 8) { T.house = true; tutTick(); emit('firstBrick'); return; }
+    if (name === 'dice' && T.step === 2) T.dice = true;
+    if (name === 'go' && T.step === 2 && T.dice && arg && arg !== me.serial) T.went = true;
+    if (name === 'myHouse' && T.step === 6) { T.house = true; tutTick(); emit('firstBrick'); return; }
     tutTick();
   }
   function tutSkip() { var T = tut(); if (!tutActive() || isBlank()) return; T.step = 'done'; T.skipped = true; changed(); emit('tut', 'done'); }
@@ -129,14 +123,14 @@ var APP = (function () {
     var T = tut(); if (!tutActive() || typeof T.step !== 'number' || isBlank()) return;
     var g = guide(); if (!g) { T.step = 'done'; return; }
     var dirty = false, t = now();
-    if (T.step >= 5 && T.step <= 6) {
+    if (T.step >= 3 && T.step <= 4) {
       var s = tutSlot();
-      if (!s || (s.judged && !tutDocking())) { s = CORE.addSlot(state, GUIDE, t + TUT_SLOT_US + Math.floor(Math.random() * 1000), 1, null, t); T.slot = s.id; if (T.step === 6) T.step = 5; dirty = true; }   // 走到預約那一步才開；錯過了再開一個
+      if (!s || (s.judged && !tutDocking())) { s = CORE.addSlot(state, GUIDE, t + TUT_SLOT_US + Math.floor(Math.random() * 1000), 1, null, t); T.slot = s.id; if (T.step === 4) T.step = 3; dirty = true; }   // 走到約他那一步才開；錯過了再開一個
       if (s.bookings.indexOf(me.serial) >= 0 && !s.judged) { var e = emptyOf(me, s.atUs); if (e && CORE.wantsValid(state, s, GUIDE, me.serial).indexOf(e.id) < 0) { CORE.setWants(state, s.id, GUIDE, me.serial, [e.id]); dirty = true; } }   // 引路人一定選玩家的「空的」
     }
     var guard = 0;
     while (typeof T.step === 'number' && T.step <= TUT.length && TUT[T.step - 1].done() && guard++ < 10) {
-      if (T.step === 7) { var h = tutHold(me.serial, GUIDE); if (h && h.status === 'held') { try { CORE.redeem(state, GUIDE, h.id, t); } catch (err) { /* 換不到就算了 */ } } }   // 玩家兌現了，引路人也兌現玩家的「空的」
+      if (T.step === 5) { var h = tutHold(me.serial, GUIDE); if (h && h.status === 'held') { try { CORE.redeem(state, GUIDE, h.id, t); } catch (err) { /* 換不到就算了 */ } } }   // 玩家兌現了，引路人也兌現玩家的「空的」
       T.step++; dirty = true;
       if (T.step > TUT.length) T.step = 'done';
     }
@@ -150,6 +144,7 @@ var APP = (function () {
     var res = CORE.judge(state, t), dirty = res.length > 0;
     if (CORE.expire(state, t)) dirty = true;
     if (CORE.growCalendars(state, t)) { dirty = true; emit('calGrow'); }   // 每個月第一天換日：每間屋的日曆長一塊
+    if (CORE.runStandings(state, t)) dirty = true;   // 固定約：換日補到今天，一天一筆
     if (dirty) changed();
     if (res.length) {
       var mine = res.filter(function (x) { return x.late && (x.docking ? (x.docking.a === me.serial || x.docking.b === me.serial) : x.missed === me.serial); });

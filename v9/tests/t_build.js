@@ -8,7 +8,7 @@ var J1 = '00000000001', J3 = '00000000003';
   var blocks = function () { return H.ev("JSON.stringify(CORE.houseOf(APP.roleOf('" + J1 + "')).blocks)").then(JSON.parse); };
   var has = function (list, b) { return list.some(function (x) { return x.join() === b.join(); }); };
   var count = function () { return H.ev("CORE.houseOf(APP.roleOf('" + J1 + "')).blocks.filter(function(b){return b[3]!=='door';}).length"); };
-  var becomeMe = async function (serial) { await H.ev("APP.goTable(null,'role')"); await H.nav('role'); var i = await H.ev("APP.state().roles.findIndex(function(r){return r.serial==='" + serial + "';})"); await H.edit('#tmain select[data-ed="me"]', i); assert((await H.ev("APP.me().serial")) === serial, '換人成 ' + serial); };
+  var becomeMe = H.becomeMe;
   await H.fresh();
   // 1. 「我的達秒屋」那頁：門牌、整間屋給誰看、新的一筆預設、地皮、蓋了幾塊；沒有屋型、顏色、樣式、擺設
   await H.nav('house');
