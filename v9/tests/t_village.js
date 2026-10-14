@@ -1,5 +1,5 @@
 // 村子：用手指邀鄰居（他的那張紙）、換人在事件簿最上面看到提醒、更多→鄰居和村子同意、到達秒屋挑地（從上面看、點一塊框起來的地、朝向）、走過去（點別間、畫面滑過去、停在日曆那面）、
-// 「看村子」拉遠、鄰居看得到只給鄰居看的屋和日曆紙、申請搬進要大家同意、換位置、搬走；10 間屋每間塞滿繪製次數不超過 80；轉橫、直放。
+// 「看村子」拉遠、鄰居看得到只給鄰居看的屋和日曆紙、申請搬進要大家同意、換位置、搬走；10 間屋每間塞滿（也試 60 年份的高日曆）繪製次數不超過 80；轉橫、直放。
 // node v9/tests/t_village.js <test9.html> [截圖資料夾]
 var lib = require('./lib'), assert = lib.assert;
 var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '00000000005', OUT = process.argv[3];
@@ -78,6 +78,15 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '0000000000
   if (await H.popOpen()) await H.popOk();   // 日曆長到這裡拆了幾塊的提示
   await H.hclick('#hVillage'); await pg.waitForTimeout(1100); await H.ev("WORLD.renderNow()"); var bo = await info(); assert(bo.calls <= 80, '拉遠看整個村子：繪製 ' + bo.calls + ' 次');
   if (OUT) await pg.screenshot({ path: OUT + '/v9_village_3_ten.png' });
+  // 6b. 每間都是 60 年份的高日曆（補十七：日曆往上不受地皮高度限制）：繪製次數照樣不超過 80；拉遠看村子時這個月那塊照得到
+  var tallV = await H.ev("(function(){var S=APP.state(),v=CORE.villageOf(S,'" + J1 + "'),t=APP.now(),n=[];v.members.forEach(function(m){var r=APP.roleOf(m.serial);r.born-=365*35;var h=CORE.houseOf(r);h.cal.blocks=h.cal.blocks.slice(0,1);});CORE.growCalendars(S,t);v.members.forEach(function(m){var r=APP.roleOf(m.serial),h=CORE.houseOf(r);n.push([CORE.ageOf(CORE.bornOf(r),CORE.dayNum(t)).years,h.cal.blocks.length,Math.max.apply(null,h.cal.blocks.map(function(q){return q[1]+2;}))]);});APP.changed();return n;})()");
+  await H.ev("APP.goHouse('" + J1 + "');HOUSE.render({resetCamera:true});WORLD.renderNow()"); if (await H.popOpen()) await H.popOk(); await H.ev("WORLD.renderNow()");
+  var ti = await info();
+  assert(tallV.every(function (x) { return x[0] >= 59 && x[1] >= 700 && x[2] > 300; }) && ti.houses === 10 && ti.calls <= 80, '10 間屋、每間 60 年份的高日曆（' + tallV[0][1] + ' 塊、高 ' + tallV[0][2] + '）、每間塞滿：繪製 ' + ti.calls + ' 次');
+  await H.hclick('#hVillage'); await pg.waitForTimeout(1100); await H.ev("WORLD.renderNow()");
+  var tv = await H.ev("(function(){var i=WORLD.info(),list=CORE.houseOf(APP.me()).cal.blocks,s=WORLD.screenOf({cal:list[list.length-1]});return {calls:i.calls,s:!!s&&s.y>0&&s.y<innerHeight&&s.x>0&&s.x<innerWidth};})()");
+  assert(tv.calls <= 80 && tv.s, '高日曆的村子拉遠：繪製 ' + tv.calls + ' 次，這個月那塊照得到');
+  if (OUT) await pg.screenshot({ path: OUT + '/v9_village_5_tall.png' });
   await pg.setViewportSize({ width: 360, height: 780 }); await pg.waitForTimeout(300); await H.ev("HOUSE.render({resetCamera:true});WORLD.renderNow()");
   var pv = await info(); assert(pv.houses === 10 && pv.calls <= 80 && (await H.ev("(function(){var s=WORLD.screenOf({cal:CORE.houseOf(APP.me()).cal.blocks.filter(Boolean).slice(-1)[0]});return !!s&&s.y>60&&s.y<innerHeight-60;})()")), '直放：村子照樣畫得出來，這個月那塊日曆在畫面裡');
   if (OUT) await pg.screenshot({ path: OUT + '/v9_village_4_portrait.png' });

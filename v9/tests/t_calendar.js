@@ -1,5 +1,5 @@
 // 日曆長在房子上（DESIGN 7-2「往哪邊長」「門」）：用手指在「蓋」裡改方向，預告框跟著動、「會拆 N 塊」對；選長不了的方向，旁邊寫這次會往哪；
-// 把時間撥到下個月，日曆長一塊、擋到的方塊不見、跳一次「拆了 N 塊」；搬門、轉門、門前放不上去；換人看得到、重新整理還在；「我的達秒屋」那頁有日曆幾塊、往哪長。
+// 日曆往上不受地皮高度限制（60 歲的高日曆、讀檔補 60 年、鏡頭停在這個月那塊、方塊放不到地皮高度以上）；把時間撥到下個月，日曆長一塊、擋到的方塊不見、跳一次「拆了 N 塊」；搬門、轉門、門前放不上去；換人看得到、重新整理還在；「我的達秒屋」那頁有日曆幾塊、往哪長。
 // node v9/tests/t_calendar.js <test9.html> [截圖資料夾]
 var lib = require('./lib'), assert = lib.assert;
 var J1 = '00000000001', J3 = '00000000003';
@@ -62,6 +62,26 @@ var J1 = '00000000001', J3 = '00000000003';
   assert(JSON.stringify(seen.cal) === '[[-2,0],[-2,2]]' && JSON.stringify(seen.door) === '[3,0,-5,"door",0]' && seen.n === 2 && seen.pv && seen.removes === 0, '換人（小樂）看 J1：兩塊日曆、門在新位置、預告框有、看不到會拆幾塊');
   await H.ev("APP.saveNow()"); await pg.reload(); await pg.waitForTimeout(600);
   var c2 = await cal(); assert(JSON.stringify(c2.blocks) === '[[-2,0],[-2,2]]' && c2.dir === 'up' && JSON.stringify(await door()) === '[3,0,-5,"door",0]', '重新整理：日曆、方向、門都還在 ' + JSON.stringify(c2) + ' ' + JSON.stringify(await door()));
+  // 6. 日曆往上長（補十七）：J1 變成 60 歲、存檔裡日曆只剩第一塊（很久沒開）→ 重新整理，讀進來補 60 年不卡
+  await H.ev("(function(){var S=APP.state(),r=APP.roleOf('" + J1 + "');r.born-=365*60+15;r.versions.forEach(function(v){v.fromDay-=365*60+15;});CORE.houseOf(r).cal.blocks=[[-2,0]];APP.saveNow();})()");
+  var tl = Date.now(); await pg.reload(); await pg.waitForTimeout(300); var loadMs = Date.now() - tl;
+  var tall = await H.ev("(function(){var r=APP.roleOf('" + J1 + "'),h=CORE.houseOf(r),p=CORE.plotAt(r,APP.now()),want=CORE.monthIndex(CORE.bornOf(r),CORE.dayNum(APP.now()))+1,seen={},dup=false;h.cal.blocks.forEach(function(q){if(!q)return;CORE.calCells(q).forEach(function(c){var k=c.join();if(seen[k])dup=true;seen[k]=true;});});return {n:h.cal.blocks.length,want:want,all:h.cal.blocks.every(Boolean),dup:dup,top:Math.max.apply(null,h.cal.blocks.map(function(q){return q[1]+2;})),height:p.height,size:p.size};})()");
+  assert(tall.n === tall.want && tall.all && !tall.dup && tall.top > tall.height * 10 && loadMs < 4000, '60 歲：讀進來補到 ' + tall.n + ' 塊（每個月一塊、沒有空位、不重疊），往上長到高 ' + tall.top + '（地皮高 ' + tall.height + '），重新整理 ' + loadMs + ' ms');
+  await becomeMe(J1); await H.nav('house'); await H.clickText('去我的達秒屋', '#tmain'); await pg.waitForTimeout(700);
+  if (await H.popOpen()) await H.popOk();   // 日曆長到這裡拆了幾塊
+  await H.ev("WORLD.renderNow()");
+  var ti = await H.ev("(function(){var i=WORLD.info(),list=CORE.houseOf(APP.me()).cal.blocks,last=list[list.length-1],s=WORLD.screenOf({cal:last}),c=document.querySelector('#hstage canvas').getBoundingClientRect();return {cal:i.cal,bricks:i.bricks,calls:i.calls,dist:i.dist,dx:s?Math.abs(s.x-c.width/2)/c.width:9,seen:!!s&&document.elementFromPoint(s.x,s.y).tagName==='CANVAS'};})()");
+  assert(ti.cal === tall.n && ti.calls <= 50 && ti.dx < 0.2 && ti.seen && ti.dist < 20, '看屋：' + ti.cal + ' 塊日曆、' + ti.bricks + ' 塊磚，繪製 ' + ti.calls + ' 次；鏡頭停在這個月那塊附近（距離 ' + ti.dist.toFixed(1) + '），不是整面縮很小');
+  if (shots) await pg.screenshot({ path: shots + '/v9_cal_4_tall.png' });
+  await pg.mouse.move(390, 200); await pg.mouse.wheel(0, 900); await pg.waitForTimeout(200); await H.hclick('#hLook'); await pg.waitForTimeout(900);
+  var back = await H.ev("(function(){var list=CORE.houseOf(APP.me()).cal.blocks,s=WORLD.screenOf({cal:list[list.length-1]}),c=document.querySelector('#hstage canvas').getBoundingClientRect();return s&&Math.abs(s.x-c.width/2)/c.width<0.2&&WORLD.info().dist<20;})()");
+  assert(back, '拉遠以後按「看日曆」：回到這個月那塊');
+  // 自己蓋的方塊放不到地皮高度以上：在最上面那層放一塊，再點它的頂面加一塊 → 擋下
+  await H.hclick('#hBuild'); await pg.waitForTimeout(400);
+  var top = await H.ev("(function(){var p=CORE.plotAt(APP.me(),APP.now());CORE.addBlock(APP.state(),APP.me().serial,[8,p.height-1,8,'stone'],APP.now());APP.changed();HOUSE.render();WORLD.setCamera({target:[8.5,p.height-1,8.5],theta:0.5,phi:0.6,dist:8});WORLD.renderNow();return p.height;})()");
+  var nBefore = await count(); await H.hclick('#hblk [data-blk="brick"]'); await H.tap3d({ block: [8, top - 1, 8], n: [0, 1, 0] }, '最上面那塊的頂面');
+  assert((await H.popOpen()) && (await count()) === nBefore && (await H.popBody()).indexOf('高') >= 0, '地皮高度以上放不上去：' + (await H.popBody())); await H.popOk();
+  await H.hclick('#hBuild');
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');
 })().catch(function (e) { console.error(e); process.exit(1); });

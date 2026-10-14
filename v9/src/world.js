@@ -47,9 +47,10 @@ var WORLD = (function () {
     return new T.CanvasTexture(c);
   }
   // 所有月份的正面畫在同一張貼圖上：一塊一格（月份字、每一天的空位），正面的網格用 UV 對過去
+  // 日曆往上長不會放滿（補十七）：月份多了貼圖每格變小、一排放 32 格，60 年（720 塊）也在 2048×1472 以內，手機的貼圖上限放得下
   var TILE = 128, ATLAS_COLS = 16;
   function atlasTexture(months) {
-    var n = Math.max(1, months.length), rows = Math.ceil(n / ATLAS_COLS);
+    var n = Math.max(1, months.length); TILE = n > 512 ? 64 : 128; ATLAS_COLS = n > 128 ? 32 : 16; var rows = Math.ceil(n / ATLAS_COLS);
     var c = document.createElement('canvas'); c.width = TILE * Math.min(ATLAS_COLS, n); c.height = TILE * rows; var g = c.getContext('2d');
     g.fillStyle = CAL_FACE; g.fillRect(0, 0, c.width, c.height);
     var ppu = TILE / 2;   // 一塊 2×2 格
@@ -246,7 +247,8 @@ var WORLD = (function () {
     var byKind = {}, calM = [], doorM = [], plotQ = { pos: [], nor: [] }, faceQ = { pos: [], nor: [] }, faces = 0;
     houses.forEach(function (h) {
       var view = h.view, M = houseMatrix(h.pos, h.rot), plot = view.plot, vx = makeVox(plot, view.look.blocks, view.cal.blocks), tv = function (x, y, z) { return new T.Vector3(x, y, z).applyMatrix4(M); };
-      farBoxes.push({ serial: h.serial, M: M, inv: new T.Matrix4().copy(M).invert(), lo: [plot.min, 0, plot.min], hi: [plot.max + 1, plot.height, plot.max + 1] });
+      var calTop = view.cal.blocks.reduce(function (t, p) { return p && p[1] + 2 > t ? p[1] + 2 : t; }, plot.height);   // 日曆可能比地皮高很多：點得到整座塔
+      farBoxes.push({ serial: h.serial, M: M, inv: new T.Matrix4().copy(M).invert(), lo: [plot.min, 0, plot.min], hi: [plot.max + 1, calTop, plot.max + 1] });
       [[plot.min, plot.min], [plot.max + 1, plot.min], [plot.max + 1, plot.max + 1], [plot.min, plot.min], [plot.max + 1, plot.max + 1], [plot.min, plot.max + 1]].forEach(function (c) { var q = tv(c[0], -0.005, c[1]); plotQ.pos.push(q.x, q.y, q.z); plotQ.nor.push(0, 1, 0); });
       view.look.blocks.forEach(function (b) {
         var t = typeOf(b[3]); if (t === 'door' || t === 'prop') return;
@@ -312,6 +314,9 @@ var WORLD = (function () {
     if (spots) spots.forEach(function (p) { pts.push([p[0] * CELL, p[1] * CELL]); });
     var xs = pts.map(function (p) { return p[0]; }), zs = pts.map(function (p) { return p[1]; }), cx = (Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2, cz = (Math.min.apply(null, zs) + Math.max.apply(null, zs)) / 2;
     var r = Math.max(Math.max.apply(null, xs) - Math.min.apply(null, xs), Math.max.apply(null, zs) - Math.min.apply(null, zs)) / 2 + CELL * 0.45;
+    // 日曆比地皮高（補十七）：從這個月那塊的高度、接近水平看過去，全村的塔頭並排、這個月那塊在畫面中間附近（不是從上面把整座塔縮成細線）
+    var mb = monthBlock(), tall = current && mb[1] + CH > current.plot.height;
+    if (tall) return { target: toWorld(new T.Vector3(mb[0] + CW / 2, mb[1] + CH / 2, ZF)), theta: rotRad() + 0.35, phi: 1.2, dist: fitDist(Math.min(r, CELL * 1.2)) };
     return { target: new T.Vector3(cx, 0, cz), theta: rotRad(), phi: 0.42, dist: fitDist(r) };
   }
   function setPose(p) { cam.target.copy(p.target); cam.theta = p.theta; cam.phi = p.phi; cam.dist = p.dist; }
@@ -440,7 +445,7 @@ var WORLD = (function () {
     else if (target.preview) { if (!current.cal.preview) return null; var pv = current.cal.preview.pos; p = new T.Vector3(pv[0] + CW / 2, pv[1] + CH / 2, ZF); }
     else if (target.block) { var bl = target.block, n = target.n || [0, 1, 0]; p = new T.Vector3(bl[0] + 0.5 + n[0] * 0.5, bl[1] + 0.5 + n[1] * 0.5, bl[2] + 0.5 + n[2] * 0.5); if (target.prop) p.set(bl[0] + 0.5, bl[1] + 0.3, bl[2] + 0.5); }
     else if (target.ground) p = new T.Vector3(target.ground[0] + 0.5, 0, target.ground[1] + 0.5);
-    else if (target.house) { var fb = farBoxes.find(function (x) { return x.serial === target.house; }); if (!fb) return null; p = new T.Vector3((fb.lo[0] + fb.hi[0]) / 2, 2, (fb.lo[2] + fb.hi[2]) / 2).applyMatrix4(fb.M); p.isWorld = true; }
+    else if (target.house) { var fb = farBoxes.find(function (x) { return x.serial === target.house; }); if (!fb) return null; p = new T.Vector3((fb.lo[0] + fb.hi[0]) / 2, Math.min(fb.hi[1] - 1, Math.max(2, cam.target.y)), (fb.lo[2] + fb.hi[2]) / 2).applyMatrix4(fb.M); p.isWorld = true; }
     else if (target.spot) { p = new T.Vector3(target.spot[0] * CELL, 0, target.spot[1] * CELL); p.isWorld = true; }
     if (!p) return null;
     if (!p.isWorld) p = toWorld(p);

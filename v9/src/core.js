@@ -999,6 +999,7 @@ var CORE = (function () {
     if (!BLOCKS.hasOwnProperty(k)) return '方塊種類不在清單裡：' + k;
     var t = BLOCKS[k].type;
     if (t === 'prop' || t === 'door' ? ROTS.indexOf(rot) < 0 : rot !== 0) return '只有擺設和門能轉，而且只能轉 90 度';
+    if (y >= plot.height || (t === 'door' && y + 1 >= plot.height)) { if (x >= plot.min && x <= plot.max && z >= plot.min && z <= plot.max) return '超過地皮的高度（' + plot.height + '）不能蓋；只有日曆可以往上長'; }
     if (!inPlot(plot, x, y, z) || (t === 'door' && y + 1 >= plot.height)) return '地皮外面不能蓋';
     return null;
   }
@@ -1105,11 +1106,14 @@ var CORE = (function () {
     var t = ymdOf(day), first = ymdOf(day - t.d + 1).wd;
     return { m: monthIndex(born, day), row: Math.floor((first + t.d - 1) / 7), col: t.wd };
   }
-  function calFits(h, pos, plot, skipIndex) {
-    if (pos[0] < plot.min || pos[0] + 1 > plot.max || pos[1] < 0 || pos[1] + 1 >= plot.height) return false;
+  // 日曆佔的格子（x,y）→ 第幾塊；找位置時查表，不用每次比全部（60 年 720 塊也快）
+  function calOcc(h, skipIndex) { var o = {}, list = h.cal.blocks; for (var i = 0; i < list.length; i++) { var p = list[i]; if (i === skipIndex || !p) continue; o[p[0] + ',' + p[1]] = o[(p[0] + 1) + ',' + p[1]] = o[p[0] + ',' + (p[1] + 1)] = o[(p[0] + 1) + ',' + (p[1] + 1)] = 1; } return o; }
+  // 放得下嗎：在地皮的寬裡、不到地底下（往上不受地皮高度限制，補十七）、不碰別塊日曆、不碰門和門前、正面那一條裡沒有門
+  function calFits(h, pos, plot, skipIndex, occ) {
+    if (pos[0] < plot.min || pos[0] + 1 > plot.max || pos[1] < 0) return false;
+    var o = occ || calOcc(h, skipIndex);
+    if (o[pos[0] + ',' + pos[1]] || o[(pos[0] + 1) + ',' + pos[1]] || o[pos[0] + ',' + (pos[1] + 1)] || o[(pos[0] + 1) + ',' + (pos[1] + 1)]) return false;
     var mine = {}; calCells(pos).forEach(function (c) { mine[cellKey(c[0], c[1], c[2])] = true; });
-    var list = h.cal.blocks;
-    for (var i = 0; i < list.length; i++) { if (i === skipIndex || !list[i]) continue; var cs = calCells(list[i]); for (var j = 0; j < 4; j++) if (mine[cellKey(cs[j][0], cs[j][1], cs[j][2])]) return false; }
     var d = doorOf(h);
     if (d) {
       var dc = doorCells(d).concat(doorFrontCells(d, plot)); for (var k = 0; k < dc.length; k++) if (mine[cellKey(dc[k][0], dc[k][1], dc[k][2])]) return false;   // 碰到門或門前那一格
@@ -1118,19 +1122,18 @@ var CORE = (function () {
     }
     return true;
   }
-  // 下一塊會長在哪裡（不改資料）：{ pos, dir（實際的方向）, fallback, removes（會拆幾塊）}；放滿了 pos 是 null
+  // 下一塊會長在哪裡（不改資料）：{ pos, dir（實際的方向）, fallback, removes（會拆幾塊）}。往上不受地皮高度限制，所以一定找得到（不會放滿）
   function nextCalPos(h, plot) {
     var list = h.cal.blocks, last = null; for (var i = list.length - 1; i >= 0; i--) if (list[i]) { last = list[i]; break; }
-    if (h.cal.full && h.cal.full === plot.size) return { pos: null, dir: null, fallback: true, removes: 0 };   // 放滿了就記住，地皮變大或拆掉東西才重找
     if (!last) last = CAL_START;
-    var pos = null, dir = null, fallback = false;
-    if (!list.length) { pos = CAL_START.slice(); if (!calFits(h, pos, plot)) pos = null; dir = h.cal.dir; }
+    var pos = null, dir = null, fallback = false, occ = calOcc(h);
+    if (!list.length) { pos = CAL_START.slice(); if (!calFits(h, pos, plot, null, occ)) pos = null; dir = h.cal.dir; }
     else {
       var order = [h.cal.dir].concat(CAL_ORDER.filter(function (o) { return o !== h.cal.dir; }));
-      for (var k = 0; k < order.length && !pos; k++) { var p = [last[0] + CAL_DELTA[order[k]][0], last[1] + CAL_DELTA[order[k]][1]]; if (calFits(h, p, plot)) { pos = p; dir = order[k]; } }
-      if (!pos) {   // 同一面上離最後一塊最近、放得下的地方（一樣近：先低的、再左的）
-        var best = null, bd = Infinity;
-        for (var y = 0; y + 1 < plot.height; y++) for (var x = plot.min; x + 1 <= plot.max; x++) { var q = [x, y], d = Math.abs(x - last[0]) + Math.abs(y - last[1]); if (d < bd && calFits(h, q, plot)) { best = q; bd = d; } }
+      for (var k = 0; k < order.length && !pos; k++) { var p = [last[0] + CAL_DELTA[order[k]][0], last[1] + CAL_DELTA[order[k]][1]]; if (calFits(h, p, plot, null, occ)) { pos = p; dir = order[k]; } }
+      if (!pos) {   // 同一面上離最後一塊最近、放得下的地方（一樣近：先低的、再左的）；最高找到日曆最上面再高一塊，一定有空位
+        var best = null, bd = Infinity, top = 0; list.forEach(function (q) { if (q && q[1] + 2 > top) top = q[1] + 2; });
+        for (var y = 0; y <= top; y++) { if (Math.abs(y - last[1]) > bd) { if (y > last[1]) break; continue; } for (var x = plot.min; x + 1 <= plot.max; x++) { var q = [x, y], d = Math.abs(x - last[0]) + Math.abs(y - last[1]); if (d < bd && calFits(h, q, plot, null, occ)) { best = q; bd = d; } } }
         pos = best; fallback = true; dir = null;
       }
     }
@@ -1142,7 +1145,7 @@ var CORE = (function () {
   function growOne(h, born) {
     var i = h.cal.blocks.length, plot = plotOf(ageOf(born, monthFirstDay(born, i)).years), n = nextCalPos(h, plot);
     h.cal.blocks.push(n.pos);
-    if (!n.pos) { h.cal.full = plot.size; return 0; }
+    if (!n.pos) return 0;
     var cells = {}; calCells(n.pos).concat(calFrontCells(n.pos, plot)).forEach(function (c) { cells[cellKey(c[0], c[1], c[2])] = true; });
     var before = h.blocks.length; h.blocks = h.blocks.filter(function (b) { return b[3] === 'door' || !cells[cellKey(b[0], b[1], b[2])]; });
     var removed = before - h.blocks.length; if (removed) { h.rev = (h.rev || 0) + 1; h.calRemoved = (h.calRemoved || 0) + removed; }
@@ -1162,10 +1165,10 @@ var CORE = (function () {
     if (c.blocks.length > monthIndex(born, today) + 1) return false;
     var seen = {};
     for (var i = 0; i < c.blocks.length; i++) {
-      var p = c.blocks[i]; if (p === null) continue;
+      var p = c.blocks[i]; if (p === null) return false;   // 以前放滿記的空位：重新長（現在往上一定長得了，每個月都有一塊）
       if (!Array.isArray(p) || p.length !== 2 || p[0] % 1 !== 0 || p[1] % 1 !== 0) return false;
       if (i === 0 && (p[0] !== CAL_START[0] || p[1] !== CAL_START[1])) return false;
-      var plot = plotOf(ageOf(born, monthFirstDay(born, i)).years); if (p[0] < plot.min || p[0] + 1 > plot.max || p[1] < 0 || p[1] + 1 >= plot.height) return false;
+      var plot = plotOf(ageOf(born, monthFirstDay(born, i)).years); if (p[0] < plot.min || p[0] + 1 > plot.max || p[1] < 0) return false;   // 往上不受地皮高度限制
       var cs = calCells(p); for (var j = 0; j < 4; j++) { var k = cellKey(cs[j][0], cs[j][1], cs[j][2]); if (seen[k]) return false; seen[k] = true; }
     }
     return true;
@@ -1195,7 +1198,6 @@ var CORE = (function () {
     ensureDoor(out, plot);
     var dir = h.cal && CAL_DIRS[h.cal.dir] ? h.cal.dir : 'up';
     out.cal = { dir: dir, blocks: calValid({ cal: h.cal }, born, today) ? h.cal.blocks.map(function (p) { return p ? [p[0], p[1]] : null; }) : [] };
-    if (h.cal && typeof h.cal.full === 'number' && out.cal.blocks.length) out.cal.full = h.cal.full;
     var removed = Number(h.calRemoved) || 0;
     removed += growTo(out, born, monthIndex(born, today) + 1);
     if (ensureDoor(out, plot)) { /* 門搬了 */ }
@@ -1232,7 +1234,7 @@ var CORE = (function () {
     if (blockIndex(h, nb[0], nb[1], nb[2]) >= 0) bad('這一格已經有東西了');
     nb = normBlock(nb); h.blocks.push(nb); h.rev = (h.rev || 0) + 1; return nb.slice();
   }
-  function unfull(h) { if (h.cal) delete h.cal.full; }
+  function unfull(h) { if (h.cal) delete h.cal.full; }   // 第 5 輪「放滿了」的記號：第 7 輪起不會放滿，留著清舊資料
   function removeBlock(state, serial, x, y, z, now) {
     var r = need(state, serial), h = houseOf(r), i = blockIndex(h, x, y, z); unfull(h);
     if (i < 0) { var res = reserved(h, plotAt(r, now)); if (res.cal[cellKey(x, y, z)]) bad('日曆拆不掉'); if (res.door[cellKey(x, y, z)]) bad('門拆不掉，只能搬'); bad('這一格沒有東西'); }
@@ -1271,7 +1273,7 @@ var CORE = (function () {
   // 是不是鄰居：第 3 輪接上街；這一輪沒有街，永遠不是
   /* ---------- 村子（7-3）：誰在哪個村、地放哪、誰同意了、鄰居是誰，全在這裡；畫面只照 viewVillage 畫 ----------
    * 一格地 = 最大的地皮 32×32 加走道；位置 [gx, gz] 是格子座標，朝向 rot 0／90／180／270（0 朝 +z）。
-   * 新的一間要靠著村裡某一間（格子距離最多 2，中間最多隔一塊地）；搬進、搬走、換位置都不改任何紀錄。 */
+   * 新的一間（搬進、換位置）要靠著村裡任何一間（格子距離最多 2，中間最多隔一塊地），不要求整村連在一起；中間那間搬走，空出來的地就空著，村子照樣是同一個村子，剩一人才散。搬進、搬走、換位置都不改任何紀錄。 */
   var VILLAGE_CELL = PLOT_MAX + 4, NEAR = 2;
   function villagesOf(state) { return state.villages || (state.villages = []); }
   function villageOf(state, serial) { return villagesOf(state).find(function (v) { return v.members.some(function (m) { return m.serial === serial; }); }) || null; }
@@ -1352,7 +1354,6 @@ var CORE = (function () {
     var v = villageOf(state, me); if (!v || v.proposed) bad('你沒有住在村子裡');
     var pr = spotProblem(v, pos, rot, me); if (pr) bad(pr);
     var m = memberOf(v, me), old = { pos: m.pos.slice(), rot: m.rot }; m.pos = [pos[0], pos[1]]; m.rot = cleanRot(rot);
-    if (!connected(v.members)) { m.pos = old.pos; m.rot = old.rot; bad('搬過去村子會散掉：要讓每一間都連得起來'); }
     return old;
   }
   function dropMember(state, v, serial, why) {
@@ -1391,7 +1392,7 @@ var CORE = (function () {
   function cleanVillage(state, v) {
     obj(v, '村子'); var seen = {}, members = list(v.members || [], 500, '村子').map(function (m) { obj(m, '村子'); return { serial: str(m.serial, 11, '村子'), pos: vec(m.pos || [0, 0], 2, '地'), rot: cleanRot(m.rot) }; })
       .filter(function (m) { if (seen[m.serial] || !roleOf(state, m.serial) || villageOf(state, m.serial)) return false; seen[m.serial] = true; return true; });
-    var kept = []; members.forEach(function (m) { if (!kept.some(function (k) { return k.pos[0] === m.pos[0] && k.pos[1] === m.pos[1]; }) && (!kept.length || kept.some(function (k) { return cellDist(k.pos, m.pos) <= NEAR; }))) kept.push(m); });   // 重疊、離太遠的丟掉
+    var kept = []; members.forEach(function (m) { if (!kept.some(function (k) { return k.pos[0] === m.pos[0] && k.pos[1] === m.pos[1]; })) kept.push(m); });   // 重疊的丟掉；中間空掉、離得遠照樣是同一個村子
     var out = { id: str(v.id, 60, '村子'), members: kept, pending: list(v.pending || [], 200, '村子').map(function (p) { obj(p, '村子'); return { id: str(p.id, 60, '村子'), kind: p.kind === 'expel' ? 'expel' : 'join', who: str(p.who, 11, '村子'), by: str(p.by, 11, '村子'), approvals: list(p.approvals || [], 500, '村子').map(function (x) { return str(x, 11, '村子'); }), atUs: num(p.atUs, '村子') }; }).filter(function (p) { return roleOf(state, p.who) && roleOf(state, p.by); }), atUs: num(v.atUs, '村子') };
     if (v.proposed) out.proposed = true;
     if (out.proposed ? out.members.length !== 1 || !out.pending.length : out.members.length < 2) return null;
