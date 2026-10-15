@@ -78,6 +78,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '0000000000
   await H.nav('village'); await H.clickText('去挑地', '#tmain'); await pg.waitForTimeout(700);
   var pt = await pg.textContent('#hpickText');
   assert(pt.indexOf('這裡原本有人住，補進來村子比較完整') >= 0 && JSON.stringify((await info()).selSpot) === JSON.stringify(JSON.parse(sug).join()) && (await pg.isVisible('#hPickSel')), '挑地：那塊已經選好（塗黃）、寫「這裡原本有人住，補進來村子比較完整」');
+  assert(pt.indexOf('已經幫你選好一塊：這裡原本有人住，補進來村子比較完整。也可以點別塊。') >= 0 && pt.indexOf('[') < 0 && !/\d/.test(pt), '那句話沒有「[」、沒有數字座標（第 9 輪）：' + pt);
   if (OUT) await pg.screenshot({ path: OUT + '/v9_village_6_suggest.png' });
   await H.hclick('#hPickSel'); assert((await H.popTitle()) === '放在這裡？', '按「放在選好的這塊」問一下'); await H.popOk('放這裡'); await pg.waitForTimeout(500);
   assert((await H.ev("JSON.stringify(CORE.villageOf(APP.state(),'" + J2 + "').members.find(function(m){return m.serial==='" + J2 + "';}).pos)")) === sug && (await H.ev("JSON.stringify(CORE.suggestedSpot(APP.state(),CORE.villageOf(APP.state(),'" + J1 + "').id))")) !== sug, '阿澄補進那塊，那塊就不再是空出來的地');

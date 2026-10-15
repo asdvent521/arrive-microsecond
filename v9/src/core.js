@@ -245,7 +245,8 @@ var CORE = (function () {
   function cleanRes(x) {
     var price = Math.floor(+x.price), keep = x.keepDays == null || x.keepDays === '' ? null : Math.floor(+x.keepDays);
     if (!x.name || !String(x.name).trim()) bad('資源要有名稱'); if (!(price >= 0)) bad('價格要是 0 以上的整數'); if (keep != null && !(keep >= 1)) bad('保留天數要是正整數，或空白＝一直保留');
-    return { id: x.id || newId('res'), name: String(x.name).trim(), kind: cleanKind(x.kind), def: String(x.def || ''), price: price, keepDays: keep };
+    var name = String(x.name).trim(), def = String(x.def || '');
+    return { id: x.id || newId('res'), name: name, kind: cleanKind(x.kind), cat: x.cat === undefined || x.cat === 'auto' ? classify(name, def) : cleanCat(x.cat), tags: cleanTags(x.tags), def: def, price: price, keepDays: keep };
   }
   function cleanRules(rules) {
     rules = rules || {};
@@ -272,7 +273,12 @@ var CORE = (function () {
   function setDailyPoints(state, serial, n, atUs) { var d = Math.floor(+n); if (!(d >= 1)) bad('每天的點要是正整數'); tomorrow(state, serial, atUs).dailyPoints = d; }
   function setRules(state, serial, rules, atUs) { tomorrow(state, serial, atUs).rules = cleanRules(rules); }
   function addResource(state, serial, x, atUs) { var r = need(state, serial), c = cleanRes(x); tomorrow(state, serial, atUs).resources.push(c); r.stock[c.id] = r.stock[c.id] || { avail: 0, reserved: 0 }; return c; }
-  function setResource(state, serial, id, fields, atUs) { var v = tomorrow(state, serial, atUs), x = resourceOf(v, id); if (!x) bad('明天的資源表裡沒有這一項'); var c = cleanRes(Object.assign({}, x, fields, { id: id })); Object.assign(x, c); return x; }
+  function setResource(state, serial, id, fields, atUs) {
+    var v = tomorrow(state, serial, atUs), x = resourceOf(v, id); if (!x) bad('明天的資源表裡沒有這一項');
+    var f = Object.assign({}, x, fields, { id: id });
+    if (fields.cat === undefined && (fields.name != null || fields.def != null) && (!x.cat || x.cat === classify(x.name, x.def))) f.cat = 'auto';   // 類別是自動選的（沒改過）：名字、定義改了就重選
+    var c = cleanRes(f); Object.assign(x, c); return x;
+  }
   function removeResource(state, serial, id, atUs) { var v = tomorrow(state, serial, atUs); if (!resourceOf(v, id)) bad('明天的資源表裡沒有這一項'); v.resources = v.resources.filter(function (x) { return x.id !== id; }); }
   // 版本的差異（畫面用「明天起」標）
   function sameUse(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
@@ -767,6 +773,176 @@ var CORE = (function () {
     return { slot: slot, docking: d, results: results };
   }
 
+  /* ---------- 公告欄的分類和找（補十九）：12 個大類、76 個小類、近似詞表都是資料，不是程式。每張公告的需要、資源表的每樣東西各掛一個小類（小類決定大類），照名字和定義裡的字自動選、自己可以改；判斷不出來就不掛。再加最多 3 個自訂標籤 ----------
+   * 詞表一個小類一列：[小類代號, 小類名, 近似詞]。自動分類：文字裡對到的詞越長越算數（「水龍頭」比「水」準），一樣長取排前面的。找的時候：打的詞在詞表裡，就把同一列的其他詞都算近似（飯 → 便當）。 */
+  var CATS = [
+    { id: 'food', name: '食物', subs: [
+      ['bento', '便當熟食', ['便當', '熟食', '飯', '炒飯', '炒麵', '麵條', '小吃', '滷味', '宵夜', '一餐', '吃的', '餐盒', '早餐', '午餐', '晚餐']],
+      ['cook', '代煮一餐', ['代煮', '煮飯', '煮一餐', '做飯', '下廚', '煮菜', '煮給', '代做菜']],
+      ['fresh', '生鮮食材', ['生鮮', '食材', '肉', '魚', '雞蛋', '海鮮', '蔬菜', '青菜', '水果', '豬肉', '雞肉']],
+      ['farm', '農產自種', ['自種', '農產', '自己種', '菜園', '採收', '有機', '自家種', '田裡', '稻米']],
+      ['bake', '烘焙點心', ['烘焙', '點心', '蛋糕', '麵包', '餅乾', '甜點', '手工餅', '派', '塔', '布丁']],
+      ['drink', '飲料', ['飲料', '咖啡', '茶', '奶茶', '果汁', '豆漿', '手搖', '啤酒', '酒']],
+      ['recipe', '食譜做法', ['食譜', '做法', '怎麼煮', '配方', '料理方法', '教做菜', '菜單']]
+    ] },
+    { id: 'fix', name: '修理', subs: [
+      ['plumb', '水電', ['水電', '水龍頭', '馬桶', '電燈', '燈泡', '插座', '漏水', '電線', '開關', '水管', '熱水器', '電路']],
+      ['appliance', '家電', ['家電', '冰箱', '洗衣機', '冷氣', '電風扇', '電鍋', '微波爐', '電視', '吹風機', '吸塵器']],
+      ['device', '電腦手機', ['修電腦', '修手機', '電腦壞', '手機壞', '螢幕', '換電池', '重灌', '當機', '鍵盤', '平板', '網路不通']],
+      ['bike', '腳踏車機車', ['腳踏車', '機車', '單車', '補胎', '爆胎', '煞車', '鏈條', '打氣', '輪胎', '自行車']],
+      ['sew', '衣服縫補', ['縫補', '縫衣', '改褲', '改衣', '補衣', '拉鍊', '鈕扣', '縫紉', '褲腳', '破洞']],
+      ['wood', '家具木工', ['木工', '修桌', '修椅', '修櫃', '抽屜', '木頭', '釘子', '修家具', '門板', '鉸鏈']],
+      ['shoe', '鞋包', ['修鞋', '鞋底', '鞋跟', '修包', '包包', '皮件', '背帶', '皮鞋', '補鞋']]
+    ] },
+    { id: 'labor', name: '搬運力氣', subs: [
+      ['move', '搬家', ['搬家', '搬東西', '搬運', '搬家具', '搬', '搬貨', '扛', '抬', '搬上樓', '搬過去']],
+      ['clean', '打掃', ['打掃', '掃地', '拖地', '洗窗', '大掃除', '清潔', '擦', '刷洗', '清理']],
+      ['tidy', '整理收納', ['整理', '收納', '收拾', '歸位', '斷捨離', '整理房間', '整理衣櫃']],
+      ['garden', '園藝除草', ['園藝', '除草', '割草', '修剪', '種花', '澆花', '翻土', '庭院', '盆栽']],
+      ['assemble', '組裝家具', ['組裝', '組家具', '裝櫃子', '拼裝', '安裝', '鎖螺絲', '裝架子']],
+      ['heavy', '粗重工', ['粗重', '粗工', '搬磚', '搬水泥', '拆除', '挖土', '力氣活', '出力']]
+    ] },
+    { id: 'errand', name: '接送跑腿', subs: [
+      ['ride', '載人', ['載人', '載我', '接送', '順路', '開車載', '騎車載', '接機', '送機', '載一程', '共乘']],
+      ['buy', '代買', ['代買', '幫買', '代購', '幫我買', '順便買', '採買', '買菜', '買東西']],
+      ['deliver', '送東西', ['送東西', '送貨', '送到', '拿去', '外送', '遞送', '送過去', '送件', '跑腿']],
+      ['queue', '排隊代辦', ['排隊', '代辦', '代領', '代寄', '幫我排', '代繳', '代辦事', '領包裹', '掛號']]
+    ] },
+    { id: 'teach', name: '教學', subs: [
+      ['school', '課業', ['課業', '功課', '家教', '數學', '作業', '補習', '國文', '理化', '英文作業', '自然科']],
+      ['lang', '語言', ['語言', '英文', '日文', '韓文', '台語', '會話', '外語', '英語', '日語', '口說', '法文', '德文']],
+      ['music', '樂器音樂', ['樂器', '鋼琴', '吉他', '烏克麗麗', '小提琴', '鼓', '學琴', '樂理', '音樂課']],
+      ['digital', '電腦手機怎麼用', ['教電腦', '教手機', '怎麼用', 'line', '上網', '打字', '用電腦', '用手機', '設定', '軟體', '試算表', '簡報']],
+      ['cooking', '烹飪', ['烹飪', '教煮', '學做菜', '教做飯', '廚藝', '學烘焙', '料理課']],
+      ['craftclass', '手作', ['手作課', '教編織', '學編織', '教陶', '學陶', '教縫', '教摺紙', '教手作']],
+      ['sportskill', '運動技巧', ['教游泳', '學游泳', '教騎車', '教球', '教跑', '教爬山', '動作技巧', '教滑板', '教溜冰']],
+      ['exam', '考試證照', ['考試', '證照', '考照', '檢定', '多益', '駕照', '公職', '考古題', '準備考']]
+    ] },
+    { id: 'advice', name: '諮詢文書', subs: [
+      ['form', '填表申請', ['填表', '申請', '表格', '申辦', '文件', '補助', '表單', '報名', '登記']],
+      ['resume', '履歷求職', ['履歷', '求職', '面試', '找工作', '自傳', '職涯', '轉職', '工作機會']],
+      ['law', '法律', ['法律', '合約', '契約', '律師', '租約', '打官司', '法條', '告', '權益', '訴訟']],
+      ['tax', '稅務記帳', ['稅', '報稅', '記帳', '會計', '帳目', '發票', '扣繳', '節稅', '帳務']],
+      ['translate', '翻譯', ['翻譯', '翻成', '譯', '口譯', '翻英文', '翻日文', '翻中文']],
+      ['edit', '寫作修改', ['修改', '潤稿', '校對', '改文章', '改作文', '幫我改', '潤飾', '改稿', '看一下文']]
+    ] },
+    { id: 'company', name: '陪伴', subs: [
+      ['talk', '聊天傾聽', ['聊天', '傾聽', '聽你講', '聊聊', '談心', '說話', '陪聊', '講話', '諮詢', '聽我說']],
+      ['walk', '散步', ['散步', '走走', '陪走', '一起走', '遛', '晚上走', '公園走']],
+      ['clinic', '陪看病', ['陪看病', '看醫生', '陪診', '掛號陪', '醫院', '回診', '陪就醫']],
+      ['exercise', '陪運動', ['陪運動', '陪跑', '一起運動', '運動夥伴', '陪打球', '陪練', '陪游泳', '陪健身']],
+      ['study', '陪讀', ['陪讀', '一起讀', '讀書會', '陪念書', '一起念', '自習', '陪寫作業']],
+      ['shop', '陪逛街', ['陪逛街', '逛街', '一起逛', '陪買', '陪採買', '逛市場', '逛夜市']]
+    ] },
+    { id: 'care', name: '照顧', subs: [
+      ['kid', '小孩', ['小孩', '帶小孩', '保母', '托嬰', '接小孩', '顧小孩', '幼兒', '孩子', '寶寶']],
+      ['elder', '長輩', ['長輩', '老人', '顧老人', '爸媽', '阿公', '阿嬤', '年長', '長者', '陪長輩']],
+      ['pet', '寵物', ['寵物', '狗', '貓', '遛狗', '餵貓', '顧狗', '顧貓', '毛小孩', '寵物住宿']],
+      ['patient', '病人', ['病人', '照顧病人', '看護', '術後', '臥床', '照護', '陪病', '生病']],
+      ['plant', '植物', ['植物', '澆水', '顧花', '顧植物', '盆栽照顧', '代澆', '顧菜園']],
+      ['housesit', '看家', ['看家', '顧家', '代收', '收包裹', '顧房子', '守家', '代收信']]
+    ] },
+    { id: 'health', name: '健康運動', subs: [
+      ['massage', '按摩', ['按摩', '推拿', '刮痧', '肩頸', '腳底', '放鬆', '紓壓', '指壓']],
+      ['yoga', '伸展瑜伽', ['伸展', '瑜伽', '拉筋', '皮拉提斯', '冥想', '柔軟', '瑜珈']],
+      ['run', '跑步健走', ['跑步', '健走', '慢跑', '晨跑', '夜跑', '走路', '路跑', '快走']],
+      ['gym', '健身指導', ['健身', '重訓', '教練', '核心', '體能', '肌力', '深蹲', '健身房']],
+      ['ball', '球類', ['球類', '籃球', '羽球', '桌球', '網球', '排球', '棒球', '足球', '打球', '壘球']],
+      ['dance', '舞蹈', ['舞蹈', '跳舞', '街舞', '國標', '有氧', '韻律', '社交舞', '民族舞']]
+    ] },
+    { id: 'lend', name: '用品借用', subs: [
+      ['clothes', '衣物', ['衣物', '借衣', '借西裝', '借禮服', '借外套', '借鞋', '借衣服', '借洋裝']],
+      ['tool', '工具', ['工具', '借電鑽', '借梯子', '借螺絲', '借鋸', '借扳手', '借工具', '梯子', '電鑽']],
+      ['book', '書', ['書', '借書', '小說', '漫畫', '繪本', '課本', '雜誌', '圖書', '一本']],
+      ['furniture', '家具家電', ['借家具', '借桌', '借椅', '借冰箱', '借電扇', '借桌子', '借椅子', '借家電', '借床']],
+      ['baby', '嬰幼兒用品', ['嬰兒車', '推車', '嬰兒床', '汽座', '學步', '奶瓶', '嬰幼兒', '嬰兒用品']],
+      ['camp', '露營戶外', ['露營', '帳篷', '睡袋', '登山', '戶外', '野餐', '營燈', '爐具', '釣具']],
+      ['vehicle', '交通工具', ['借車', '借腳踏車', '借機車', '借單車', '借滑板車', '借汽車', '交通工具', '借車子']]
+    ] },
+    { id: 'create', name: '手作創作', subs: [
+      ['draw', '畫圖設計', ['畫圖', '設計', '插畫', '畫畫', '海報', '名片', '排版', 'logo', '畫一張', '圖案']],
+      ['song', '寫歌', ['寫歌', '作曲', '作詞', '編曲', '寫一首', '一首歌', '譜曲', '配樂']],
+      ['photo', '攝影', ['攝影', '拍照', '拍攝', '照片', '相機', '人像', '拍一組', '修圖', '證件照']],
+      ['video', '影片剪輯', ['影片', '剪輯', '剪片', '拍片', '字幕', '短片', '剪影片', '上字幕']],
+      ['write', '寫文章', ['寫文章', '寫文', '文案', '寫稿', '寫信', '寫一篇', '部落格', '寫作']],
+      ['craft', '手工藝', ['手工藝', '編織', '陶藝', '刺繡', '木雕', '手工', '織', '鉤針', '黏土', '皮革']]
+    ] },
+    { id: 'fun', name: '娛樂', subs: [
+      ['boardgame', '桌遊牌卡', ['桌遊', '牌卡', '撲克', '麻將', '象棋', '圍棋', '狼人殺', '卡牌', '一起玩桌遊']],
+      ['game', '電玩', ['電玩', '遊戲', '打電動', 'switch', '連線', '手遊', '電動', '玩遊戲']],
+      ['sing', '唱歌', ['唱歌', 'ktv', '合唱', '卡拉ok', '唱', '歌唱', '一起唱']],
+      ['show', '表演', ['表演', '演出', '戲劇', '魔術', '相聲', '演戲', '舞台', '脫口秀']],
+      ['movie', '看電影展覽', ['電影', '展覽', '看展', '看戲', '演唱會', '博物館', '美術館', '一起看']],
+      ['trip', '出遊旅行', ['出遊', '旅行', '旅遊', '郊遊', '小旅行', '去玩', '爬山去', '一日遊', '旅伴']],
+      ['party', '聚會派對', ['聚會', '派對', '聚餐', '慶生', '烤肉', '辦趴', '生日', '一起吃飯', '同樂']]
+    ] }
+  ];
+  var SUBS = {}, BIGS = {};   // 小類代號 → {id, name, big, bigName, path, words}
+  CATS.forEach(function (c) { BIGS[c.id] = c; c.subs = c.subs.map(function (s) { var o = { id: s[0], name: s[1], big: c.id, bigName: c.name, path: c.name + '／' + s[1], words: s[2] }; SUBS[o.id] = o; return o; }); });
+  var TAG_MAX = 3, TAG_LEN = 20;
+  // 簡體 → 繁體（一字對一字，常用的；找和自動分類兩邊都先換過再比）
+  var SIMP = '条條饭飯面麵鸡雞鱼魚虾蝦汤湯点點饮飲书書车車电電脑腦机機换換补補缝縫运運扫掃园園艺藝组組装裝载載买買东東队隊办辦学學课課业業语語乐樂饪飪术術试試证證咨諮询詢请請历歷职職税稅务務记記帐帳账帳译譯写寫倾傾听聽读讀顾顧长長辈輩宠寵导導类類婴嬰儿兒营營户戶画畫图圖设設计計摄攝辑輯娱娛游遊戏戲会會对對维維护護热熱气氣灯燈龙龍头頭锁鎖门門网網线線师師后後时時间間钟鐘个個这這么麼几幾谁誰为為让讓帮幫们們来來开開关關问問题題过過还還没沒两兩当當简簡体體单單双雙节節厅廳饼餅干乾咸鹹酱醬卤滷炖燉汉漢寿壽鲜鮮农農产產种種采採麦麥浆漿谱譜调調铁鐵钉釘丝絲锯鋸钻鑽风風视視裤褲纽鈕链鏈桥橋楼樓层層墙牆纸紙笔筆钢鋼赛賽场場馆館册冊卖賣赠贈币幣钱錢贵貴险險医醫药藥养養练練习習词詞绘繪叶葉树樹浇澆';
+  var SIMP_MAP = {}; for (var si = 0; si + 1 < SIMP.length; si += 2) if (SIMP[si] !== SIMP[si + 1]) SIMP_MAP[SIMP[si]] = SIMP[si + 1];
+  function normText(s) { return String(s || '').toLowerCase().replace(/[一-鿿]/g, function (ch) { return SIMP_MAP[ch] || ch; }); }
+  function catOf(id) { return SUBS[id] || null; }
+  function cleanCat(c) { if (c == null || c === '') return ''; if (!SUBS[c]) bad('沒有這個類別'); return c; }
+  // 自動分類：名字和定義裡對到的詞（小類名也算）；最長的那個算數，一樣長取排前面的；對不到就 ''
+  function classify(name, def) {
+    var t = normText(String(name || '') + ' ' + String(def || '')), best = null, bestLen = 0;
+    if (!t.trim()) return '';
+    CATS.forEach(function (c) { c.subs.forEach(function (s) { [s.name].concat(s.words).forEach(function (w) { var nw = normText(w); if (nw.length > bestLen && t.indexOf(nw) >= 0) { best = s; bestLen = nw.length; } }); }); });
+    return best ? best.id : '';
+  }
+  // 標籤：最多 3 個，每個最多 20 字；開頭的 # 拿掉；用空白、逗點、頓號分
+  function cleanTags(v) {
+    var arr = Array.isArray(v) ? v : String(v == null ? '' : v).split(/[\s,，、#]+/);
+    var out = []; arr.forEach(function (x) { var s = String(x == null ? '' : x).trim().replace(/^#+/, ''); if (!s) return; if (s.length > TAG_LEN) bad('標籤最多 ' + TAG_LEN + ' 字'); if (out.indexOf(s) < 0) out.push(s); });
+    if (out.length > TAG_MAX) bad('標籤最多 ' + TAG_MAX + ' 個');
+    return out;
+  }
+  // 打的詞對不對得上一段文字：完全對上（簡繁先換過）、打錯字（字顛倒、少一個字、多一個字）
+  function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function typoVariants(kw) {
+    var out = [], i;
+    for (i = 0; i + 1 < kw.length; i++) out.push(escRe(kw.slice(0, i) + kw[i + 1] + kw[i] + kw.slice(i + 2)));   // 字顛倒
+    for (i = 1; i < kw.length; i++) out.push(escRe(kw.slice(0, i)) + '.' + escRe(kw.slice(i)));   // 少打一個字（中間漏一個）
+    if (kw.length >= 3) for (i = 0; i < kw.length; i++) out.push(escRe(kw.slice(0, i) + kw.slice(i + 1)));   // 多打一個字
+    return out.filter(function (v, j, a) { return a.indexOf(v) === j; });
+  }
+  function matchText(kw, text) {
+    var t = normText(text); kw = normText(kw).trim(); if (!kw || !t) return null;
+    if (t.indexOf(kw) >= 0) return { level: 1, how: '完全對上「' + kw + '」' };
+    if (kw.length < 2) return null;
+    var vs = typoVariants(kw);
+    for (var i = 0; i < vs.length; i++) { var m = t.match(new RegExp(vs[i])); if (m) return { level: 2, how: '打錯字：' + kw + ' → ' + m[0] }; }
+    return null;
+  }
+  // 打的詞在詞表的哪幾列（小類）：詞表裡有這個詞（或某個詞包含它），或就是小類、大類的名字
+  function subsOfWord(kw) {
+    var out = []; if (!kw) return out;
+    CATS.forEach(function (c) { var bigHit = normText(c.name) === kw; c.subs.forEach(function (s) { var ws = [s.name].concat(s.words).map(normText); if (bigHit || ws.some(function (w) { return w === kw || (kw.length >= 2 && w.indexOf(kw) >= 0); })) out.push({ sub: s, words: ws }); }); });
+    return out;
+  }
+  // 一樣東西（或一張公告的需要）對不對得上：fields＝要比的文字（名字、定義、標籤），cat＝掛的小類。回 {level, how} 或 null
+  // 1 完全對上（含簡繁）→ 2 近似詞、打錯字 → 3 同類（打的詞是哪一類，這一樣就掛那一類）
+  function matchItem(q, fields, cat) {
+    var kw = q.kw, best = null, take = function (m) { if (m && (!best || m.level < best.level)) best = m; };
+    if (q.cat && !inCat(cat, q.cat)) return null;
+    if (!kw) return { level: 3, how: q.cat ? '類別：' + (SUBS[q.cat] ? SUBS[q.cat].path : BIGS[q.cat].name) : '' };
+    fields.forEach(function (f) { take(matchText(kw, f)); });
+    if (best && best.level === 1) return best;
+    var rows = q.rows || (q.rows = subsOfWord(kw));
+    rows.forEach(function (r) {
+      var texts = fields.map(normText);
+      for (var i = 0; i < r.words.length && (!best || best.level > 2); i++) { var w = r.words[i]; if (w === kw) continue; if (texts.some(function (t) { return t.indexOf(w) >= 0; })) { take({ level: 2, how: '近似：' + kw + ' → ' + w }); } }
+      if (cat === r.sub.id) take({ level: 3, how: '同類：' + r.sub.path });
+    });
+    return best;
+  }
+  function inCat(cat, filter) { if (!filter) return true; if (!cat) return false; return cat === filter || SUBS[cat].big === filter; }
+  // 排序：等級（1 完全 → 2 近似 → 3 同類）；同一級裡我通得過他的條件的、還有空格的排前面
+  function rankOf(x) { return (x.match ? x.match.level : 9) * 4 + (x.elig && x.elig.ok ? 0 : 2) + (x.stocked ? 0 : 1); }
+
   /* ---------- 公告欄（第 5 節）：這一輪只到「直接換」；接上去、鏈、一圈第 3 輪做，資料先留位置（links、noReport） ---------- */
   function noticesOf(state) { return state.notices || (state.notices = []); }
   // 掛公告：需要（一句話）、種類（選填）、可以給（自己資源表上的，可以多樣）、一圈最多幾人、掛到哪一天（dayNum）
@@ -774,15 +950,22 @@ var CORE = (function () {
     atUs = atUs || nowUs(); var r = need(state, serial); f = f || {};
     var needText = String(f.need || '').trim(); if (!needText) bad('寫一句你需要什麼');
     if (needText.length > 200) bad('需要寫一句話就好');
-    var kind = String(f.kind || '').trim().slice(0, 20);
+    var tags = cleanTags(f.tags != null ? f.tags : f.kind), cat = f.cat === undefined || f.cat === 'auto' ? classify(needText) : cleanCat(f.cat);   // 舊的「種類」當第一個標籤；沒指定類別就照字自動選
     var v = version(r, atUs), p = pending(r, atUs);
     var give = (f.give || []).filter(function (id, i, a) { return a.indexOf(id) === i; });
     give.forEach(function (id) { if (!resourceOf(v, id) && !(p && resourceOf(p, id))) bad('可以給的要從自己的資源表選'); });
     var cap = Math.floor(+f.cap); if (!(cap >= 2)) bad('一圈最多幾人要至少 2');
     var until = f.untilDay == null || f.untilDay === '' ? null : Math.floor(+f.untilDay);
     if (until != null && !(until >= dayNum(atUs))) bad('掛到哪一天不能是過去');
-    var n = { id: newId('nt'), owner: serial, need: needText, kind: kind, give: give, cap: cap, untilDay: until, atUs: atUs, pinned: !!f.pinned, parent: null, noReport: false };
+    var n = { id: newId('nt'), owner: serial, need: needText, cat: cat, tags: tags, give: give, cap: cap, untilDay: until, atUs: atUs, pinned: !!f.pinned, parent: null, noReport: false };
     noticesOf(state).push(n);
+    return n;
+  }
+  // 改自己公告的類別、標籤
+  function setNotice(state, serial, id, f) {
+    var n = noticesOf(state).find(function (x) { return x.id === id; }); if (!n) bad('沒有這張公告'); if (n.owner !== serial) bad('只有掛的人能改');
+    if (f.cat !== undefined) n.cat = f.cat === 'auto' ? classify(n.need) : cleanCat(f.cat);
+    if (f.tags !== undefined) n.tags = cleanTags(f.tags);
     return n;
   }
   function removeNotice(state, serial, id) {
@@ -810,15 +993,36 @@ var CORE = (function () {
   }
   // 我通不通他的條件：跟預約用同一個判斷（他是主人、我是來約的人）
   function canBook(state, owner, me, atUs) { if (!me || owner.serial === me.serial) return { ok: false, self: true, reason: '自己' }; return eligible(state, owner, me, atUs); }
-  // 搜尋：一個關鍵字同時查公告（需要、種類、可以給）和所有人的資源表（名稱、定義），兩種結果分開回傳；每個結果標我通不通
-  function search(state, meSerial, keyword, atUs) {
-    atUs = atUs || nowUs(); var me = roleOf(state, meSerial), kw = String(keyword || '').trim().toLowerCase();
-    var hit = function (t) { return !kw || String(t || '').toLowerCase().indexOf(kw) >= 0; };
-    var notices = noticesOf(state).filter(function (n) { return roleOf(state, n.owner) && (hit(n.need) || hit(n.kind) || giveNames(state, n, atUs).some(hit)); })
-      .map(function (n) { var o = roleOf(state, n.owner); return { notice: n, role: o, give: giveNames(state, n, atUs), elig: canBook(state, o, me, atUs) }; });
-    var resources = searchResources(state, kw, atUs).filter(function (x) { return x.role.serial !== meSerial; })
-      .map(function (x) { return { role: x.role, resource: x.resource, stock: x.stock, elig: canBook(state, x.role, me, atUs) }; });
-    return { notices: notices, resources: resources };
+  // 找（補十九）：q＝{kw, mode, cat}。「我在找」（want）列別人公告裡可以給的和別人的資源表；「我能給」（give）列別人的需要。自己的公告兩邊都列（照需要、可以給、標籤比）。
+  // 每筆帶 match {level, how}（怎麼對上的）；排序：完全對上 → 近似詞、打錯字 → 同類，同一級裡我通得過他的條件的、還有空格的排前面
+  function search(state, meSerial, q, atUs) {
+    atUs = atUs || nowUs(); if (typeof q === 'string' || q == null) q = { kw: q };
+    var me = roleOf(state, meSerial), kw = normText(q.kw).trim(), Q = { kw: kw, cat: q.cat && (SUBS[q.cat] || BIGS[q.cat]) ? q.cat : '' }, mode = q.mode === 'give' ? 'give' : 'want', any = !!(kw || Q.cat);
+    var notices = [];
+    noticesOf(state).forEach(function (n) {
+      var o = roleOf(state, n.owner); if (!o) return;
+      var v = version(o, atUs), p = pending(o, atUs), items = n.give.map(function (id) { return resourceOf(v, id) || (p && resourceOf(p, id)) || { id: id, name: resourceName(o, id), def: '', cat: '', tags: [] }; });
+      var mine = n.owner === meSerial, m = null, via = null;
+      if (!any) m = { level: 3, how: '' };
+      else {
+        if (mode === 'give' || mine) m = matchItem(Q, [n.need].concat(n.tags || []), n.cat);
+        if (!m && (mode === 'want' || mine)) items.forEach(function (x) { var mm = matchItem(Q, [x.name, x.def || ''].concat(x.tags || []), x.cat); if (mm && (!m || mm.level < m.level)) { m = mm; via = x; } });
+      }
+      if (!m) return;
+      var stocked = items.some(function (x) { return resourceOf(v, x.id) && stockOf(o, x.id).avail > 0; });
+      notices.push({ notice: n, role: o, give: items.map(function (x) { return x.name; }), items: items, elig: canBook(state, o, me, atUs), match: m, via: via ? via.name : null, stocked: stocked, cat: catOf(n.cat), tags: n.tags || [] });
+    });
+    notices.sort(function (a, b) { return rankOf(a) - rankOf(b); });
+    var resources = [];
+    if (mode === 'want') state.roles.forEach(function (r) {
+      if (r.serial === meSerial) return; var el = null;
+      version(r, atUs).resources.forEach(function (x) {
+        var m = any ? matchItem(Q, [x.name, x.def || ''].concat(x.tags || []), x.cat) : (x.price > 0 ? { level: 3, how: '' } : null); if (!m) return;
+        var st = stockOf(r, x.id); resources.push({ role: r, resource: x, stock: st, elig: el || (el = canBook(state, r, me, atUs)), match: m, stocked: st.avail > 0, cat: catOf(x.cat), tags: x.tags || [] });
+      });
+    });
+    resources.sort(function (a, b) { return rankOf(a) - rankOf(b) || byFacts(state, atUs)(a.role, b.role); });
+    return { notices: notices, resources: resources, mode: mode, kw: kw, cat: Q.cat };
   }
 
   /* ---------- 公告欄：接上去、鏈、岔路、接成一圈（第 5 節「公告欄」）。平台不幫忙找，線是人自己接的 ----------
@@ -842,7 +1046,7 @@ var CORE = (function () {
     f = f || {}; var side = f.side === 'give' ? 'give' : 'need', item = null;
     if (side === 'give') { item = f.item || p.give[0]; if (!item || p.give.indexOf(item) < 0) bad('要選他可以給的哪一樣'); }
     if (noticesOf(state).some(function (n) { return n.owner === me && n.parent && n.parent.notice === parentId && n.parent.side === side; })) bad('你已經接在這張公告上了');
-    var n = postNotice(state, me, { need: f.need, kind: f.kind, give: f.give, cap: f.cap == null ? p.cap : f.cap, untilDay: f.untilDay == null ? p.untilDay : f.untilDay }, atUs);
+    var n = postNotice(state, me, { need: f.need, kind: f.kind, tags: f.tags, cat: f.cat, give: f.give, cap: f.cap == null ? p.cap : f.cap, untilDay: f.untilDay == null ? p.untilDay : f.untilDay }, atUs);
     if (side === 'need' && !n.give.length) { state.notices = noticesOf(state).filter(function (x) { return x !== n; }); bad('接到他的需要下面，要選一樣你給他的東西'); }
     n.parent = { notice: parentId, side: side, item: item };
     var c = detectCircle(state, n, atUs);
@@ -1358,7 +1562,9 @@ var CORE = (function () {
     return old;
   }
   // 空出來的地（補十八）：以前有人住、現在空著；有人搬進去或換位置過去就拿掉
-  function vacate(v, pos) { v.vacated = v.vacated || []; if (!v.vacated.some(function (q) { return q[0] === pos[0] && q[1] === pos[1]; })) v.vacated.push([pos[0], pos[1]]); }
+  var VACATED_MAX = 50;   // 空出來的地最多記這麼多筆：已經不靠著任何一間屋的先刪掉，再超過只留最新的
+  function vacate(v, pos) { v.vacated = v.vacated || []; if (!v.vacated.some(function (q) { return q[0] === pos[0] && q[1] === pos[1]; })) v.vacated.push([pos[0], pos[1]]); pruneVacated(v, v.members); }
+  function pruneVacated(v, members) { if (!v.vacated) return; v.vacated = v.vacated.filter(function (q) { return members.some(function (m) { return cellDist(m.pos, q) <= NEAR; }); }); if (v.vacated.length > VACATED_MAX) v.vacated = v.vacated.slice(-VACATED_MAX); }
   function unvacate(v, pos) { if (v.vacated) v.vacated = v.vacated.filter(function (q) { return q[0] !== pos[0] || q[1] !== pos[1]; }); }
   // 新鄰居挑地（或換位置）時先幫他選好的那一塊：空出來、現在沒人、靠著村裡的屋；最早空出來的先；沒有就 null
   function suggestedSpot(state, vid, except) {
@@ -1367,8 +1573,8 @@ var CORE = (function () {
     return q ? [q[0], q[1]] : null;
   }
   function dropMember(state, v, serial, why) {
-    var gone = memberOf(v, serial); if (gone) vacate(v, gone.pos);
-    v.members = v.members.filter(function (m) { return m.serial !== serial; }); v.pending = v.pending.filter(function (p) { return p.who !== serial && p.by !== serial; });
+    var gone = memberOf(v, serial);
+    v.members = v.members.filter(function (m) { return m.serial !== serial; }); if (gone) vacate(v, gone.pos); v.pending = v.pending.filter(function (p) { return p.who !== serial && p.by !== serial; });
     v.pending.forEach(function (p) { p.approvals = p.approvals.filter(function (x) { return x !== serial; }); });
     state.records.push({ kind: 'village', at: nowUs(), serial: serial, text: abbrev(serial) + ' ' + nameOf(state, serial) + ' ' + (why || '搬走了') });
     if (v.members.length <= 1) state.villages = villagesOf(state).filter(function (x) { return x !== v; });   // 剩一個人，村子就散了
@@ -1406,7 +1612,8 @@ var CORE = (function () {
     var kept = []; members.forEach(function (m) { if (!kept.some(function (k) { return k.pos[0] === m.pos[0] && k.pos[1] === m.pos[1]; })) kept.push(m); });   // 重疊的丟掉；中間空掉、離得遠照樣是同一個村子
     var out = { id: str(v.id, 60, '村子'), members: kept, pending: list(v.pending || [], 200, '村子').map(function (p) { obj(p, '村子'); return { id: str(p.id, 60, '村子'), kind: p.kind === 'expel' ? 'expel' : 'join', who: str(p.who, 11, '村子'), by: str(p.by, 11, '村子'), approvals: list(p.approvals || [], 500, '村子').map(function (x) { return str(x, 11, '村子'); }), atUs: num(p.atUs, '村子') }; }).filter(function (p) { return roleOf(state, p.who) && roleOf(state, p.by); }), atUs: num(v.atUs, '村子') };
     if (v.proposed) out.proposed = true;
-    var vac = []; list(v.vacated || [], 500, '空地').forEach(function (p) { try { var q = vec(p, 2, '空地'); if (q[0] % 1 === 0 && q[1] % 1 === 0 && !kept.some(function (m) { return m.pos[0] === q[0] && m.pos[1] === q[1]; }) && !vac.some(function (x) { return x[0] === q[0] && x[1] === q[1]; })) vac.push(q); } catch (e) { /* 壞掉的丟掉 */ } });
+    var vac = []; list(v.vacated || [], 100000, '空地').forEach(function (p) { try { var q = vec(p, 2, '空地'); if (q[0] % 1 === 0 && q[1] % 1 === 0 && !kept.some(function (m) { return m.pos[0] === q[0] && m.pos[1] === q[1]; }) && !vac.some(function (x) { return x[0] === q[0] && x[1] === q[1]; })) vac.push(q); } catch (e) { /* 壞掉的丟掉 */ } });
+    vac = vac.filter(function (q) { return kept.some(function (m) { return cellDist(m.pos, q) <= NEAR; }); }).slice(-VACATED_MAX);   // 不靠著任何一間屋的刪掉；超過上限只留最新的（不丟整個村子）
     if (vac.length) out.vacated = vac;   // 舊存檔沒有這個也行
     if (out.proposed ? out.members.length !== 1 || !out.pending.length : out.members.length < 2) return null;
     return out;
@@ -1581,7 +1788,7 @@ var CORE = (function () {
     // 示範角色：阿澄（條件：可換的貨 ≥ 5）、小樂（要兩方都通、接受家規）、引路人（沒有條件、一堆 0 點的「空的」）。第一次打開從創角色開始
     createRole(st, { serial: '00000000002', name: '阿澄', dailyPoints: 2000, house: { template: 'tower', wall: 'brick', roof: 'slate', sign: '聽你講，幫你改', calDir: 'up', extra: [[-3, 0, 2, 'lamp'], [-4, 0, 3, 'flower', 0], [-5, 0, 3, 'flower', 0]] },
       rules: { uses: ['1 阿澄點 = 聽你講 1 分鐘', '100 阿澄點 = 幫你改一份履歷'], conditions: [{ field: 'avail', op: '>=', value: 5 }], village: '東恆家規：對接後要一起立一個難題。' },
-      resources: [{ id: 'r2a', name: '改履歷', def: '一份，三天內回', price: 100, keepDays: 30, avail: 3 }, { id: 'r2b', name: '一小時諮詢', def: '', price: 90, keepDays: null, avail: 10 }, { id: 'r2c', name: '試聽 5 分鐘', def: '試用品，不收點', price: 0, keepDays: 7, avail: 3 }], contact: '' }, ago(420));
+      resources: [{ id: 'r2a', name: '改履歷', def: '一份，三天內回', price: 100, keepDays: 30, avail: 3 }, { id: 'r2b', name: '一小時諮詢', def: '', price: 90, keepDays: null, avail: 10 }, { id: 'r2c', name: '試聽 5 分鐘', def: '試用品，不收點', price: 0, keepDays: 7, avail: 3, cat: 'talk' }], contact: '' }, ago(420));
     createRole(st, { serial: '00000000003', name: '小樂', dailyPoints: 800, house: { template: 'long', wall: 'sand', roof: 'moss', sign: '借書的長屋', calDir: 'right', extra: [[-3, 0, 3, 'tree', 0], [2, 0, 3, 'tree', 90], [0, 0, 3, 'flower', 0], [-6, 0, -5, 'wood'], [-6, 1, -5, 'wood']] },
       rules: { uses: ['1 小樂點 = 借書 1 天'], conditions: [{ field: 'myPoints', op: '>=', value: 0 }], bothMustPass: true, mustAcceptVillage: true, village: '小樂家規：借的書要在一個月內還。' },
       resources: [{ id: 'r3a', name: '借一本書', def: '', price: 10, keepDays: 14, avail: 20 }, { id: 'r3b', name: '幫忙搬東西一小時', def: '約好時間到你家，搬完為止', price: 30, keepDays: 14, avail: 3, kind: 'act' }, { id: 'r3e', name: '空的', def: '什麼都不給', price: 0, keepDays: null, avail: 10 }], contact: 'mail@example.com' }, ago(230));
@@ -1672,7 +1879,7 @@ var CORE = (function () {
       rules: { uses: list(ru.uses || [], LIMITS.rules, '用途').map(function (t) { return str(t, LIMITS.text, '用途'); }),
                conditions: list(ru.conditions || [], LIMITS.rules, '條件').map(function (c) { obj(c, '條件'); if (!COND_FIELDS[c.field]) bad('條件格式錯'); if (COND_FIELDS[c.field].kinds) { if (!GIVE_KINDS[c.value]) bad('條件格式錯'); return { field: c.field, op: '=', value: c.value }; } if (!OPS[c.op]) bad('條件格式錯'); return { field: c.field, op: c.op, value: num(c.value, '條件') }; }),
                bothMustPass: !!ru.bothMustPass, mustAcceptVillage: !!ru.mustAcceptVillage, village: str(ru.village || '', LIMITS.text, '家規'), site: (function () { try { return cleanSite(ru.site); } catch (e) { return ''; } })(), villageKey: ru.villageKey == null ? null : str(ru.villageKey, 200, '金鑰'), maxGiveDefault: ru.maxGiveDefault == null ? null : num(ru.maxGiveDefault, '每人最多給') },
-      resources: list(v.resources || [], LIMITS.rules, '資源').map(function (x) { obj(x, '資源'); return { id: ident(x.id, '資源'), name: str(x.name, LIMITS.name, '資源'), kind: KINDS[x.kind] ? x.kind : '', def: str(x.def || '', LIMITS.text, '定義'), price: num(x.price, '價格'), keepDays: x.keepDays == null ? null : num(x.keepDays, '保留天數') }; }) };
+      resources: list(v.resources || [], LIMITS.rules, '資源').map(function (x) { obj(x, '資源'); return { id: ident(x.id, '資源'), name: str(x.name, LIMITS.name, '資源'), kind: KINDS[x.kind] ? x.kind : '', cat: x.cat === undefined ? classify(x.name, x.def) : (SUBS[x.cat] ? x.cat : ''), tags: cleanTags(x.tags != null ? list(x.tags, 10, '標籤') : []).slice(0, TAG_MAX), def: str(x.def || '', LIMITS.text, '定義'), price: num(x.price, '價格'), keepDays: x.keepDays == null ? null : num(x.keepDays, '保留天數') }; }) };
   }
   function cleanRole(r) {
     obj(r, '角色');
@@ -1707,7 +1914,7 @@ var CORE = (function () {
   var KEY = 'arrive-v9', OLD_KEY = 'arrive-v8';
   function cleanNotice(n) {
     obj(n, '公告');
-    return { id: str(n.id, 60, '公告'), owner: str(n.owner, 11, '公告'), need: str(n.need, 200, '公告'), kind: str(n.kind || '', 20, '種類'), give: list(n.give || [], 50, '可以給').map(function (id) { return ident(id, '可以給'); }), cap: num(n.cap, '上限'), untilDay: n.untilDay == null ? null : num(n.untilDay, '期限'), atUs: num(n.atUs, '公告'), pinned: !!n.pinned,
+    return { id: str(n.id, 60, '公告'), owner: str(n.owner, 11, '公告'), need: str(n.need, 200, '公告'), cat: n.cat === undefined ? classify(n.need) : (SUBS[n.cat] ? n.cat : ''), tags: cleanTags(n.tags != null ? list(n.tags, 10, '標籤') : [str(n.kind || '', 20, '種類')]).slice(0, TAG_MAX), give: list(n.give || [], 50, '可以給').map(function (id) { return ident(id, '可以給'); }), cap: num(n.cap, '上限'), untilDay: n.untilDay == null ? null : num(n.untilDay, '期限'), atUs: num(n.atUs, '公告'), pinned: !!n.pinned,
       parent: n.parent ? (function () { var p = obj(n.parent, '接上去'); return { notice: str(p.notice, 60, '接上去'), side: p.side === 'give' ? 'give' : 'need', item: p.item == null ? null : ident(p.item, '接上去') }; })() : null, noReport: !!n.noReport, doneBy: n.doneBy ? (function () { var d = obj(n.doneBy, '做到了'); return { need: str(d.need, 200, '做到了'), owner: str(d.owner, 11, '做到了'), atUs: num(d.atUs, '做到了') }; })() : undefined };
   }
   // 存檔壓縮（LZW）：固定 18 位元的碼，0＝後面接一個新字（16 位元），1＝結束；位元流每 15 位元一個字（加 32，避開控制字元和代理對）
@@ -1857,6 +2064,7 @@ var CORE = (function () {
     DOCK_WINDOW_US: DOCK_WINDOW_US, missed: missed, setPresent: setPresent, isPresent: isPresent, judge: judge, expire: expire, myBookings: myBookings, settleDirection: settleDirection,
     itemsText: itemsText, holdStatus: holdStatus, expireHolds: expireHolds, holdsOf: holdsOf, heldPoints: heldPoints, holdings: holdings, redeem: redeem,
     VILLAGE_CELL: VILLAGE_CELL, villagesOf: villagesOf, villageOf: villageOf, neighborsOf: neighborsOf, freeSpots: freeSpots, suggestedSpot: suggestedSpot, spotProblem: spotProblem, inviteNeighbor: inviteNeighbor, applyVillage: applyVillage, approveVillage: approveVillage, rejectVillage: rejectVillage, joinVillage: joinVillage, moveHouse: moveHouse, leaveVillage: leaveVillage, askLeave: askLeave, villageInfo: villageInfo, myInvites: myInvites, viewVillage: viewVillage, cleanVillages: cleanVillages, connected: connected,
+    CATS: CATS, SUBS: SUBS, BIGS: BIGS, TAG_MAX: TAG_MAX, catOf: catOf, classify: classify, cleanTags: cleanTags, normText: normText, matchText: matchText, matchItem: matchItem, setNotice: setNotice, VACATED_MAX: VACATED_MAX,
     circlesOf: circlesOf, noticeOf: noticeOf, edgesOf: edgesOf, linkNotice: linkNotice, chooseCircle: chooseCircle, openCircleSlot: openCircleSlot, bookCircle: bookCircle, presetCircle: presetCircle, giftChain: giftChain, linksUnder: linksUnder, chainOf: chainOf, myCircles: myCircles, doneByOf: doneByOf, ackDoneBy: ackDoneBy, dropNotice: dropNotice,
     defaultWorld: defaultWorld, fresh: fresh, load: load, save: save, findRole: findRole, roleOf: roleOf, GUIDE: GUIDE, isGuide: isGuide, createPlayer: createPlayer, demoMe: demoMe, blankRole: blankRole
   };

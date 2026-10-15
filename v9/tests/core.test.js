@@ -550,7 +550,7 @@ ok('公告欄：掛（需要、種類、可以給、上限、期限都存得住�
   throws(function () { C.postNotice(s, J1, { need: '修腳踏車', give: ['y'], cap: 1 }, T0); }, /至少 2/);
   throws(function () { C.postNotice(s, J1, { need: '修腳踏車', give: ['y'], cap: 3, untilDay: today - 1 }, T0); }, /過去/);
   var n = C.postNotice(s, J1, { need: '修腳踏車', kind: '修理', give: ['y', 'x', 'y'], cap: 3, untilDay: today + 2 }, T0);
-  assert.deepStrictEqual([n.need, n.kind, n.give, n.cap, n.untilDay, n.owner], ['修腳踏車', '修理', ['y', 'x'], 3, today + 2, J1]);
+  assert.deepStrictEqual([n.need, n.tags, n.cat, n.give, n.cap, n.untilDay, n.owner], ['修腳踏車', ['修理'], 'bike', ['y', 'x'], 3, today + 2, J1], '舊的「種類」變第一個標籤；類別照字自動選（修理／腳踏車機車）');
   assert.deepStrictEqual([n.parent, n.noReport], [null, false], '沒接在誰下面、不用回報預設關');
   var back = JSON.parse(JSON.stringify(s)); assert.deepStrictEqual(back.notices[0].cap, 3);
   var n2 = C.postNotice(s, J2, { need: '一杯茶', give: ['e2'], cap: 2 }, T0);
@@ -564,10 +564,11 @@ ok('公告欄搜尋：一個關鍵字同時查公告（需要、種類、可以�
   var v2 = C.tomorrow(s, J2, T0 - DAY); v2.rules.conditions.push({ field: 'avail', op: '>=', value: 100 }); v2.rules.bothMustPass = true;   // 乙要求兩方都通、對方可換 ≥ 100：甲不通
   C.postNotice(s, J2, { need: '想喝茶', kind: '飲料', give: ['p'], cap: 2 }, T0);
   C.postNotice(s, J3, { need: '修理書架', kind: '修理', give: ['q'], cap: 2 }, T0);
-  var r = C.search(s, J1, '茶', T0);
+  var r = C.search(s, J1, { kw: '茶', mode: 'give' }, T0);
   assert.strictEqual(r.notices.length, 1); assert.strictEqual(r.notices[0].role.serial, J2);
-  assert.strictEqual(r.resources.length, 0, '資源裡沒有茶（甲自己的一杯茶不算）');
-  assert.strictEqual(C.search(s, J1, '修理', T0).notices.length, 1, '查種類'); assert.strictEqual(C.search(s, J1, '一首歌', T0).notices.length, 1, '查可以給的東西');
+  assert.strictEqual(r.resources.length, 0, '「我能給」不列資源表'); assert.strictEqual(C.search(s, J1, '茶', T0).resources.length, 0, '資源裡沒有茶（甲自己的一杯茶不算）');
+  assert.strictEqual(C.search(s, J1, '茶', T0).notices.length, 0, '「我在找」只比別人可以給的');
+  assert.strictEqual(C.search(s, J1, { kw: '修理', mode: 'give' }, T0).notices.length, 1, '查標籤（舊的種類）'); assert.strictEqual(C.search(s, J1, '一首歌', T0).notices.length, 1, '查可以給的東西');
   var rb = C.search(s, J1, '借', T0); assert.strictEqual(rb.resources.length, 1); assert.strictEqual(rb.resources[0].resource.name, '借書');
   C.version(s.roles[2], T0).resources[0].def = '圖書館的書'; assert.strictEqual(C.search(s, J1, '圖書館', T0).resources.length, 1, '查定義');
   var all = C.search(s, J1, '', T0); assert.strictEqual(all.notices.length, 2);
@@ -1314,5 +1315,88 @@ ok('示範資料：阿澄和小樂住同一個村子（照規則做出來）、�
   C.demoMe(s, T0); var r1 = C.linkNotice(s, J1, chain[1].id, { side: 'need', give: ['r1b'], need: '一小時諮詢' }, T0); assert.strictEqual(r1.circle, null);
   var r2 = C.linkNotice(s, J1, root.id, { side: 'give', item: 'r2b', give: ['r1b'], need: '一小時諮詢' }, T0 + 1);
   assert.ok(r2.circle && r2.circle.members.length === 4 && r2.circle.leader === J1, '新手接上去就成一圈（4 人）');
+});
+ok('分類（補十九）：12 大類、76 小類、沒有「其他」；需要和東西照字自動選小類，判斷不出來不掛；可以改；名字改了沒改過類別的重選', function () {
+  assert.strictEqual(C.CATS.length, 12); assert.strictEqual(Object.keys(C.SUBS).length, 76);
+  assert.ok(C.CATS.every(function (c) { return c.name !== '其他' && c.subs.every(function (x) { return x.name !== '其他' && x.words.length >= 5; }); }), '沒有「其他」，每個小類都有近似詞');
+  C.CATS.forEach(function (c) { assert.ok(c.subs.reduce(function (k, x) { return k + x.words.length; }, 0) >= 20, c.name + ' 的詞表至少 20 個詞'); });
+  assert.strictEqual(C.catOf(C.classify('幫忙修水龍頭')).path, '修理／水電'); assert.strictEqual(C.catOf(C.classify('借一本書')).path, '用品借用／書');
+  assert.strictEqual(C.classify('空的'), ''); assert.strictEqual(C.classify('一件很特別的事'), '', '判斷不出來就不掛');
+  var s = base(), nt = C.postNotice(s, J1, { need: '幫忙修水龍頭', give: ['y'], cap: 2 }, T0);
+  assert.strictEqual(nt.cat, 'plumb', '掛公告自動選'); C.setNotice(s, J1, nt.id, { cat: 'appliance' }); assert.strictEqual(nt.cat, 'appliance', '可以改');
+  C.setNotice(s, J1, nt.id, { cat: '' }); assert.strictEqual(nt.cat, ''); throws(function () { C.setNotice(s, J1, nt.id, { cat: 'nope' }); }, /沒有這個類別/); throws(function () { C.setNotice(s, J2, nt.id, { cat: 'plumb' }); }, /掛的人/);
+  var x = C.addResource(s, J1, { name: '手工餅乾', def: '', price: 20, keepDays: 3 }, T0); assert.strictEqual(x.cat, 'bake', '資源表加一樣自動選');
+  C.setResource(s, J1, x.id, { name: '咖啡一杯' }, T0); assert.strictEqual(x.cat, 'drink', '名字改了、類別是自動的 → 重選');
+  C.setResource(s, J1, x.id, { cat: 'bento' }, T0); C.setResource(s, J1, x.id, { name: '咖啡兩杯' }, T0); assert.strictEqual(x.cat, 'bento', '改過的類別不動');
+  throws(function () { C.addResource(s, J1, { name: 'a', price: 1, cat: 'zzz' }, T0); }, /沒有這個類別/);
+  assert.strictEqual(C.addResource(s, J1, { name: '一樣東西', price: 1 }, T0).cat, '', '判斷不出來的東西不掛');
+});
+ok('標籤（補十九）：最多 3 個、# 拿掉、空白逗點頓號分、找得到；舊存檔的「種類」變第一個標籤', function () {
+  var s = base();
+  var nt = C.postNotice(s, J1, { need: '修腳踏車', tags: '#素食, 早上 、週末', give: ['y'], cap: 2 }, T0); assert.deepStrictEqual(nt.tags, ['素食', '早上', '週末']);
+  throws(function () { C.postNotice(s, J1, { need: '修腳踏車', tags: ['a', 'b', 'c', 'd'], give: ['y'], cap: 2 }, T0); }, /標籤最多 3 個/);
+  throws(function () { C.setNotice(s, J1, nt.id, { tags: 'a b c d' }); }, /標籤最多 3 個/); throws(function () { C.setNotice(s, J1, nt.id, { tags: '一二三四五六七八九十一二三四五六七八九十一' }); }, /標籤最多 20 字/);
+  C.setNotice(s, J1, nt.id, { tags: '素食 素食' }); assert.deepStrictEqual(nt.tags, ['素食'], '重複的併掉');
+  var x = C.addResource(s, J2, { name: '一首歌', price: 5, tags: ['#週末'] }, T0); assert.deepStrictEqual(x.tags, ['週末']);
+  assert.strictEqual(C.search(s, J1, '週末', T0 + DAY).resources.length, 1, '標籤找得到（資源表）'); assert.strictEqual(C.search(s, J2, { kw: '素食', mode: 'give' }, T0).notices.length, 1, '標籤找得到（公告）');
+  var raw = JSON.parse(JSON.stringify(s)); raw.notices[0].kind = '修理'; delete raw.notices[0].tags; delete raw.notices[0].cat; delete raw.roles[1].versions[0].resources[0].cat; delete raw.roles[1].versions[0].resources[0].tags;
+  var store = {}; global.localStorage = { getItem: function (k) { return store[k] || null; }, setItem: function (k, v) { store[k] = v; }, removeItem: function (k) { delete store[k]; } };
+  store['arrive-v9'] = JSON.stringify(Object.assign(raw, { v: 9, tutorial: { step: 'done' } })); var st = C.load(); delete global.localStorage;
+  var ld = st.notices.find(function (x) { return x.need === '修腳踏車'; }); assert.deepStrictEqual([ld.tags, ld.cat], [['修理'], 'bike'], '舊存檔：種類變第一個標籤、類別照字補上');
+  var p = C.version(st.roles[1], T0).resources[0]; assert.deepStrictEqual([p.cat, p.tags], ['song', []], '舊存檔的東西讀進來也掛好類別');
+  raw.notices[0].tags = ['a', 'b', 'c', 'd', 'e']; assert.strictEqual(C.cleanTags(['x', 'y']).length, 2);
+});
+ok('近似詞和打錯字（補十九）：找「飯」找得到「便當」並寫「近似：飯 → 便當」；簡繁（面／麵）、字顛倒（電水／水電）、少一個字都容得下', function () {
+  var s = base();
+  C.addResource(s, J2, { name: '便當一個', def: '', price: 30, keepDays: 1 }, T0); C.addResource(s, J2, { name: '牛肉麵', def: '', price: 40, keepDays: 1 }, T0); C.addResource(s, J3, { name: '水電修理', def: '換燈泡、修水龍頭', price: 50, keepDays: 1 }, T0);
+  var t = T0 + DAY, r = C.search(s, J1, '飯', t), names = r.resources.map(function (x) { return x.resource.name + '|' + x.match.how; });
+  assert.ok(names.indexOf('便當一個|近似：飯 → 便當') >= 0, '飯 → 便當：' + names.join('，'));
+  assert.ok(C.search(s, J1, '面', t).resources.some(function (x) { return x.resource.name === '牛肉麵' && x.match.level === 1; }), '簡體「面」找得到「麵」');
+  var r2 = C.search(s, J1, '電水', t); assert.ok(r2.resources.some(function (x) { return x.resource.name === '水電修理' && x.match.how === '打錯字：電水 → 水電'; }), '字顛倒：' + JSON.stringify(r2.resources.map(function (x) { return x.match; })));
+  assert.ok(C.search(s, J1, '水龍', t).resources.some(function (x) { return x.resource.name === '水電修理' && x.match.level === 1; }), '少打最後一個字就是子字串');
+  assert.ok(C.search(s, J1, '水頭', t).resources.some(function (x) { return x.resource.name === '水電修理' && x.match.how === '打錯字：水頭 → 水龍頭'; }), '中間少一個字');
+  assert.ok(C.search(s, J1, '便當店', t).resources.some(function (x) { return x.resource.name === '便當一個' && x.match.level === 2; }), '多打一個字');
+  assert.strictEqual(C.search(s, J1, '火箭', t).resources.length, 0, '對不上的沒有');
+});
+ok('排序（補十九）：完全對上 → 近似詞 → 同類；同一級裡我通得過他的條件的、還有空格的排前面；「我在找」列別人可以給的和資源表、「我能給」列別人的需要', function () {
+  var s = base(), J4 = '00000000004', J5 = '00000000005';
+  C.createRole(s, { serial: J4, name: '丁', dailyPoints: 100, rules: { conditions: [{ field: 'avail', op: '>=', value: 100 }], bothMustPass: true }, resources: [{ id: 'd1', name: '便當', price: 10, keepDays: 1, avail: 2 }] }, T0);   // 丁要兩方都通、對方可換 ≥ 100：甲不通
+  C.createRole(s, { serial: J5, name: '戊', dailyPoints: 100, rules: {}, resources: [{ id: 'f1', name: '便當', price: 10, keepDays: 1, avail: 0 }, { id: 'f2', name: '炒飯', price: 10, keepDays: 1, avail: 1 }, { id: 'f3', name: '蛋糕', def: '', price: 10, keepDays: 1, avail: 1, cat: 'bento' }] }, T0);
+  C.addResource(s, J2, { name: '便當', price: 10, keepDays: 1 }, T0); C.restock(s, J2, C.pending(s.roles[1], T0).resources.slice(-1)[0].id, 1);
+  var t = T0 + DAY, r = C.search(s, J1, '便當', t).resources.map(function (x) { return x.role.name + x.resource.name + ':' + x.match.level; });
+  assert.deepStrictEqual(r, ['乙便當:1', '戊便當:1', '丁便當:1', '戊炒飯:2', '戊蛋糕:3'], '完全對上（通的、有貨的先，再通的沒貨，再不通的）→ 近似（炒飯）→ 同類（蛋糕掛在便當熟食）：' + r.join('，'));
+  assert.strictEqual(C.search(s, J1, '便當', t).resources[4].match.how, '同類：食物／便當熟食');
+  var nA = C.postNotice(s, J2, { need: '想吃便當', give: ['p'], cap: 2 }, t), nB = C.postNotice(s, J3, { need: '修水管', give: ['q'], cap: 2 }, t);
+  var want = C.search(s, J1, '便當', t), give = C.search(s, J1, { kw: '便當', mode: 'give' }, t);
+  assert.deepStrictEqual(want.notices.map(function (x) { return x.notice.id; }), [], '「我在找」只比別人公告裡可以給的（一首歌、借書都不是便當）');
+  assert.deepStrictEqual(give.notices.map(function (x) { return x.notice.id; }), [nA.id], '「我能給」列別人的需要'); assert.strictEqual(give.resources.length, 0);
+  var byCat = C.search(s, J1, { kw: '', cat: 'fix' }, t); assert.deepStrictEqual(byCat.notices.map(function (x) { return x.notice.id; }), [], '「我在找」照大類篩：修理類的可以給 沒有');
+  var byCat2 = C.search(s, J1, { kw: '', cat: 'fix', mode: 'give' }, t); assert.deepStrictEqual(byCat2.notices.map(function (x) { return x.notice.id + '|' + x.match.how; }), [nB.id + '|類別：修理'], '「我能給」照大類篩：修水管掛在修理／水電');
+  var sub = C.search(s, J1, { kw: '', cat: 'bento' }, t); assert.deepStrictEqual(sub.resources.map(function (x) { return x.role.name + x.resource.name; }), ['乙便當', '戊炒飯', '戊蛋糕', '戊便當', '丁便當'], '照小類篩（沒打詞）：通的、有貨的先');
+  var mine = C.postNotice(s, J1, { need: '想吃便當', give: ['y'], cap: 2 }, t); assert.ok(C.search(s, J1, '便當', t).notices.some(function (x) { return x.notice.id === mine.id; }), '自己的公告照需要也列得出來');
+});
+ok('空出來的地有上限（補十九）：塞 600 筆讀得回來、筆數不超過上限、不靠著任何一間屋的那筆會被清掉；搬走以後不靠屋的也當場清掉', function () {
+  var s = base(); var inv = C.inviteNeighbor(s, J1, J2, T0); var v = C.villageOf(s, J1); C.joinVillage(s, J2, v.id, inv.id, [2, 0], 0, T0);
+  var raw = JSON.parse(JSON.stringify(s)); raw.villages[0].vacated = []; for (var i = 0; i < 600; i++) raw.villages[0].vacated.push([100 + i, 0]); raw.villages[0].vacated.push([0, 2]);
+  var out = { roles: raw.roles.map(C.cleanRole), notices: [] }; C.cleanVillages(out, raw.villages);
+  assert.strictEqual(out.villages.length, 1, '村子沒丟掉'); assert.deepStrictEqual(out.villages[0].vacated, [[0, 2]], '不靠著任何一間屋的 600 筆清掉，靠著的留下');
+  raw.villages[0].vacated = []; for (i = 0; i < 600; i++) raw.villages[0].vacated.push([i % 3, 1 + Math.floor(i / 3) % 2]);   // 都靠著屋但重複很多；去掉重複以後 6 筆
+  C.cleanVillages(out, raw.villages); assert.ok(out.villages[0].vacated.length <= C.VACATED_MAX && out.villages[0].vacated.length === 6);
+  raw.villages[0].vacated = []; for (i = 0; i < 600; i++) raw.villages[0].vacated.push([i, 0]); raw.villages[0].members[1].pos = [1, 0];   // 甲 [0,0]、乙 [1,0]：靠著的只有前幾格
+  for (i = 0; i < 600; i++) raw.villages[0].vacated.push([0, 1 + i]);
+  C.cleanVillages(out, raw.villages); assert.ok(out.villages[0].vacated.length <= C.VACATED_MAX, '不超過上限：' + out.villages[0].vacated.length);
+  // 當場：三間排一排，兩邊都搬走剩中間 → 離太遠的空地清掉
+  var J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: 100, rules: {}, resources: [] }, T0);
+  var ap = C.applyVillage(s, J3, J1, T0); C.approveVillage(s, J1, v.id, ap.id); C.approveVillage(s, J2, v.id, ap.id); C.joinVillage(s, J3, v.id, ap.id, [4, 0], 0, T0);
+  var ap4 = C.applyVillage(s, J4, J1, T0); [J1, J2, J3].forEach(function (x) { C.approveVillage(s, x, v.id, ap4.id); }); C.joinVillage(s, J4, v.id, ap4.id, [6, 0], 0, T0);
+  C.leaveVillage(s, J1); assert.deepStrictEqual(v.vacated, [[0, 0]]); C.leaveVillage(s, J2); assert.deepStrictEqual(v.vacated, [[2, 0]], '甲那塊離剩下的屋太遠，清掉；乙那塊靠著丙，留著');
+});
+ok('示範角色的東西和公告都掛好類別（補十九）；新手教學找「空的」照樣找得到', function () {
+  var s = C.fresh({ history: false }); C.demoMe(s, T0);
+  s.roles.forEach(function (r) { C.version(r, T0).resources.forEach(function (x) { if (x.price > 0 || r.serial === '00000000002') assert.ok(x.cat, r.name + ' 的「' + x.name + '」沒掛類別'); }); });
+  s.notices.forEach(function (nt) { if (nt.need !== '空的') assert.ok(nt.cat, nt.need + ' 沒掛類別'); });
+  var g = C.search(s, J1, '空的', T0); assert.ok(g.notices.some(function (x) { return x.role.serial === C.GUIDE && x.match.level === 1; }), '找「空的」找得到引路人的公告');
+  assert.strictEqual(C.catOf(s.notices.find(function (x) { return x.need === '想學手機拍照'; }).cat).path, '手作創作／攝影');
+  assert.deepStrictEqual(s.notices.find(function (x) { return x.owner === C.GUIDE; }).tags, ['教學']);
 });
 console.log('core.test.js ok（' + n + ' 項）');

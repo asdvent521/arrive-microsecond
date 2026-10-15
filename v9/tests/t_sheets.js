@@ -134,7 +134,7 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   await H.finger("function(){ return document.querySelector('#tmain [data-act=\"stock\"][data-id=\"r1b\"][data-n=\"-1\"]'); }", '減'); assert((await H.ev("CORE.stockOf(APP.me(),'r1b').avail")) === av && (await H.ev("document.querySelectorAll('#tmain tr[data-id=\"" + J1 + ":r1b\"] .box').length")) >= av, '減：少一格；格子數跟份數一樣');
   await H.finger("function(){ return document.querySelector('#tmain [data-act=\"resMore\"][data-id=\"r1a\"]'); }", '…'); await H.popOk('下架');
   assert((await H.ev("!CORE.pending(APP.me(),APP.now()).resources.some(function(y){return y.id==='r1a';})")) && (await H.ev("CORE.version(APP.me(),APP.now()).resources.some(function(y){return y.id==='r1a';})")), '下架：明天起沒有，今天還在');
-  assert((await H.ev("Array.from(document.querySelectorAll('#tmain thead th')).map(function(t){return t.firstChild.textContent;}).join(',')")) === '#,東西,種類,怎樣算給到了,價錢,保留幾天,有幾份', '資源表的欄位跟紙本一樣');
+  assert((await H.ev("Array.from(document.querySelectorAll('#tmain thead th')).map(function(t){return t.firstChild.textContent;}).join(',')")) === '#,東西,種類,類別,怎樣算給到了,價錢,保留幾天,有幾份', '資源表的欄位跟紙本一樣（補十九多了類別）');
   // 10. 更多 → 規則表：每人最多給的預設
   await H.nav('rules'); await H.edit('#tmain [data-ed="maxGiveDefault"]', 500);
   assert((await H.ev("CORE.pending(APP.me(),APP.now()).rules.maxGiveDefault")) === 500 && (await H.msg()) === '改了，明天起算', '規則表：每人最多給的預設 500，明天起');

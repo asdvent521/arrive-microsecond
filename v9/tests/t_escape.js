@@ -20,7 +20,7 @@ var SHEETS = ['log', 'cal', 'res', 'find', 'more', 'rules', 'together', 'greet',
   await H.nav('res'); await H.edit('#tmain input[data-new="res"]', X);
   var rid = await H.ev("CORE.pending(APP.me(),APP.now()).resources.find(function(x){return x.name===" + JSON.stringify(X) + ";}).id");
   await H.edit('#tmain input[data-ed="resDef"][data-id="' + rid + '"]', X); await check('資源表');
-  await H.nav('find'); await H.setIn('ntNeed', X); await H.setIn('ntKind', X); await H.click('#tmain [data-act="post"]'); await check('公告欄');
+  await H.nav('find'); await H.setIn('ntNeed', X); await H.setIn('ntTags', X.slice(0, 20)); await H.click('#tmain [data-act="post"]'); await check('公告欄');
   await H.nav('house'); await H.edit('#tmain input[data-id="sign"]', X); await check('我的達秒屋');
   var me = JSON.parse(await H.ev("JSON.stringify({c:APP.me().contact,s:CORE.houseOf(APP.me()).sign,n:APP.state().notices.filter(function(n){return n.need===" + JSON.stringify(X) + ";}).length})"));
   assert(me.c === X && me.s === X && me.n === 1, '聯絡方式、門牌、公告都照原樣存起來');

@@ -36,7 +36,7 @@ var HOUSE = (function () {
     if (st.pick) {
       $('hRots').querySelectorAll('[data-rot]').forEach(function (b) { b.classList.toggle('on', +b.dataset.rot === st.rot); });
       var sel = st.pick.sel;
-      $('hpickText').textContent = sel ? '已經幫你選好 [' + sel[0] + ', ' + sel[1] + ']：這裡原本有人住，補進來村子比較完整。也可以點別塊（朝向 ' + st.rot + '°）' : (st.pick.pending ? '點一塊框起來的地，把你的房子放進村子' : '點一塊框起來的地換位置') + '（朝向 ' + st.rot + '°）';
+      $('hpickText').textContent = sel ? '已經幫你選好一塊：這裡原本有人住，補進來村子比較完整。也可以點別塊。' : (st.pick.pending ? '點一塊框起來的地，把你的房子放進村子' : '點一塊框起來的地換位置') + '（朝向 ' + st.rot + '°）';
       $('hPickSel').hidden = !sel; $('hPickSel').textContent = st.pick.pending ? '放在選好的這塊' : '換到選好的這塊';
     }
     $('hBuild').hidden = !own || !WORLD.available || !!st.pick; $('hBuild').textContent = st.building ? '蓋好了' : '蓋'; $('hBuild').classList.toggle('pri', st.building);
