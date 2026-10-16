@@ -54,6 +54,25 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   // 5. 過了期限自動拿掉
   await H.ev("(function(){var S=APP.state();var n=S.notices.find(function(x){return x.owner==='" + J2 + "'&&x.need==='想學跑步';});n.untilDay=CORE.dayNum(APP.now())-1;APP.changed();})()");
   await pg.waitForTimeout(200); assert((await H.ev("APP.state().notices.some(function(x){return x.owner==='" + J2 + "'&&x.need==='想學跑步';})")) === false, '過了期限自動拿掉');
+  // 6. 期限（補二十）：預設今天起 30 天、不能超過；續掛；每人最多 5 張；到期前 3 天事件簿提醒
+  await H.nav('find');
+  var d30 = await H.ev("CORE.dayLabel(CORE.dayNum(APP.now())+30)");
+  assert((await H.ev("document.getElementById('ntUntil').value")) === d30 && (await H.ev("document.getElementById('ntUntil').max")) === d30, '掛公告的期限預設今天起 30 天，最多也是 30 天');
+  await H.setIn('ntNeed', '想借梯子'); await H.setIn('ntUntil', await H.ev("CORE.dayLabel(CORE.dayNum(APP.now())+40)")); await H.check('#tmain [data-give="r1a"]', true); await H.clickText('掛上去', '#tmain');
+  assert((await H.msg()).indexOf('最多掛到今天起 30 天') >= 0, '超過 30 天擋下');
+  await H.setIn('ntNeed', '想借梯子'); await H.setIn('ntUntil', ''); await H.check('#tmain [data-give="r1a"]', true); await H.clickText('掛上去', '#tmain'); assert((await H.msg()).indexOf('要寫掛到哪一天') >= 0, '期限空的擋下');
+  await H.setIn('ntNeed', '想借梯子'); await H.setIn('ntUntil', await H.ev("CORE.dayLabel(CORE.dayNum(APP.now())+2)")); await H.check('#tmain [data-give="r1a"]', true); await H.clickText('掛上去', '#tmain'); assert((await H.msg()) === '公告掛上去了', '2 天後到期的掛上去了');
+  var nid = await H.ev("APP.state().notices.filter(function(n){return n.owner==='" + J1 + "';})[0].id");
+  await H.finger("function(){ return document.querySelector('#tmain tr.mine [data-act=\"renew\"]'); }", '續掛');
+  assert((await H.ev("APP.state().notices.find(function(n){return n.id==='" + nid + "';}).untilDay")) === (await H.ev("CORE.dayNum(APP.now())+30")) && (await H.msg()).indexOf('續掛了，掛到 ' + d30) >= 0, '自己的公告旁邊「續掛」：期限變成今天起 30 天');
+  await H.ev("(function(){var S=APP.state(),t=APP.now();for(var i=2;i<=5;i++)CORE.postNotice(S,'" + J1 + "',{need:'第 '+i+' 張',give:['r1a'],cap:2},t);APP.changed();})()"); await H.nav('find');
+  assert((await H.ev("document.querySelector('#tmain tr[data-id=\"post\"]').textContent")).indexOf('已經掛了 5 張') >= 0, '第一行寫已經掛了 5 張');
+  await H.setIn('ntNeed', '第 6 張'); await H.check('#tmain [data-give="r1a"]', true); await H.clickText('掛上去', '#tmain');
+  assert((await H.msg()) === '你已經掛了 5 張，先撤掉一張或等它到期', '掛滿 5 張：說「你已經掛了 5 張，先撤掉一張或等它到期」');
+  await H.ev("(function(){var S=APP.state();var n=S.notices.find(function(x){return x.id==='" + nid + "';});n.untilDay=CORE.dayNum(APP.now())+3;APP.changed();})()"); await H.nav('log');
+  assert((await H.main()).indexOf('你的公告「想借梯子」3 天後到期，要續掛嗎') >= 0 && (await H.ev("!!document.querySelector('#tmain [data-act=\"renew\"]')")), '到期前 3 天事件簿最上面提醒，旁邊「續掛」');
+  await H.finger("function(){ return document.querySelector('#tmain [data-act=\"renew\"]'); }", '提醒旁邊的續掛');
+  assert((await H.ev("APP.state().notices.find(function(n){return n.id==='" + nid + "';}).untilDay")) === (await H.ev("CORE.dayNum(APP.now())+30")) && (await H.main()).indexOf('要續掛嗎') < 0, '續掛了，提醒不見');
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');
 })().catch(function (e) { console.error(e); process.exit(1); });

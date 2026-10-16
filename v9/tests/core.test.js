@@ -1266,7 +1266,8 @@ ok('一圈：人數超過圈裡任何一張公告的上限就不算接成；沒�
   var s2 = base(); var a2 = C.postNotice(s2, J1, { need: '一首歌', give: ['x'], cap: 3, untilDay: C.dayNum(T0) }, T0);
   var far = C.dayNum(T0) + 30, b2 = C.linkNotice(s2, J2, a2.id, { side: 'need', give: ['p'], need: '借書', untilDay: far }, T0 + 1); var c2 = C.linkNotice(s2, J3, b2.notice.id, { side: 'need', give: ['q'], need: '畫一張圖', untilDay: far }, T0 + 2);
   assert.strictEqual(b2.notice.untilDay, far); var g = C.linkNotice(s2, J1, c2.notice.id, { side: 'need', give: ['x'], need: '一首歌', untilDay: far }, T0 + 3); assert.ok(g.circle && g.circle.status === 'open');
-  C.expire(s2, T0 + DAY); assert.ok(!C.noticeOf(s2, a2.id) && C.noticeOf(s2, b2.notice.id).parent === null && g.circle.status === 'void', '到期：公告拿掉、線拿掉、圈散掉');
+  C.expire(s2, T0 + DAY); assert.ok(C.noticeOf(s2, a2.id) && g.circle.status === 'open', '到期但在一圈裡（還沒成交）：先留著（補二十）');
+  g.circle.status = 'void'; C.expire(s2, T0 + DAY); assert.ok(!C.noticeOf(s2, a2.id) && C.noticeOf(s2, b2.notice.id).parent === null, '那一圈作廢以後：過期的公告拿掉、線拿掉');
   // 不用回報：鏈的起頭當送禮，由他開時段，照一起成交先換
   var s3 = base(); var a3 = C.postNotice(s3, J1, { need: '一首歌', give: ['x'], cap: 3 }, T0);
   var b3 = C.linkNotice(s3, J2, a3.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1); var c3 = C.linkNotice(s3, J3, b3.notice.id, { side: 'need', give: ['q'], need: '畫一張圖' }, T0 + 2);
@@ -1398,5 +1399,82 @@ ok('示範角色的東西和公告都掛好類別（補十九）；新手教學�
   var g = C.search(s, J1, '空的', T0); assert.ok(g.notices.some(function (x) { return x.role.serial === C.GUIDE && x.match.level === 1; }), '找「空的」找得到引路人的公告');
   assert.strictEqual(C.catOf(s.notices.find(function (x) { return x.need === '想學手機拍照'; }).cat).path, '手作創作／攝影');
   assert.deepStrictEqual(s.notices.find(function (x) { return x.owner === C.GUIDE; }).tags, ['教學']);
+});
+ok('動詞先看（第 10 輪）：搬冰箱 → 搬家、教我煮飯 → 烹飪、陪我讀書 → 陪讀、翻譯日文 → 翻譯；第 9 輪分對的照樣對；動詞表是資料', function () {
+  var P = function (t) { var c = C.catOf(C.classify(t)); return c ? c.path : ''; };
+  assert.strictEqual(P('搬冰箱'), '搬運力氣／搬家'); assert.strictEqual(P('教我煮飯'), '教學／烹飪'); assert.strictEqual(P('陪我讀書'), '陪伴／陪讀'); assert.strictEqual(P('翻譯日文'), '諮詢文書／翻譯');
+  assert.strictEqual(P('幫忙修水龍頭'), '修理／水電'); assert.strictEqual(P('借一本書'), '用品借用／書'); assert.strictEqual(P('幫忙搬東西一小時'), '搬運力氣／搬家'); assert.strictEqual(P('有人幫我搬家具'), '搬運力氣／搬家');
+  assert.strictEqual(P('想找人練習日文會話'), '教學／語言'); assert.strictEqual(P('想學手機拍照'), '手作創作／攝影'); assert.strictEqual(P('改履歷'), '諮詢文書／履歷求職'); assert.strictEqual(P('一小時諮詢'), '陪伴／聊天傾聽'); assert.strictEqual(P('陪跑一小時'), '陪伴／陪運動');
+  assert.strictEqual(P('健身教練'), '健康運動／健身指導', '動詞對不到小類、也沒預設 → 退回一般分法'); assert.strictEqual(P('空的'), ''); assert.strictEqual(P('幫你剪頭髮'), '', '剪 沒有預設小類、頭髮不在詞表 → 不掛');
+  assert.ok(Array.isArray(C.VERBS) && C.VERBS.length >= 30 && C.VERBS.every(function (v) { return typeof v[0] === 'string' && C.BIGS[v[1]] && (v[2] == null || C.SUBS[v[2]]); }), '動詞表是資料：[動詞, 大類, 預設小類]');
+});
+ok('簡繁對照（第 10 輪）：找「脚踏车」對到腳踏車機車、「头发」找得到、「简历」→ 履歷求職、「照相」→ 攝影；詞表每個詞的簡體寫法都對得到', function () {
+  assert.strictEqual(C.catOf(C.classify('脚踏车')).path, '修理／腳踏車機車'); assert.strictEqual(C.catOf(C.classify('简历')).path, '諮詢文書／履歷求職'); assert.strictEqual(C.catOf(C.classify('照相')).path, '手作創作／攝影');
+  var s = base(); C.addResource(s, J2, { name: '幫你剪頭髮', price: 50, keepDays: 1 }, T0); C.addResource(s, J3, { name: '修腳踏車', price: 50, keepDays: 1 }, T0);
+  var t = T0 + DAY; assert.ok(C.search(s, J1, '头发', t).resources.some(function (x) { return x.resource.name === '幫你剪頭髮' && x.match.level === 1; }), '「头发」找得到「頭髮」');
+  var r = C.search(s, J1, '脚踏车', t); assert.ok(r.resources.some(function (x) { return x.resource.name === '修腳踏車' && x.match.how === '完全對上「脚踏车」'; }), '「脚踏车」找得到腳踏車，寫的是自己打的字');
+  assert.strictEqual(C.search(s, J1, '简历', t).notices.length, 0); C.postNotice(s, J2, { need: '幫我看履歷', give: ['p'], cap: 2 }, t); assert.strictEqual(C.search(s, J1, { kw: '简历', mode: 'give' }, t).notices[0].match.how, '近似：简历 → 履歷', '简历 → 履歷（近似詞）');
+  var pairs = '便當熟食:便当熟食,便當:便当,飯:饭,炒飯:炒饭,炒麵:炒面,麵條:面条,滷味:卤味,煮飯:煮饭,做飯:做饭,下廚:下厨,煮給:煮给,生鮮食材:生鲜食材,生鮮:生鲜,魚:鱼,雞蛋:鸡蛋,海鮮:海鲜,豬肉:猪肉,雞肉:鸡肉,農產自種:农产自种,自種:自种,農產:农产,自己種:自己种,菜園:菜园,採收:采收,有機:有机,自家種:自家种,田裡:田里,烘焙點心:烘焙点心,點心:点心,麵包:面包,餅乾:饼干,甜點:甜点,手工餅:手工饼,飲料:饮料,豆漿:豆浆,手搖:手摇,食譜做法:食谱做法,食譜:食谱,怎麼煮:怎么煮,菜單:菜单,水電:水电,水龍頭:水龙头,馬桶:马桶,電燈:电灯,燈泡:灯泡,電線:电线,開關:开关,熱水器:热水器,電路:电路,跳電:跳电,家電:家电,洗衣機:洗衣机,冷氣:冷气,電風扇:电风扇,電鍋:电锅,微波爐:微波炉,電視:电视,吹風機:吹风机,吸塵器:吸尘器,除濕機:除湿机,不轉:不转,電腦手機:电脑手机,修電腦:修电脑,修手機:修手机,電腦壞:电脑坏,手機壞:手机坏,螢幕:萤幕,換電池:换电池,當機:当机,鍵盤:键盘,網路不通:网路不通,腳踏車機車:脚踏车机车,腳踏車:脚踏车,機車:机车,單車:单车,補胎:补胎,煞車:煞车,鏈條:链条,打氣:打气,輪胎:轮胎,自行車:自行车,衣服縫補:衣服缝补,縫補:缝补,縫衣:缝衣,改褲:改裤,補衣:补衣,拉鍊:拉链,鈕扣:钮扣,縫紉:缝纫,褲腳:裤脚,修櫃:修柜,抽屜:抽屉,木頭:木头,釘子:钉子,門板:门板,鉸鏈:铰链,背帶:背带,補鞋:补鞋,搬運力氣:搬运力气,搬東西:搬东西,搬運:搬运,搬貨:搬货,搬上樓:搬上楼,搬過去:搬过去,搬沙發:搬沙发,幫忙搬:帮忙搬,打掃:打扫,掃地:扫地,大掃除:大扫除,清潔:清洁,整理收納:整理收纳,收納:收纳,歸位:归位,斷捨離:断舍离,整理房間:整理房间,整理衣櫃:整理衣柜,園藝除草:园艺除草,園藝:园艺,種花:种花,澆花:浇花,組裝家具:组装家具,組裝:组装,組家具:组家具,裝櫃子:装柜子,拼裝:拼装,安裝:安装,鎖螺絲:锁螺丝,裝架子:装架子,搬磚:搬砖,力氣活:力气活,載人:载人,載我:载我,順路:顺路,開車載:开车载,騎車載:骑车载,接機:接机,送機:送机,載一程:载一程,載去:载去,載到:载到,搭便車:搭便车,代買:代买,幫買:帮买,代購:代购,幫我買:帮我买,順便買:顺便买,採買:采买,買菜:买菜,買東西:买东西,送東西:送东西,送貨:送货,遞送:递送,送過去:送过去,排隊代辦:排队代办,排隊:排队,代辦:代办,代領:代领,幫我排:帮我排,代繳:代缴,代辦事:代办事,領包裹:领包裹,掛號:挂号,教學:教学,課業:课业,功課:功课,數學:数学,作業:作业,補習:补习,國文:国文,英文作業:英文作业,語言:语言,韓文:韩文,台語:台语,會話:会话,外語:外语,英語:英语,日語:日语,口說:口说,學英文:学英文,練英文:练英文,練日文:练日文,樂器音樂:乐器音乐,樂器:乐器,鋼琴:钢琴,烏克麗麗:乌克丽丽,學琴:学琴,樂理:乐理,音樂課:音乐课,電腦手機怎麼用:电脑手机怎么用,教電腦:教电脑,教手機:教手机,怎麼用:怎么用,上網:上网,用電腦:用电脑,用手機:用手机,設定:设定,軟體:软体,試算表:试算表,簡報:简报,不會用:不会用,視訊:视讯,傳照片:传照片,烹飪:烹饪,學做菜:学做菜,教做飯:教做饭,廚藝:厨艺,學烘焙:学烘焙,料理課:料理课,學煮:学煮,手作課:手作课,教編織:教编织,學編織:学编织,學陶:学陶,教縫:教缝,教摺紙:教折纸,運動技巧:运动技巧,學游泳:学游泳,教騎車:教骑车,動作技巧:动作技巧,考試證照:考试证照,考試:考试,證照:证照,檢定:检定,駕照:驾照,公職:公职,考古題:考古题,準備考:准备考,諮詢文書:咨询文书,填表申請:填表申请,申請:申请,申辦:申办,補助:补助,表單:表单,報名:报名,登記:登记,履歷求職:履历求职,履歷:履历,簡歷:简历,求職:求职,面試:面试,自傳:自传,職涯:职涯,轉職:转职,工作機會:工作机会,應徵:应征,求職信:求职信,模擬面試:模拟面试,合約:合约,契約:契约,律師:律师,租約:租约,法條:法条,權益:权益,訴訟:诉讼,稅務記帳:税务记帐,稅:税,報稅:报税,記帳:记帐,會計:会计,帳目:帐目,發票:发票,扣繳:扣缴,節稅:节税,帳務:帐务,翻譯:翻译,譯:译,口譯:口译,筆譯:笔译,幫我翻:帮我翻,寫作修改:写作修改,潤稿:润稿,校對:校对,幫我改:帮我改,潤飾:润饰,聊天傾聽:聊天倾听,傾聽:倾听,聽你講:听你讲,談心:谈心,說話:说话,講話:讲话,諮詢:咨询,聽我說:听我说,傾訴:倾诉,公園走:公园走,看醫生:看医生,陪診:陪诊,掛號陪:挂号陪,醫院:医院,回診:回诊,陪就醫:陪就医,陪運動:陪运动,一起運動:一起运动,運動夥伴:运动伙伴,陪練:陪练,陪讀:陪读,一起讀:一起读,讀書會:读书会,陪念書:陪念书,自習:自习,陪寫作業:陪写作业,讀書:读书,念書:念书,寫功課:写功课,複習:复习,陪買:陪买,陪採買:陪采买,逛市場:逛市场,照顧:照顾,帶小孩:带小孩,托嬰:托婴,顧小孩:顾小孩,幼兒:幼儿,寶寶:宝宝,臨托:临托,顧一下小孩:顾一下小孩,安親:安亲,長輩:长辈,顧老人:顾老人,爸媽:爸妈,阿嬤:阿嬷,年長:年长,長者:长者,陪長輩:陪长辈,寵物:宠物,貓:猫,餵貓:喂猫,顧狗:顾狗,顧貓:顾猫,寵物住宿:宠物住宿,照顧病人:照顾病人,看護:看护,術後:术后,臥床:卧床,照護:照护,澆水:浇水,顧花:顾花,顧植物:顾植物,盆栽照顧:盆栽照顾,代澆:代浇,顧菜園:顾菜园,顧家:顾家,顧房子:顾房子,健康運動:健康运动,肩頸:肩颈,腳底:脚底,放鬆:放松,紓壓:纾压,指壓:指压,柔軟:柔软,健身指導:健身指导,重訓:重训,教練:教练,體能:体能,球類:球类,籃球:篮球,網球:网球,壘球:垒球,國標:国标,韻律:韵律,借西裝:借西装,借禮服:借礼服,借洋裝:借洋装,借電鑽:借电钻,借螺絲:借螺丝,借鋸:借锯,電鑽:电钻,螺絲起子:螺丝起子,書:书,借書:借书,小說:小说,漫畫:漫画,繪本:绘本,課本:课本,雜誌:杂志,圖書:图书,家具家電:家具家电,借電扇:借电扇,借家電:借家电,嬰幼兒用品:婴幼儿用品,嬰兒車:婴儿车,推車:推车,嬰兒床:婴儿床,學步:学步,嬰幼兒:婴幼儿,嬰兒用品:婴儿用品,露營戶外:露营户外,露營:露营,帳篷:帐篷,戶外:户外,營燈:营灯,爐具:炉具,釣具:钓具,借車:借车,借腳踏車:借脚踏车,借機車:借机车,借單車:借单车,借滑板車:借滑板车,借汽車:借汽车,借車子:借车子,手作創作:手作创作,畫圖設計:画图设计,畫圖:画图,設計:设计,插畫:插画,畫畫:画画,海報:海报,畫一張:画一张,圖案:图案,寫歌:写歌,作詞:作词,編曲:编曲,寫一首:写一首,譜曲:谱曲,配樂:配乐,攝影:摄影,拍攝:拍摄,相機:相机,拍一組:拍一组,修圖:修图,證件照:证件照,拍產品:拍产品,影片剪輯:影片剪辑,剪輯:剪辑,寫文章:写文章,寫文:写文,寫稿:写稿,寫信:写信,寫一篇:写一篇,寫作:写作,手工藝:手工艺,編織:编织,陶藝:陶艺,刺繡:刺绣,織:织,鉤針:钩针,娛樂:娱乐,桌遊牌卡:桌游牌卡,桌遊:桌游,撲克:扑克,麻將:麻将,圍棋:围棋,狼人殺:狼人杀,一起玩桌遊:一起玩桌游,電玩:电玩,遊戲:游戏,打電動:打电动,連線:连线,手遊:手游,電動:电动,玩遊戲:玩游戏,戲劇:戏剧,魔術:魔术,相聲:相声,演戲:演戏,脫口秀:脱口秀,看電影展覽:看电影展览,電影:电影,展覽:展览,看戲:看戏,演唱會:演唱会,博物館:博物馆,美術館:美术馆,出遊旅行:出游旅行,出遊:出游,旅遊:旅游,郊遊:郊游,一日遊:一日游,聚會派對:聚会派对,聚會:聚会,派對:派对,慶生:庆生,辦趴:办趴,一起吃飯:一起吃饭,同樂:同乐,掃:扫,載:载,顧:顾,縫:缝,畫:画,寫:写'.split(',');
+  assert.ok(pairs.length >= 400); pairs.forEach(function (p) { var a = p.split(':'); assert.strictEqual(C.normText(a[0]), C.normText(a[1]), a[0] + ' 的簡體 ' + a[1] + ' 對不到'); });
+});
+ok('公告期限（補二十）：一定要寫、預設今天起 30 天、不能超過；續掛不疊加；接上去的照上面那張但不超過 30 天；在一圈裡的等判完再到期；只成鏈的照常到期', function () {
+  var s = base(), dn = C.dayNum(T0);
+  var a = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 3 }, T0); assert.strictEqual(a.untilDay, dn + 30, '沒給就是預設 30 天');
+  throws(function () { C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 3, untilDay: '' }, T0); }, /要寫掛到哪一天/); throws(function () { C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 3, untilDay: null }, T0); }, /要寫掛到哪一天/);
+  throws(function () { C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 3, untilDay: dn + 31 }, T0); }, /最多掛到今天起 30 天/);
+  var b = C.postNotice(s, J1, { need: '第二張', give: ['x'], cap: 3, untilDay: dn + 10 }, T0); assert.strictEqual(b.untilDay, dn + 10, '可以改短');
+  C.renewNotice(s, J1, b.id, T0 + 2 * DAY); assert.strictEqual(b.untilDay, dn + 32, '續掛：今天起 30 天'); C.renewNotice(s, J1, b.id, T0 + 2 * DAY); assert.strictEqual(b.untilDay, dn + 32, '再續不疊加');
+  throws(function () { C.renewNotice(s, J2, b.id, T0); }, /掛的人/);
+  var l = C.linkNotice(s, J2, b.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 3 * DAY); assert.strictEqual(l.notice.untilDay, dn + 32, '接上去的預設照上面那張');
+  var l2 = C.linkNotice(s, J3, a.id, { side: 'need', give: ['q'], need: '畫圖' }, T0 + 5 * DAY); assert.strictEqual(l2.notice.untilDay, dn + 30, '上面那張到期日在 30 天內：照它');
+  C.renewNotice(s, J1, a.id, T0 + 5 * DAY); var l3 = C.linkNotice(s, J2, a.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 5 * DAY); assert.strictEqual(l3.notice.untilDay, dn + 35, '上面那張剛續到 35 天後，接上去的也是 35（等於今天起 30）');
+  throws(function () { C.linkNotice(s, J3, a.id, { side: 'give', item: 'x', give: ['q'], need: '畫圖', untilDay: dn + 60 }, T0 + 5 * DAY); }, /最多掛到今天起 30 天/);
+  assert.deepStrictEqual(C.expiringNotices(s, J1, T0 + 28 * DAY).map(function (x) { return [x.notice.id, x.daysLeft]; }), [[b.id, 4]].filter(function () { return false; }).concat([[b.id, 4]]).filter(function (x) { return x[1] <= 3; }), '剩 4 天還不提醒');
+  assert.deepStrictEqual(C.expiringNotices(s, J1, T0 + 29 * DAY).map(function (x) { return [x.notice.id, x.daysLeft]; }), [[b.id, 3]], '到期前 3 天提醒');
+  // 只接成鏈、沒成一圈的照常到期；在一圈裡的等判完
+  var s2 = base(), d2 = C.dayNum(T0); var a2 = C.postNotice(s2, J1, { need: '一首歌', give: ['x'], cap: 3, untilDay: d2 }, T0);
+  var b2 = C.linkNotice(s2, J2, a2.id, { side: 'need', give: ['p'], need: '借書', untilDay: d2 + 5 }, T0 + 1); C.expire(s2, T0 + DAY); assert.ok(!C.noticeOf(s2, a2.id) && C.noticeOf(s2, b2.notice.id).parent === null, '只成鏈：照常到期、線拿掉');
+  var s3 = base(); var a3 = C.postNotice(s3, J1, { need: '一首歌', give: ['x'], cap: 3, untilDay: d2 }, T0);
+  var b3 = C.linkNotice(s3, J2, a3.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1), c3 = C.linkNotice(s3, J1, b3.notice.id, { side: 'need', give: ['x'], need: '一首歌' }, T0 + 2);
+  assert.ok(c3.circle && c3.circle.status === 'open' && C.inActiveCircle(s3, a3.id)); C.expire(s3, T0 + DAY); assert.ok(C.noticeOf(s3, a3.id), '在一圈裡（open）：到期先留著');
+  var slot = C.openCircleSlot(s3, J1, c3.circle.id, T0 + DAY + 3600e6, T0 + DAY); C.expire(s3, T0 + DAY + 10); assert.ok(C.noticeOf(s3, a3.id), '開了時段（slotted）也留著');
+  C.judge(s3, T0 + DAY + 3600e6 + 400e6); assert.ok(c3.circle.status === 'open', '沒人到：那一微秒沒成，圈回到 open'); c3.circle.status = 'void';
+  C.expire(s3, T0 + 2 * DAY); assert.ok(!C.noticeOf(s3, a3.id), '圈作廢以後：過期的拿掉');
+});
+ok('每人最多 5 張（補二十）：只算自己起頭的；接上去的、教學的不算；掛滿說原因；舊存檔超過 5 張照樣讀得回來、沒寫期限的補 30 天、超過的改成 30 天', function () {
+  var s = base(), dn = C.dayNum(T0), ids = [];
+  for (var i = 0; i < 5; i++) ids.push(C.postNotice(s, J1, { need: '第 ' + i + ' 張', give: ['x'], cap: 2 }, T0).id);
+  throws(function () { C.postNotice(s, J1, { need: '第 6 張', give: ['x'], cap: 2 }, T0); }, /你已經掛了 5 張，先撤掉一張或等它到期/);
+  var o = C.postNotice(s, J2, { need: '乙的', give: ['p'], cap: 2 }, T0); C.linkNotice(s, J1, o.id, { side: 'need', give: ['x'], need: '接的' }, T0); assert.strictEqual(s.notices.filter(function (n) { return n.owner === J1; }).length, 6, '接上去的不算');
+  C.removeNotice(s, J1, ids[0]); C.postNotice(s, J1, { need: '補一張', give: ['x'], cap: 2 }, T0);
+  var raw = JSON.parse(JSON.stringify(s)); for (var k = 0; k < 3; k++) raw.notices.push({ id: 'old' + k, owner: J1, need: '舊的 ' + k, give: ['x'], cap: 2, untilDay: k === 0 ? null : k === 1 ? dn + 90 : dn + 5, atUs: T0, parent: null });
+  raw.v = 9; raw.tutorial = { step: 'done' };
+  var store = {}; global.localStorage = { getItem: function (k) { return store[k] || null; }, setItem: function (k, v) { store[k] = v; }, removeItem: function (k) { delete store[k]; } };
+  store['arrive-v9'] = JSON.stringify(raw); var st = C.load(); delete global.localStorage;
+  var mine = st.notices.filter(function (n) { return n.owner === J1 && !n.parent; }); assert.strictEqual(mine.length, 8, '舊存檔 8 張照樣留著');
+  var today = C.dayNum(C.nowUs()); assert.strictEqual(st.notices.find(function (n) { return n.id === 'old0'; }).untilDay, today + 30, '沒寫期限：讀檔那天起 30 天'); assert.strictEqual(st.notices.find(function (n) { return n.id === 'old1'; }).untilDay, today + 30, '超過 30 天：改成 30 天'); assert.strictEqual(st.notices.find(function (n) { return n.id === 'old2'; }).untilDay, dn + 5, '30 天內的不動');
+  throws(function () { C.postNotice(st, J1, { need: '再一張', give: ['x'], cap: 2 }, C.nowUs()); }, /已經掛了 5 張/); [0, 1, 2].forEach(function (k) { C.removeNotice(st, J1, 'old' + k); }); throws(function () { C.postNotice(st, J1, { need: '再一張', give: ['x'], cap: 2 }, C.nowUs()); }, /已經掛了 5 張/, '還有 5 張');
+  C.removeNotice(st, J1, mine[0].id); C.postNotice(st, J1, { need: '再一張', give: ['x'], cap: 2 }, C.nowUs());
+  assert.ok(C.fresh({ history: false }).notices.every(function (n) { return n.pinned || (n.untilDay != null && n.untilDay <= today + 30); }), '示範角色的公告都有 30 天內的期限（教學公告例外）');
+});
+ok('分支樹（補二十）：起頭在最上面、接上來的往下、岔路照順序；線上寫誰給誰什麼；狀態；接成一圈的、尾巴', function () {
+  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: 100, rules: {}, resources: [{ id: 'd', name: '一杯茶', price: 5, keepDays: 1, avail: 2 }] }, T0);
+  var a = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0);
+  var b = C.linkNotice(s, J2, a.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1), b2 = C.linkNotice(s, J4, a.id, { side: 'give', item: 'x', give: ['d'], need: '想喝茶' }, T0 + 2);
+  var c = C.linkNotice(s, J3, b.notice.id, { side: 'need', give: ['q'], need: '畫一張圖' }, T0 + 3);
+  var tr = C.chainTree(s, c.notice.id, J3, T0);
+  assert.strictEqual(tr.root.id, a.id, '從鏈中間打開也是起頭在最上面'); assert.deepStrictEqual(tr.root.children.map(function (k) { return [k.id, k.index, k.edge.text]; }), [[b.notice.id, 0, '乙 給 甲：一首歌'], [b2.notice.id, 1, '甲 給 丁：畫一張圖']], '岔路照接上去的順序；線上寫誰給誰什麼');
+  assert.deepStrictEqual(tr.root.children[0].children.map(function (k) { return [k.id, k.depth, k.edge.text, k.mine, k.name]; }), [[c.notice.id, 2, '丙 給 乙：借書', true, '丙']]);
+  assert.deepStrictEqual([tr.focus, tr.tails.sort(), tr.circles], [c.notice.id, [b2.notice.id, c.notice.id].sort(), []], '自己那張是焦點；兩條尾巴都還沒接回起點；還沒有圈');
+  assert.ok(tr.root.status === '' && tr.root.statusText === '' && tr.nodes[c.notice.id].daysLeft === 30, '還沒到期、沒在圈裡：沒狀態');
+  var g = C.linkNotice(s, J1, c.notice.id, { side: 'need', give: ['x'], need: '一首歌' }, T0 + 4); assert.ok(g.circle && g.circle.status === 'open');
+  tr = C.chainTree(s, a.id, J1, T0);
+  assert.strictEqual(tr.circles.length, 1); var ci = tr.circles[0];
+  assert.deepStrictEqual([ci.top, ci.last, ci.n, ci.mine, ci.member, ci.status, ci.nodes.length], [a.id, g.notice.id, 3, true, true, 'open', 4], '一圈：起點是起頭那張、最後一張是接回起點的那張、3 人、我是圈主');
+  assert.deepStrictEqual([tr.nodes[a.id].status, tr.nodes[g.notice.id].statusText, tr.nodes[b2.notice.id].status], ['circle', '在一圈裡', ''], '圈裡的標「在一圈裡」，岔路丁那張沒有');
+  assert.deepStrictEqual(tr.tails, [b2.notice.id], '圈裡的尾巴不再留「接在這裡」，丁那條還有');
+  C.openCircleSlot(s, J1, g.circle.id, T0 + 3600e6, T0); tr = C.chainTree(s, a.id, J2, T0); assert.strictEqual(tr.nodes[a.id].statusText, '已開時段'); assert.ok(tr.circles[0].slot && !tr.circles[0].slot.booked && !tr.circles[0].mine, '乙看：已開時段、還沒約、不是圈主');
+  var e = C.postNotice(s, J2, { need: '快到期的', give: ['p'], cap: 2, untilDay: C.dayNum(T0) + 2 }, T0); assert.strictEqual(C.chainTree(s, e.id, J1, T0).root.statusText, '快到期');
+  throws(function () { C.chainTree(s, 'nope', J1, T0); }, /沒有這張公告/);
 });
 console.log('core.test.js ok（' + n + ' 項）');

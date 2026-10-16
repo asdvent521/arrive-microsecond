@@ -15,7 +15,9 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '0000000000
   var tree = await H.ev("Array.from(document.querySelectorAll('#tmain tr[data-row]')).map(function(t){return (t.classList.contains('link')?'└':'')+t.textContent.replace(/\\s+/g,' ').slice(0,30);})");
   assert(tree.some(function (t) { return t.indexOf('└') === 0 && t.indexOf('阿明') >= 0 && t.indexOf('有人幫我搬家具') >= 0; }) && tree.some(function (t) { return t.indexOf('└') === 0 && t.indexOf('小樂') >= 0 && t.indexOf('練習日文') >= 0; }) && (await H.ev(rowOf(lk5) + ".textContent")).indexOf('給 阿澄：手機拍照教學') >= 0, '示範的鏈：阿明、小樂縮排在阿澄那張公告下面，寫給誰什麼');
   await H.finger("function(){ return " + rowOf(lk3) + ".querySelector('[data-act=\"chain\"]'); }", '整條鏈');
-  var ch = await H.popBody(); assert((await H.popTitle()) === '整條鏈' && ch.indexOf('阿澄：需要「想學手機拍照」') >= 0 && ch.indexOf('└ 阿明') >= 0 && ch.indexOf('└ 小樂') >= 0, '整條鏈：阿澄 ← 阿明 ← 小樂'); await H.popOk();
+  var ch = await H.ev("Array.from(document.querySelectorAll('#tmain .tcard')).map(function(c){return c.textContent.replace(/\\s+/g,' ');})");
+  assert((await H.sheetName()) === 'tree' && !(await H.popOpen()) && ch.length === 3 && ch[0].indexOf('阿澄') >= 0 && ch[0].indexOf('想學手機拍照') >= 0 && ch[1].indexOf('阿明') >= 0 && ch[2].indexOf('小樂') >= 0, '整條鏈：一整頁分支樹，阿澄在最上面 ← 阿明 ← 小樂（第 10 輪）');
+  await H.clickText('‹ 公告欄', '#tmain');
   // 2. 小樂另外也接到阿澄的需要下面（第二條岔路）
   await H.becomeMe(J3); await H.nav('find'); await H.finger("function(){ return " + rowOf(root) + ".querySelector('[data-act=\"link\"]'); }", '接上去');
   await H.edit('#lGive', 'r3a'); await H.setIn('lNeed', '想找人練習日文會話'); await H.popOk('接上去');

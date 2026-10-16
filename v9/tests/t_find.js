@@ -16,6 +16,8 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   // 1. 找的框下面一排 12 個大類的鈕（加「全部」）；點了展開小類；再點一次收起來
   var bigs = await catBtns('catBar');
   assert(bigs.length === 13 && bigs[0] === '全部*' && bigs.slice(1).join() === '食物,修理,搬運力氣,接送跑腿,教學,諮詢文書,陪伴,照顧,健康運動,用品借用,手作創作,娛樂' && (await H.ev("!document.getElementById('subBar')")), '找的框下面一排 12 個大類的鈕（「全部」亮著），還沒展開小類');
+  var hs = await H.ev("Array.from(document.querySelectorAll('#catBar button')).map(function(b){return Math.round(b.getBoundingClientRect().height);})");
+  assert(hs.length === 13 && hs.every(function (h) { return h >= 32; }), '大類的鈕至少 32px 高（第 10 輪）：' + hs.join());
   await H.clickText('食物', '#catBar');
   var subs = await catBtns('subBar');
   assert(subs.join() === '便當熟食,代煮一餐,生鮮食材,農產自種,烘焙點心,飲料,食譜做法' && (await catBtns('catBar'))[1] === '食物*', '點「食物」：展開 7 個小類，食物那顆亮著');
@@ -30,9 +32,9 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   await H.setIn('kwIn', '飯'); await H.clickText('找', '#tmain');
   ppl = await people(); assert(ppl.length === 3 && ppl[0].indexOf('便當一個') >= 0 && ppl[0].indexOf('近似：飯 → 便當') >= 0 && ppl[1].indexOf('近似：飯 → 炒麵') >= 0 && ppl[2].indexOf('蛋糕') >= 0 && ppl[2].indexOf('同類：食物／便當熟食') >= 0, '找「飯」：便當（近似：飯 → 便當）、炒麵（近似）、蛋糕（同類：食物／便當熟食）都找得到，近似的在前、同類的在後：' + ppl.join(' | '));
   await H.setIn('kwIn', '电水'); await H.clickText('找', '#tmain');
-  ppl = await people(); assert(ppl.length === 1 && ppl[0].indexOf('水電修理') >= 0 && ppl[0].indexOf('打錯字：電水 → 水電') >= 0, '簡體加字顛倒「电水」：找得到阿明的水電修理，寫「打錯字：電水 → 水電」');
+  ppl = await people(); assert(ppl.length === 1 && ppl[0].indexOf('水電修理') >= 0 && ppl[0].indexOf('打錯字：电水 → 水電') >= 0, '簡體加字顛倒「电水」：找得到阿明的水電修理，寫「打錯字：电水 → 水電」（寫自己打的字、對到的原字）');
   await H.setIn('kwIn', '便当'); await H.clickText('找', '#tmain');
-  ppl = await people(); assert(ppl.length === 3 && ppl[0].indexOf('便當一個') >= 0 && ppl[0].indexOf('完全對上「便當」') >= 0 && ppl[2].indexOf('同類') >= 0, '簡體「便当」算完全對上（排最前面），近似、同類排後面');
+  ppl = await people(); assert(ppl.length === 3 && ppl[0].indexOf('便當一個') >= 0 && ppl[0].indexOf('完全對上「便当」') >= 0 && ppl[2].indexOf('同類') >= 0, '簡體「便当」算完全對上（排最前面，寫自己打的字），近似、同類排後面');
   if (OUT) await pg.screenshot({ path: OUT + '/v9_find_2_near_landscape.png', fullPage: true });
   // 3. 「我能給」：列別人的需要，旁邊「接上去」；點了跳出接上去的框，裡面有類別和標籤
   await H.clickText('我能給', '#tmain');
@@ -48,7 +50,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   assert(ln === JSON.stringify(['想找人練英文', 'lang', ['晚上'], 'need']), '接上去了：需要、類別自動（教學／語言）、標籤、接在需要下面');
   await H.clickText('我在找', '#tmain'); await H.clickText('清掉', '#tmain');
   // 4. 超過 5 張全部捲得到：阿明再掛 8 張，公告全部列出來（不限 5 張），紙往下長，最後一張的「約他」手指按得到
-  await H.ev("(function(){var S=APP.state(),t=APP.now();for(var i=1;i<=8;i++)CORE.postNotice(S,'" + J5 + "',{need:'第 '+i+' 張：想借梯子',give:['r5a'],cap:2},t);APP.changed();})()");
+  await H.ev("(function(){var S=APP.state(),t=APP.now();for(var i=1;i<=4;i++)CORE.postNotice(S,'" + J5 + "',{need:'第 '+i+' 張：想借梯子',give:['r5a'],cap:2},t);for(i=1;i<=3;i++)CORE.postNotice(S,'" + J2 + "',{need:'阿澄第 '+i+' 張：想借梯子',give:['r2a'],cap:2},t);for(i=1;i<=3;i++)CORE.postNotice(S,'" + J3 + "',{need:'小樂第 '+i+' 張：想借梯子',give:['r3a'],cap:2},t);APP.changed();})()");
   var total = await H.ev("APP.state().notices.length");
   assert((await nrows()) === total && total >= 14 && (await H.main()).indexOf('公告 ' + total + ' 張') >= 0 && (await H.ev("document.querySelector('.page').classList.contains('grow')")), '沒打詞：' + total + ' 張公告全部列出來，紙往下長');
   await H.finger("function(){ var bs=document.querySelectorAll('#tmain table:nth-of-type(1) tr[data-row] [data-act=\"bookNext\"]'); return bs[bs.length-1]; }", '最後一張的「約他」');
@@ -83,6 +85,8 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   await H.clickText('修理', '#catBar'); await H.setIn('kwIn', '水'); await H.clickText('找', '#tmain');
   var fit = await H.ev("(function(){var p=document.querySelector('.page'),w=p.getBoundingClientRect().width,bad=[];p.querySelectorAll('#catBar,#subBar,.fields,table').forEach(function(el){var b=el.getBoundingClientRect();if(b.right-p.getBoundingClientRect().left>w+1)bad.push(el.id||el.tagName);});return {w:w,bad:bad,subs:document.querySelectorAll('#subBar button').length};})()");
   assert(fit.bad.length === 0 && fit.subs === 7, '直放：大類、小類、找的框、表都在紙裡（' + fit.w + 'px）' + (fit.bad.length ? '，爆出去的：' + fit.bad.join() : ''));
+  var hs2 = await H.ev("Array.from(document.querySelectorAll('#catBar button, #subBar button')).map(function(b){return Math.round(b.getBoundingClientRect().height);})");
+  assert(hs2.every(function (h) { return h >= 32; }), '直放時大類、小類的鈕也至少 32px 高：' + hs2.join());
   if (OUT) await pg.screenshot({ path: OUT + '/v9_find_3_portrait.png', fullPage: true });
   await pg.setViewportSize({ width: 780, height: 360 }); await pg.waitForTimeout(200);
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
