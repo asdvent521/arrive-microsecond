@@ -35,8 +35,14 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '0000000000
   await H.ev("(function(){var S=APP.state(),t=APP.now();CORE.linkNotice(S,'" + J1 + "','" + root + "',{side:'give',item:'r2b',give:['r1b'],need:'想要有人陪跑'},t);APP.changed();})()");
   await H.nav('find'); await H.finger("function(){ return document.querySelector('#tmain tr[data-id=\"" + root + "\"] [data-act=\"chain\"]'); }", '整條鏈');
   var lit = await H.ev("document.querySelectorAll('#tmain .tcard.lit').length"), litE = await H.ev("document.querySelectorAll('#tmain .te.lit').length");
-  assert(lit === 5 && litE === 4 && (await H.ev("document.querySelectorAll('#treeSvg path').length")) === 1 && (await H.main()).indexOf('接成一圈・4 人') >= 0, '接成一圈：5 張卡片和 4 條線亮起來，一條線彎回起點，起點寫接成一圈・4 人（亮 ' + lit + '、線 ' + litE + '）');
+  assert(lit === 4 && litE === 3 && (await H.ev("document.querySelectorAll('#treeSvg path').length")) === 1 && (await H.main()).indexOf('接成一圈・4 人') >= 0, '接成一圈：4 張卡片和 3 條線亮起來，一條線彎回起點，起點寫接成一圈・4 人（亮 ' + lit + '、線 ' + litE + '）');
+  // 第 11 輪：接回起點的那張（接在起點「可以給」下面）不另外畫，「你」只有一張；彎回去的線上寫誰給誰什麼；沒有「第 3 條」
+  assert((await H.ev("Array.from(document.querySelectorAll('#tmain .tcard b')).filter(function(b){return b.textContent==='你';}).length")) === 1 && (await H.ev("document.querySelectorAll('#tmain .tcard').length")) === 5, '接成一圈後「你」只有一張卡片（5 張：阿澄、阿明、小樂、你、小樂那條岔路）');
+  assert((await H.ev("document.querySelector('#treeSvg text').textContent")) === '阿澄 給 我：一小時諮詢・彎回起點' && (await H.main()).indexOf('第 3 條') < 0 && (await H.ev("Array.from(document.querySelectorAll('#tmain .tno')).map(function(e){return e.textContent;}).join()")) === '第 1 條,第 2 條', '彎回起點的線上寫「阿澄 給 我：一小時諮詢」；第幾條只數接在需要下面的兩條');
+  var geo = await H.ev("(function(){var p=document.querySelector('#treeSvg path');var bb=p.getBBox();var tree=document.getElementById('tree');var tr=CORE.chainTree(APP.state(),document.querySelector('#tmain .tcard').dataset.node,APP.me().serial,APP.now());var last=document.querySelector('.tcard[data-node=\"'+tr.circles[0].last+'\"]').getBoundingClientRect(),tb=tree.getBoundingClientRect(),foot=document.querySelector('.page .foot').getBoundingClientRect();return {pathBottom:bb.y+bb.height,treeClientH:tree.clientHeight,lastBottom:last.bottom-tb.top,footTop:foot.top-tb.top};})()");
+  assert(geo.pathBottom > geo.lastBottom && geo.pathBottom < geo.footTop && geo.pathBottom <= geo.treeClientH, '彎回起點的線最低點在最後一張卡片下緣和紙的下框之間，沒被裁掉：' + JSON.stringify(geo));
   assert((await H.ev("Array.from(document.querySelectorAll('#tmain .tcard.lit .tst')).every(function(e){return e.textContent==='在一圈裡';})")) && (await H.ev("document.querySelector('#tmain .tcard:not(.lit) .tst')")) === null, '圈裡的卡片狀態「在一圈裡」，小樂那條岔路沒有');
+  assert((await H.ev("document.querySelector('#tmain .tcard b').textContent")) === '阿澄（聊天傾聽）' && (await H.ev("Array.from(document.querySelectorAll('#tmain .tcard b')).some(function(b){return b.textContent==='阿明（攝影）';})")), '卡片的名字後面有括弧（補二十一）');
   assert((await H.ev("!!document.querySelector('#tmain .tcard.mine [data-act=\"circleOpen\"]')")) && (await H.ev("document.querySelectorAll('#tmain .ttail').length")) === 1, '我是圈主：我的卡片有「開時段」；圈裡沒有「接在這裡」，小樂那條還有');
   if (OUT) await pg.screenshot({ path: OUT + '/v9_tree_2_circle_landscape.png', fullPage: true });
   await H.finger("function(){ return document.querySelector('#tmain .tcard.mine [data-act=\"circleOpen\"]'); }", '開時段'); assert((await H.popOpen()) && (await H.popTitle()) === '開一起成交的時段', '開時段：跳出開時段的框'); await H.popOk('開時段');
@@ -55,7 +61,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '0000000000
   // 7. 直放：樹左右滑得到、字不擠出卡片；截一張
   await pg.setViewportSize({ width: 360, height: 780 }); await pg.waitForTimeout(300); await H.nav('find'); await H.finger("function(){ return document.querySelector('#tmain tr[data-id=\"" + root + "\"] [data-act=\"chain\"]'); }", '整條鏈');
   var fit = await H.ev("(function(){var t=document.getElementById('tree');var bad=Array.from(t.querySelectorAll('.tcard')).filter(function(c){return c.scrollWidth>c.clientWidth+1;}).length;return {scroll:t.scrollWidth>t.clientWidth,bad:bad,cards:t.querySelectorAll('.tcard').length};})()");
-  assert(fit.bad === 0 && fit.cards === 6, '直放：6 張卡片字不擠出卡片' + (fit.scroll ? '，樹左右滑' : ''));
+  assert(fit.bad === 0 && fit.cards === 5, '直放：5 張卡片字不擠出卡片' + (fit.scroll ? '，樹左右滑' : ''));
   if (OUT) await pg.screenshot({ path: OUT + '/v9_tree_3_portrait.png', fullPage: true });
   await pg.setViewportSize({ width: 780, height: 360 }); await pg.waitForTimeout(200);
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));

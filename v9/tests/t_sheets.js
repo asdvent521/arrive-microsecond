@@ -33,7 +33,7 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   assert((await H.ev("document.getElementById('rotHint').offsetHeight")) === 0, '轉橫就沒有那行字');
   // 3. 序號或密鑰框：簡寫、11 位數、找不到、自己；他的那張紙不能改
   await H.serial('J2');
-  assert((await H.sheetName()) === 'other:res' && (await pg.textContent('#tother')).indexOf('J2 阿澄 的那張紙') >= 0, '序號框輸入 J2 → 阿澄的資源表那張紙，最上面寫是誰');
+  assert((await H.sheetName()) === 'other:res' && (await pg.textContent('#tother')).indexOf('J2 阿澄（聊天傾聽） 的那張紙') >= 0, '序號框輸入 J2 → 阿澄的資源表那張紙，最上面寫是誰（名字後面有括弧）');
   var om = await H.main();
   assert(om.indexOf('換點比例') >= 0 && om.indexOf('對接過') >= 0 && om.indexOf('他的時段') >= 0 && om.indexOf('不能改') >= 0 && (await H.ev("document.querySelectorAll('#tmain input:not([type=checkbox]), #tmain textarea, #tmain select').length")) === 0, '他的資源表：換點比例、對接過幾次、他的時段；格子不能改');
   assert(['看他的規則', '看他的達秒屋', '跟他設打招呼密鑰', '回我自己'].every(function (t) { return om.indexOf(t) >= 0; }), '下面有看他的規則、看他的達秒屋、跟他設打招呼密鑰、回我自己');
@@ -114,7 +114,7 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   assert(same.bad.length === 0 && same.today && same.ev.indexOf('阿澄') >= 0 && same.ev.indexOf('約') < 0, '每格的亮度和小記號跟達秒屋的磚一樣（' + same.n + ' 塊）；今天兩筆成交亮兩級、寫幾點跟誰');
   assert((await H.main()).indexOf('這個月成交 2 次') >= 0, '這個月的合計：成交 2 次');
   await H.serial('J2'); await H.clickText('看他的日曆', '#tmain');
-  assert((await H.sheetName()) === 'other:cal' && (await pg.textContent('#tother')).indexOf('J2 阿澄 的日曆') >= 0 && (await H.ev("document.querySelector('#tmain table.calp td.today').textContent")).indexOf('我') >= 0, '他的那張紙「看他的日曆」：阿澄的日曆，今天那格寫跟我的那幾筆');
+  assert((await H.sheetName()) === 'other:cal' && (await pg.textContent('#tother')).indexOf('J2 阿澄（聊天傾聽） 的日曆') >= 0 && (await H.ev("document.querySelector('#tmain table.calp td.today').textContent")).indexOf('我') >= 0, '他的那張紙「看他的日曆」：阿澄的日曆，今天那格寫跟我的那幾筆');
   await H.ev("(function(){var S=APP.state();CORE.entriesOf(S).filter(function(e){return e.status==='traded'&&(e.a==='" + J2 + "'||e.b==='" + J2 + "');}).forEach(function(e){CORE.setVis(S,'" + J2 + "',e.id,'hidden');});APP.changed();})()");
   var otherView = await H.ev("(function(){var td=document.querySelector('#tmain table.calp td.today');return td.className+'|'+td.textContent;})()");
   assert(otherView.indexOf('蓋著') >= 0 || otherView.indexOf('lit') >= 0, '阿澄把那幾筆全藏：對接的人照樣看得到（' + otherView.replace(/\s+/g, ' ') + '）');
@@ -138,6 +138,27 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   // 10. 更多 → 規則表：每人最多給的預設
   await H.nav('rules'); await H.edit('#tmain [data-ed="maxGiveDefault"]', 500);
   assert((await H.ev("CORE.pending(APP.me(),APP.now()).rules.maxGiveDefault")) === 500 && (await H.msg()) === '改了，明天起算', '規則表：每人最多給的預設 500，明天起');
+  // 10b. 規則表加「對方可換的食物」這一條（補二十一）；看他的規則看得到
+  await H.edit('#addCondField', 'food'); await H.edit('#addCondValue', 1); await H.finger("function(){ return document.querySelector('#tmain [data-act=\"addCond\"]'); }", '加一條');
+  var fc = await H.ev("JSON.stringify(CORE.pending(APP.me(),APP.now()).rules.conditions.filter(function(c){return c.field==='food';}))");
+  assert(fc === JSON.stringify([{ field: 'food', op: '>=', value: 1 }]) && (await H.main()).indexOf('對方可換的食物') >= 0, '規則表加了「對方可換的食物 至少 1 份」（明天起）');
+  await H.ev("(function(){var S=APP.state(),r=APP.me();r.versions.forEach(function(v){if(v.fromDay>CORE.dayNum(APP.now()))v.fromDay=CORE.dayNum(APP.now());});APP.changed();})()");
+  await H.becomeMe(J2); await H.serial('J1'); await H.clickText('看他的規則', '#tmain');
+  assert((await H.main()).indexOf('對方可換的食物') >= 0, '看他的規則看得到這一條'); await H.clickText('回我自己', '#tother'); await H.becomeMe(J1);
+  // 10c. 名字後面的括弧（補二十一）：資源表設自動／挑一樣／不顯示、小類或名字；公告欄、事件簿、他的那張紙最上面都看得到
+  var wid = await H.ev("(function(){var S=APP.state(),t=APP.now();var c=CORE.addResource(S,'" + J1 + "',{name:'陪散步',def:'',price:10,keepDays:1},t);CORE.restock(S,'" + J1 + "',c.id,3);CORE.restock(S,'" + J1 + "','r1b',5);APP.changed();return c.id;})()");   // 前面把陪跑下架了：加一樣「陪散步」（明天起）來挑
+  await H.nav('res');
+  assert((await H.ev("document.querySelector('.tagset').textContent")).indexOf('別人看到') >= 0 && (await H.ev("document.getElementById('tagPreview').textContent")) === '我（便當熟食）', '資源表名字旁邊「別人看到：我（便當熟食）」（自動：早餐一頓可換最多）');
+  await H.edit('#tmain [data-ed="tagMode"]', 'pick'); assert((await H.msg()) === '改了，明天起算' && (await H.ev("!!document.querySelector('#tmain [data-ed=\"tagItem\"]')")), '選「挑一樣」：多一個挑東西的下拉');
+  await H.edit('#tmain [data-ed="tagItem"]', wid); assert((await H.ev("document.getElementById('tagPreview').textContent")) === '我（散步）' && (await H.ev("JSON.stringify(CORE.pending(APP.me(),APP.now()).tag)")) === JSON.stringify({ mode: 'pick', item: wid, show: 'cat' }), '挑陪散步：別人看到「我（散步）」（明天起）');
+  await H.edit('#tmain [data-ed="tagShow"]', 'name'); assert((await H.ev("document.getElementById('tagPreview').textContent")) === '我（陪散步）', '顯示名字：我（陪散步）');
+  await H.edit('#tmain [data-ed="tagMode"]', 'off'); assert((await H.ev("document.getElementById('tagPreview').textContent")) === '我', '不顯示：只剩名字');
+  await H.edit('#tmain [data-ed="tagMode"]', 'auto');
+  await H.nav('find'); assert((await H.main()).indexOf('阿澄（聊天傾聽）') >= 0 && (await H.main()).indexOf('小樂（書）') >= 0, '公告欄的名字後面有括弧');
+  await H.serial('J5'); assert((await pg.textContent('#tother')).indexOf('J5 阿明（攝影）') >= 0 && (await H.main()).indexOf('阿明（攝影）') >= 0, '他的那張紙最上面和名字欄有括弧'); await H.clickText('回我自己', '#tother');
+  await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+600e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);APP.changed();})()"); await H.nav('log');
+  assert((await H.ev("Array.from(document.querySelectorAll('#tmain tr[data-row] td:nth-child(2)')).some(function(t){return t.textContent.indexOf('阿澄（聊天傾聽）')>=0;})")), '事件簿「跟誰」有括弧');
+  await H.ev("(function(){var S=APP.state();var sl=CORE.roleOf(S,'" + J2 + "').slots.slice(-1)[0];CORE.cancelBooking(S,'" + J1 + "',sl.id);APP.changed();})()");
   await H.nav('slots'); assert((await H.rows('slots')) >= 1, '更多 → 我開的時段列出時段');
   await H.nav('role'); assert((await H.main()).indexOf('換人（測試用）') >= 0 && (await H.main()).indexOf('不玩了') >= 0, '角色設定：聯絡方式、不玩了、最下面換人');
   // 11. 讀得到 v8 的存檔就搬過來，讀不了從創角色開始

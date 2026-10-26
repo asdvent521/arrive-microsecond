@@ -261,8 +261,8 @@ ok('7. 不玩了：手上有他點的人都換完才能刪；單機版同意就�
   var s2 = base();
   assert.strictEqual(C.quit(s2, J1, T0 + 61e6), 0, '沒人拿著他的點，直接刪');
 });
-ok('8. 條件欄位：對方可換的貨 ≥ N 份、對方收著多少我的東西、對方對接過幾次、對方要給的東西種類；舊欄位沒了', function () {
-  assert.deepStrictEqual(Object.keys(C.COND_FIELDS), ['avail', 'myPoints', 'dockCount', 'giveKind']);
+ok('8. 條件欄位：對方可換的貨 ≥ N 份、對方收著多少我的東西、對方對接過幾次、對方可換的食物（補二十一）、對方要給的東西種類；舊欄位沒了', function () {
+  assert.deepStrictEqual(Object.keys(C.COND_FIELDS), ['avail', 'myPoints', 'dockCount', 'food', 'giveKind']);
   var s = base();
   C.setRules(s, J1, { conditions: [{ field: 'avail', op: '>=', value: 15 }] }, T0 - DAY);
   assert.strictEqual(C.passes(s, s.roles[0], s.roles[1], T0).ok, false, '乙只有 12 份');
@@ -1464,7 +1464,7 @@ ok('分支樹（補二十）：起頭在最上面、接上來的往下、岔路�
   var c = C.linkNotice(s, J3, b.notice.id, { side: 'need', give: ['q'], need: '畫一張圖' }, T0 + 3);
   var tr = C.chainTree(s, c.notice.id, J3, T0);
   assert.strictEqual(tr.root.id, a.id, '從鏈中間打開也是起頭在最上面'); assert.deepStrictEqual(tr.root.children.map(function (k) { return [k.id, k.index, k.edge.text]; }), [[b.notice.id, 0, '乙 給 甲：一首歌'], [b2.notice.id, 1, '甲 給 丁：畫一張圖']], '岔路照接上去的順序；線上寫誰給誰什麼');
-  assert.deepStrictEqual(tr.root.children[0].children.map(function (k) { return [k.id, k.depth, k.edge.text, k.mine, k.name]; }), [[c.notice.id, 2, '丙 給 乙：借書', true, '丙']]);
+  assert.deepStrictEqual(tr.root.children[0].children.map(function (k) { return [k.id, k.depth, k.edge.text, k.mine, k.name]; }), [[c.notice.id, 2, '丙 給 乙：借書', true, '丙（書）']]);
   assert.deepStrictEqual([tr.focus, tr.tails.sort(), tr.circles], [c.notice.id, [b2.notice.id, c.notice.id].sort(), []], '自己那張是焦點；兩條尾巴都還沒接回起點；還沒有圈');
   assert.ok(tr.root.status === '' && tr.root.statusText === '' && tr.nodes[c.notice.id].daysLeft === 30, '還沒到期、沒在圈裡：沒狀態');
   var g = C.linkNotice(s, J1, c.notice.id, { side: 'need', give: ['x'], need: '一首歌' }, T0 + 4); assert.ok(g.circle && g.circle.status === 'open');
@@ -1476,5 +1476,71 @@ ok('分支樹（補二十）：起頭在最上面、接上來的往下、岔路�
   C.openCircleSlot(s, J1, g.circle.id, T0 + 3600e6, T0); tr = C.chainTree(s, a.id, J2, T0); assert.strictEqual(tr.nodes[a.id].statusText, '已開時段'); assert.ok(tr.circles[0].slot && !tr.circles[0].slot.booked && !tr.circles[0].mine, '乙看：已開時段、還沒約、不是圈主');
   var e = C.postNotice(s, J2, { need: '快到期的', give: ['p'], cap: 2, untilDay: C.dayNum(T0) + 2 }, T0); assert.strictEqual(C.chainTree(s, e.id, J1, T0).root.statusText, '快到期');
   throws(function () { C.chainTree(s, 'nope', J1, T0); }, /沒有這張公告/);
+});
+ok('對方可換的食物（補二十一）：只算掛在食物大類的、只算可換（已保留不算）、0 點也算；那一微秒換光了就不通；預約時不通，原因「對方沒有可換的食物」加「他只跟有食物可換的人換」；預設沒有這個條件', function () {
+  var s = base(), J4 = '00000000004', yi = s.roles[1];   // 乙：一首歌、空的，沒有食物（甲的一杯茶是飲料，算食物）
+  C.createRole(s, { serial: J4, name: '丁', dailyPoints: 100, rules: { conditions: [{ field: 'food', op: '>=', value: 1 }], bothMustPass: true }, resources: [{ id: 'd1', name: '便當', price: 10, keepDays: 1, avail: 2 }, { id: 'e4', name: '空的', price: 0, avail: 3 }] }, T0);   // 丁要兩方都通，不然乙自己沒條件就通了
+  assert.strictEqual(C.foodAvail(yi, T0), 0, '乙沒有食物'); assert.strictEqual(C.foodAvail(s.roles[0], T0), 10, '甲的一杯茶是飲料，10 份'); assert.strictEqual(C.foodAvail(C.roleOf(s, J4), T0), 2, '丁的便當 2 份（空的不是食物）');
+  var e = C.canBook(s, C.roleOf(s, J4), yi, T0); assert.ok(!e.ok && e.reason.indexOf('對方沒有可換的食物') >= 0 && e.reason.indexOf('他只跟有食物可換的人換') >= 0, '乙約丁：不通，原因對方沒有可換的食物（他只跟有食物可換的人換）：' + e.reason);
+  assert.ok(C.canBook(s, C.roleOf(s, J4), s.roles[0], T0).ok, '甲有茶就通');
+  var slot = C.addSlot(s, J4, T0 + 60e6, 2, null, T0); throws(function () { C.book(s, J2, slot.id, T0); }, /對方沒有可換的食物/);
+  C.addResource(s, J2, { name: '空氣中的細菌', def: '', price: 0, keepDays: 1, cat: 'fresh' }, T0 - DAY); var bid = C.version(yi, T0).resources.slice(-1)[0].id; C.restock(s, J2, bid, 1);
+  assert.strictEqual(C.foodAvail(yi, T0), 1, '0 點的掛在食物也算'); assert.ok(C.canBook(s, C.roleOf(s, J4), yi, T0).ok, '有 1 份食物就通');
+  C.book(s, J2, slot.id, T0); C.setPresent(s, J2, slot.id, true); C.setWants(s, slot.id, J4, J2, [bid]); C.setWants(s, slot.id, J2, J4, ['e4']);
+  // 那一微秒前食物被別人保留走了：已保留的不算 → 不通
+  yi.stock[bid] = { avail: 0, reserved: 1 }; assert.strictEqual(C.foodAvail(yi, T0), 0, '已保留的不算');
+  C.judge(s, T0 + 60e6 + 1000); var d = s.dockings.find(function (x) { return x.slot === slot.id; }); assert.ok(d && !d.traded && d.reason.indexOf('對方沒有可換的食物') >= 0, '那一微秒換光了：不成交，原因對方沒有可換的食物：' + (d && d.reason));
+  assert.ok(C.fresh({ history: false }).roles.every(function (r) { return r.versions.every(function (v) { return !v.rules.conditions.some(function (c) { return c.field === 'food'; }); }); }), '示範角色、引路人都沒有這個條件');
+  assert.strictEqual(C.condText({ field: 'food', op: '>=', value: 2 }), '對方可換的食物 至少 2份');
+});
+ok('食物的供需（補二十一）：需要＝掛在食物大類的公告（起頭和接上去的都算，教學不算）；可以給＝有可換食物的人（自己也算，引路人不算）', function () {
+  var s = C.fresh({ history: false }); C.demoMe(s, T0);
+  assert.deepStrictEqual(C.foodSupply(s, T0), { need: 0, give: 1, short: false }, '示範資料：只有我的早餐一頓算食物（示範角色沒有）');
+  var a = C.postNotice(s, J1, { need: '想吃便當', give: ['r1a'], cap: 3 }, T0); C.linkNotice(s, J2, a.id, { side: 'need', give: ['r2a'], need: '想要一袋水果' }, T0 + 1);
+  C.postNotice(s, J3, { need: '修水管', give: ['r3a'], cap: 2 }, T0);
+  var fs = C.foodSupply(s, T0); assert.deepStrictEqual([fs.need, fs.give, fs.short], [2, 1, true], '需要 2 張（起頭＋接上去的）、可以給 1 人 → 缺');
+  var g = C.roleOf(s, C.GUIDE); C.version(g, T0).resources.push({ id: 'gf', name: '一碗飯', cat: 'bento', tags: [], price: 0, keepDays: 1 }); g.stock.gf = { avail: 5, reserved: 0 };
+  assert.strictEqual(C.foodSupply(s, T0).give, 1, '引路人不算');
+  C.version(s.roles[0], T0).resources.push({ id: 'mf', name: '炒麵', cat: 'bento', tags: [], price: 20, keepDays: 1 }); s.roles[0].stock.mf = { avail: 1, reserved: 0 };
+  C.version(C.roleOf(s, J3), T0).resources.push({ id: 'lf', name: '青菜', cat: 'fresh', tags: [], price: 5, keepDays: 1 }); C.roleOf(s, J3).stock.lf = { avail: 0, reserved: 2 };
+  fs = C.foodSupply(s, T0); assert.deepStrictEqual([fs.need, fs.give, fs.short], [2, 1, true], '我多一樣炒麵還是 1 人；小樂的青菜全保留了不算');
+  C.roleOf(s, J3).stock.lf.avail = 1; assert.deepStrictEqual(C.foodSupply(s, T0).give, 2); C.postNotice(s, C.GUIDE, { need: '一碗飯', give: ['r4e'], cap: 2, pinned: true }, T0); assert.strictEqual(C.foodSupply(s, T0).need, 2, '教學公告不算');
+});
+ok('名字後面的括弧（補二十一）：0 點不被選、自動選可換最多（一樣多選前面的）、小類或名字、沒類別顯示名字、超過 6 字截掉、沒貨就拿掉補貨再出來、改了隔天才算、關掉、舊存檔當自動', function () {
+  var s = base();
+  assert.strictEqual(C.nameWith(s, J1, T0), '甲（飲料）', '自動：甲的一杯茶可換最多（10 份）、空的 0 點不算：' + JSON.stringify(C.version(s.roles[0], T0).resources.map(function (x) { return [x.name, x.price, C.stockOf(s.roles[0], x.id).avail]; })));
+  C.createRole(s, { serial: '00000000004', name: '丁', dailyPoints: 100, rules: {}, resources: [{ id: 'a', name: '一樣很特別的東西', price: 5, keepDays: 1, avail: 2 }, { id: 'b', name: '借電鑽', price: 5, keepDays: 1, avail: 2 }, { id: 'c', name: '便當', price: 5, keepDays: 1, avail: 9 }] }, T0);
+  var d = C.roleOf(s, '00000000004');
+  assert.strictEqual(C.nameTag(s, d.serial, T0), '便當熟食', '自動選可換最多的（便當 9 份）');
+  d.stock.c.avail = 2; assert.strictEqual(C.nameTag(s, d.serial, T0), '一樣很特別的…', '一樣多選資源表排前面的；沒類別顯示名字；超過 6 字截掉加…');
+  d.stock.a.avail = 0; assert.strictEqual(C.nameTag(s, d.serial, T0), '工具', '沒貨的不被選：借電鑽（用品借用／工具）');
+  C.setNameTag(s, d.serial, { mode: 'pick', item: 'c' }, T0); assert.strictEqual(C.nameTag(s, d.serial, T0), '工具', '改了隔天才算：今天還是自動的');
+  assert.strictEqual(C.nameTag(s, d.serial, T0 + DAY), '便當熟食', '明天起：挑的便當'); assert.strictEqual(C.nameWith(s, d.serial, T0 + DAY), '丁（便當熟食）');
+  C.setNameTag(s, d.serial, { show: 'name' }, T0); assert.strictEqual(C.nameTag(s, d.serial, T0 + DAY), '便當', '顯示名字');
+  assert.strictEqual(C.nameTag(s, d.serial, T0, C.pending(d, T0)), '便當', '自己的資源表看明天起的設定');
+  d.stock.c.avail = 0; assert.strictEqual(C.nameTag(s, d.serial, T0 + DAY), '', '挑的那樣沒貨就不顯示'); d.stock.c.avail = 1; assert.strictEqual(C.nameTag(s, d.serial, T0 + DAY), '便當', '補貨再出來');
+  throws(function () { C.setNameTag(s, d.serial, { mode: 'pick', item: 'nope' }, T0); }, /要從資源表挑一樣有價錢的東西/);
+  C.setNameTag(s, d.serial, { mode: 'off' }, T0); assert.strictEqual(C.nameWith(s, d.serial, T0 + DAY), '丁', '關掉');
+  var raw = JSON.parse(JSON.stringify(d)); raw.versions.forEach(function (v) { delete v.tag; }); var back = C.cleanRole(raw); assert.deepStrictEqual(back.versions[0].tag, { mode: 'auto', item: null, show: 'cat' }, '舊存檔沒有這個設定就當自動');
+  var f = C.fresh({ history: false }); assert.strictEqual(C.nameWith(f, C.GUIDE, T0), '引路人', '引路人只有空的：沒有括弧'); assert.strictEqual(C.nameWith(s, 'nope', T0), C.abbrev('nope'), '不存在的人只回序號');
+  assert.deepStrictEqual(['00000000002', '00000000003', '00000000005'].map(function (x) { return C.nameWith(f, x, T0); }), ['阿澄（聊天傾聽）', '小樂（書）', '阿明（攝影）'], '示範角色的括弧');
+});
+ok('分支樹（第 11 輪小修正）：接在起點「可以給」下面、把圈接回來的那張不另外畫成岔路，併進彎回起點的線；「第幾條」只數接在同一個需要下面的；卡片名字有括弧', function () {
+  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: 100, rules: {}, resources: [{ id: 'd', name: '一杯茶', price: 5, keepDays: 1, avail: 2 }] }, T0);
+  var a = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0);
+  var b = C.linkNotice(s, J2, a.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1), b2 = C.linkNotice(s, J4, a.id, { side: 'give', item: 'x', give: ['d'], need: '想喝茶' }, T0 + 2), b3 = C.linkNotice(s, J3, a.id, { side: 'need', give: ['q'], need: '畫一張圖' }, T0 + 3);
+  var tr = C.chainTree(s, a.id, J1, T0);
+  assert.deepStrictEqual(tr.root.children.map(function (k) { return [k.side, k.branchNo, k.branchOf]; }), [['need', 1, 2], ['give', null, 0], ['need', 2, 2]], '第幾條只數接在需要下面的：乙第 1 條、丙第 2 條，丁（接在可以給下面）不算');
+  assert.strictEqual(tr.root.name, '甲（飲料）', '卡片名字有括弧');
+  // 乙接到起點「可以給」下面把圈接回來（甲給乙 x；乙給甲 p）→ 那張不另外畫，併進彎回去的線
+  var g = C.linkNotice(s, J2, a.id, { side: 'give', item: 'x', give: ['p'], need: '借書' }, T0 + 4); assert.ok(g.circle && g.circle.status === 'open');
+  tr = C.chainTree(s, a.id, J2, T0);
+  assert.ok(!tr.nodes[g.notice.id] && tr.root.children.every(function (k) { return k.id !== g.notice.id; }), '接回起點的那張不在樹上');
+  var c = tr.circles[0]; assert.deepStrictEqual([c.top, c.last, c.closing, c.loopText, c.nodes.length], [a.id, b.notice.id, g.notice.id, '甲 給 乙：畫一張圖', 2], '彎回起點的線上寫誰給誰什麼；圈裡兩張卡片');
+  assert.strictEqual(Object.keys(tr.nodes).filter(function (id) { return tr.nodes[id].owner === J2; }).length, 1, '乙只有一張卡片'); assert.strictEqual(tr.focus, b.notice.id);
+  assert.deepStrictEqual(tr.tails.sort(), [b2.notice.id, b3.notice.id].sort(), '丁、丙那兩條還是尾巴');
+  // 接在需要下面接回起點的（甲接到丙的需要下面）照舊畫出來，線上沒有字
+  var s2 = base(); var a2 = C.postNotice(s2, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0), c2 = C.linkNotice(s2, J3, a2.id, { side: 'need', give: ['q'], need: '畫一張圖' }, T0 + 1), g2 = C.linkNotice(s2, J1, c2.notice.id, { side: 'need', give: ['x'], need: '一首歌' }, T0 + 2);
+  var tr2 = C.chainTree(s2, a2.id, J1, T0); assert.ok(tr2.nodes[g2.notice.id] && tr2.circles[0].last === g2.notice.id && tr2.circles[0].loopText === '', '接在需要下面的照舊畫，彎回去的線沒有字');
 });
 console.log('core.test.js ok（' + n + ' 項）');

@@ -14,7 +14,7 @@ var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){
   // 1. 從「我的／我的達秒屋」進去
   await H.nav('house'); await H.clickText('去我的達秒屋', '#tmain'); await pg.waitForTimeout(700);
   assert(!(await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("!!document.querySelector('#hstage canvas')")), '從「我的達秒屋」進到自己的達秒屋外面，整個畫面就是達秒屋');
-  assert((await pg.textContent('#hwho')).indexOf('J1 我 的達秒屋') >= 0 && (await pg.textContent('#hwho')).indexOf('0 歲 0 天') >= 0, '最上面寫誰的達秒屋、幾歲幾天');
+  assert((await pg.textContent('#hwho')).indexOf('J1 我（便當熟食） 的達秒屋') >= 0 && (await pg.textContent('#hwho')).indexOf('0 歲 0 天') >= 0, '最上面寫誰的達秒屋（名字後面有括弧）、幾歲幾天');
   assert((await H.ev("WORLD.info().bricks")) === (await H.ev("HOUSE.data().bricks.filter(function(b){return b.onHouse;}).length")), '日曆上的磚數對：' + (await H.ev("WORLD.info().bricks")));
   // 這個月那塊日曆（今天那塊磚）在畫面中間附近、在上下兩條列之間
   var MID = "(function(){var v=HOUSE.data(),s=WORLD.screenOf({day:v.today}),c=document.querySelector('#hstage canvas').getBoundingClientRect(),hb=document.querySelector('.hbar').getBoundingClientRect(),fb=document.querySelector('.hfoot').getBoundingClientRect();if(!s)return null;var el=document.elementFromPoint(s.x,s.y);return {dx:Math.abs(s.x-(c.left+c.width/2))/c.width,dy:Math.abs(s.y-(hb.bottom+fb.top)/2)/(fb.top-hb.bottom),inBand:s.y>hb.bottom&&s.y<fb.top,canvas:!!el&&el.tagName==='CANVAS'};})()";

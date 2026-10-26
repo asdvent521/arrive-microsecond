@@ -242,6 +242,29 @@ var CORE = (function () {
   // 東西是一份能量，分三種：訊息、行為、物質。舊資料沒選的是 ''（畫面標「還沒選」，照樣能換）
   var KINDS = { info: '訊息', act: '行為', thing: '物質' };
   function cleanKind(k) { if (k == null || k === '') return ''; if (!KINDS[k]) bad('種類只有訊息、行為、物質'); return k; }
+  // 名字後面的括弧（補二十一）：寫這個人主要能給什麼，只能從自己的資源表挑一樣（價錢大於 0、可換至少 1 份）；顯示小類或名字，最多 6 個字；設定跟資源表一樣隔天生效（存在版本裡）
+  var NAME_TAG_MAX = 6, TAG_MODES = { auto: '自動', pick: '挑一樣', off: '不顯示' }, TAG_SHOWS = { cat: '小類', name: '名字' };
+  function cleanTag(t) { t = t && typeof t === 'object' ? t : {}; return { mode: TAG_MODES[t.mode] ? t.mode : 'auto', item: t.item == null || t.item === '' ? null : String(t.item), show: TAG_SHOWS[t.show] ? t.show : 'cat' }; }
+  function tagText(x, show) { var c = catOf(x.cat), t = show === 'name' || !c ? x.name : c.name, a = Array.from(String(t)); return a.length > NAME_TAG_MAX ? a.slice(0, NAME_TAG_MAX).join('') + '…' : t; }
+  // 括弧裡的字（或 ''）：v 可以指定用哪一版（自己的資源表看明天起的設定）
+  function nameTag(state, serial, atUs, v) {
+    var r = roleOf(state, serial); if (!r) return '';
+    v = v || version(r, atUs == null ? nowUs() : atUs); var cfg = cleanTag(v.tag);
+    if (cfg.mode === 'off') return '';
+    var ok = v.resources.filter(function (x) { return x.price > 0 && stockOf(r, x.id).avail >= 1; });
+    var pick = null;
+    if (cfg.mode === 'pick') pick = ok.find(function (x) { return x.id === cfg.item; }) || null;   // 挑的那樣沒貨就先不顯示
+    else ok.forEach(function (x) { if (!pick || stockOf(r, x.id).avail > stockOf(r, pick.id).avail) pick = x; });   // 自動：可換份數最多的，一樣多取排前面的
+    return pick ? tagText(pick, cfg.show) : '';
+  }
+  function nameWith(state, serial, atUs, v) { var r = roleOf(state, serial); if (!r) return abbrev(serial); var t = nameTag(state, serial, atUs, v); return r.name + (t ? '（' + t + '）' : ''); }
+  // 改設定：明天起（挑的那樣要在明天的資源表裡、價錢大於 0）
+  function setNameTag(state, serial, f, atUs) {
+    var v = tomorrow(state, serial, atUs), cfg = cleanTag(Object.assign({}, cleanTag(v.tag), f || {}));
+    if (cfg.mode === 'pick' && !cfg.item) { var first = v.resources.find(function (x) { return x.price > 0; }); cfg.item = first ? first.id : null; }   // 剛切到「挑一樣」：先選資源表排前面的
+    if (cfg.mode === 'pick') { var x = cfg.item ? resourceOf(v, cfg.item) : null; if (!x || !(x.price > 0)) bad('要從資源表挑一樣有價錢的東西'); }
+    v.tag = cfg; return cfg;
+  }
   function cleanRes(x) {
     var price = Math.floor(+x.price), keep = x.keepDays == null || x.keepDays === '' ? null : Math.floor(+x.keepDays);
     if (!x.name || !String(x.name).trim()) bad('資源要有名稱'); if (!(price >= 0)) bad('價格要是 0 以上的整數'); if (keep != null && !(keep >= 1)) bad('保留天數要是正整數，或空白＝一直保留');
@@ -307,6 +330,7 @@ var CORE = (function () {
     avail:     { label: '對方可換的東西（全部加起來）', unit: '份', get: function (state, other, atUs) { return availTotal(other, atUs); } },
     myPoints:  { label: '對方收著多少我的東西（價錢加起來）', unit: '點', get: function (state, other, atUs, me) { return heldPoints(state, other.serial, me.serial, atUs); } },
     dockCount: { label: '對方對接過幾次', unit: '次', get: function (state, other, atUs) { return dockCount(state, other.serial); } },
+    food:      { label: '對方可換的食物', unit: '份', get: function (state, other, atUs) { return foodAvail(other, atUs); }, fail: '對方沒有可換的食物' },   // 補二十一：資源表裡掛在食物大類的東西，可換的份數加起來（已保留的不算、0 點的也算）
     giveKind:  { label: '對方要給的東西種類', kinds: true }   // 那一微秒才判：看對方這一筆選給我的那幾樣（0 點的空物件不算）
   };
   var GIVE_KINDS = { same: '跟我同一種', info: '只收訊息', act: '只收行為', thing: '只收物質' };
@@ -315,9 +339,14 @@ var CORE = (function () {
   function condText(c) { var f = COND_FIELDS[c.field]; if (!f) return '？'; if (f.kinds) return c.value === 'same' ? '對方要給的東西跟我同一種' : GIVE_KINDS[c.value] || '？'; return f.label + ' ' + OPS[c.op] + ' ' + c.value + (f.unit || ''); }
   // 條件表用 ruleUs 那一刻生效的版本（改規則不溯及既往），條件裡的事實照 atUs 算
   function passes(state, owner, visitor, atUs, ruleUs) {
-    var failed = version(owner, ruleUs == null ? atUs : ruleUs).rules.conditions.filter(function (c) { return !COND_FIELDS[c.field].kinds && !cmp(COND_FIELDS[c.field].get(state, visitor, atUs, owner), c.op, c.value); }).map(condText);
+    var failed = version(owner, ruleUs == null ? atUs : ruleUs).rules.conditions.filter(function (c) { return !COND_FIELDS[c.field].kinds && !cmp(COND_FIELDS[c.field].get(state, visitor, atUs, owner), c.op, c.value); }).map(function (c) { return COND_FIELDS[c.field].fail || condText(c); });
     return { ok: !failed.length, failed: failed };
   }
+  var FOOD_FAIL = COND_FIELDS.food.fail;
+  // 可換的食物：今天的資源表裡類別掛在食物大類的東西，可換份數加起來（已保留的不算；0 點的也算）
+  function foodAvail(role, atUs) { var v = version(role, atUs == null ? nowUs() : atUs), n = 0; v.resources.forEach(function (x) { if (SUBS[x.cat] && SUBS[x.cat].big === 'food') n += stockOf(role, x.id).avail; }); return n; }
+  // 不通的原因裡有「對方沒有可換的食物」：補一句他只跟有食物可換的人換（預約前看得到）
+  function foodHint(r, pa, pb) { if (pa.failed.indexOf(FOOD_FAIL) >= 0) r.reason += '（他只跟有食物可換的人換）'; else if (pb.failed.indexOf(FOOD_FAIL) >= 0) r.reason += '（你只跟有食物可換的人換）'; return r; }
   // 接受家規記下接受的是哪一版（家規內容）；家規改了，舊的接受不算
   function accepted(state, who, of, village) { return state.acceptances.some(function (a) { return a.who === who && a.of === of && (village == null || a.village === village); }); }
   function acceptedAny(state, who, of) { return state.acceptances.some(function (a) { return a.who === who && a.of === of; }); }
@@ -334,9 +363,9 @@ var CORE = (function () {
     if (ra.mustAcceptVillage && !accepted(state, b.serial, a.serial, ra.village)) return { ok: false, reason: abbrev(b.serial) + ' 還沒接受 ' + abbrev(a.serial) + ' 的家規' + (acceptedAny(state, b.serial, a.serial) ? '（接受的是舊版）' : '') };
     if (rb.mustAcceptVillage && !accepted(state, a.serial, b.serial, rb.village)) return { ok: false, reason: abbrev(a.serial) + ' 還沒接受 ' + abbrev(b.serial) + ' 的家規' + (acceptedAny(state, a.serial, b.serial) ? '（接受的是舊版）' : '') };
     var pa = passes(state, a, b, atUs, ruleUs), pb = passes(state, b, a, atUs, ruleUs);   // pa：b 通 a 的條件
-    if (ra.bothMustPass || rb.bothMustPass) return pa.ok && pb.ok ? { ok: true, how: '兩方都通' } : { ok: false, reason: '要求兩方都通，' + (!pa.ok ? abbrev(b.serial) + ' 不通 ' + abbrev(a.serial) + ' 的條件（' + pa.failed.join('；') + '）' : abbrev(a.serial) + ' 不通 ' + abbrev(b.serial) + ' 的條件（' + pb.failed.join('；') + '）') };
+    if (ra.bothMustPass || rb.bothMustPass) return pa.ok && pb.ok ? { ok: true, how: '兩方都通' } : foodHint({ ok: false, reason: '要求兩方都通，' + (!pa.ok ? abbrev(b.serial) + ' 不通 ' + abbrev(a.serial) + ' 的條件（' + pa.failed.join('；') + '）' : abbrev(a.serial) + ' 不通 ' + abbrev(b.serial) + ' 的條件（' + pb.failed.join('；') + '）') }, !pa.ok ? pa : { failed: [] }, !pa.ok ? { failed: [] } : pb);
     if (pa.ok || pb.ok) return { ok: true, how: pa.ok && pb.ok ? '兩方都通' : pa.ok ? abbrev(b.serial) + ' 通 ' + abbrev(a.serial) + ' 的條件' : abbrev(a.serial) + ' 通 ' + abbrev(b.serial) + ' 的條件' };
-    return { ok: false, reason: '兩邊都不通：' + pa.failed.concat(pb.failed).join('；') };
+    return foodHint({ ok: false, reason: '兩邊都不通：' + pa.failed.concat(pb.failed).join('；') }, pa, pb);
   }
 
   /* ---------- 角色（一人一個） ---------- */
@@ -350,7 +379,7 @@ var CORE = (function () {
     if (!f.name || !String(f.name).trim()) bad('角色要有名字');
     var daily = f.dailyPoints == null ? DEFAULT_DAILY : Math.floor(+f.dailyPoints); if (!(daily >= 1)) bad('每天的點要是正整數');
     var r = { serial: serial, name: String(f.name).trim(), contact: String(f.contact || ''), slots: [], stock: {}, world: f.world || defaultWorld(serial), born: dayNum(atUs), house: cleanHouse(f.house && f.house.template ? Object.assign({}, f.house, { blocks: template(f.house.template, f.house.wall, f.house.roof).concat(f.house.extra || []), cal: { dir: f.house.calDir || 'up', blocks: [] } }) : (f.house || {}), plotOf(0), false, dayNum(atUs), dayNum(atUs)),
-              versions: [{ id: newId('v'), fromDay: dayNum(atUs), dailyPoints: daily, rules: cleanRules(f.rules), resources: (f.resources || []).map(cleanRes) }] };
+              versions: [{ id: newId('v'), fromDay: dayNum(atUs), dailyPoints: daily, rules: cleanRules(f.rules), resources: (f.resources || []).map(cleanRes), tag: cleanTag(f.tag) }] };
     r.versions[0].resources.forEach(function (x, i) { var src = f.resources[i]; r.stock[x.id] = { avail: Math.max(0, Math.floor(+(src && src.avail) || 0)), reserved: 0 }; });
     r.house.calRemoved = 0;   // 新角色：第一塊日曆本來就在牆上，不算拆
     state.roles.push(r);
@@ -1067,6 +1096,14 @@ var CORE = (function () {
     return { notices: notices, resources: resources, mode: mode, kw: kw, cat: Q.cat };
   }
 
+  // 食物的供需（補二十一）：需要＝還掛著、需要掛在食物大類的公告（起頭和接上去的都算，教學公告不算）；可以給＝資源表裡有可換食物的人（自己也算，引路人不算）
+  function foodSupply(state, atUs) {
+    atUs = atUs || nowUs();
+    var need = noticesOf(state).filter(function (n) { return !n.pinned && roleOf(state, n.owner) && SUBS[n.cat] && SUBS[n.cat].big === 'food'; }).length;
+    var give = state.roles.filter(function (r) { return r.serial !== GUIDE && !r.quit && foodAvail(r, atUs) > 0; }).length;
+    return { need: need, give: give, short: need > give };
+  }
+
   /* ---------- 公告欄：接上去、鏈、岔路、接成一圈（第 5 節「公告欄」）。平台不幫忙找，線是人自己接的 ----------
    * 接上去就是自己也掛一張公告，記著接在哪一張的哪一邊（parent：need＝我給他、give＝我拿他的那樣）。
    * 「給」的線：接在 need 下面＝我給他；接在 give 下面＝他給我。線接回起點就是一圈，接起來的人當圈主，開一起成交的時段，平台替每個人先選好東西。 */
@@ -1202,17 +1239,29 @@ var CORE = (function () {
     function build(n, depth, index) {
       var gives = giveNames(state, n, atUs), pr = n.parent ? noticeOf(state, n.parent.notice) : null, edge = null;
       if (pr) edge = n.parent.side === 'need' ? { from: n.owner, to: pr.owner, item: gives[0] || '—', text: nameOf(state, n.owner) + ' 給 ' + nameOf(state, pr.owner) + '：' + (gives[0] || '—') } : { from: pr.owner, to: n.owner, item: resourceName(roleOf(state, pr.owner) || { versions: [] }, n.parent.item), text: nameOf(state, pr.owner) + ' 給 ' + nameOf(state, n.owner) + '：' + resourceName(roleOf(state, pr.owner) || { versions: [] }, n.parent.item) };
-      var st = statusOf(n), node = { id: n.id, owner: n.owner, name: nameOf(state, n.owner), mine: n.owner === me, need: n.need, give: gives, cap: n.cap, untilDay: n.untilDay, daysLeft: n.untilDay == null ? null : n.untilDay - dn, status: st, statusText: NODE_STATUS[st] || '', noReport: !!n.noReport, edge: edge, depth: depth, index: index, circles: live.filter(function (c) { return c.notices.indexOf(n.id) >= 0; }).map(function (c) { return c.id; }), children: [] };
+      var st = statusOf(n), node = { id: n.id, owner: n.owner, name: nameWith(state, n.owner, atUs), plain: nameOf(state, n.owner), mine: n.owner === me, parentId: pr ? pr.id : null, side: n.parent ? n.parent.side : null, branchNo: null, branchOf: 0, need: n.need, give: gives, cap: n.cap, untilDay: n.untilDay, daysLeft: n.untilDay == null ? null : n.untilDay - dn, status: st, statusText: NODE_STATUS[st] || '', noReport: !!n.noReport, edge: edge, depth: depth, index: index, circles: live.filter(function (c) { return c.notices.indexOf(n.id) >= 0; }).map(function (c) { return c.id; }), children: [] };
       nodes[n.id] = node; order.push(node);
       node.children = linksUnder(state, n.id).map(function (k, i) { return build(k, depth + 1, i); });
+      var needKids = node.children.filter(function (k) { return k.side === 'need'; }); needKids.forEach(function (k, i) { k.branchNo = i + 1; k.branchOf = needKids.length; });   // 「第幾條」只數接在同一個需要下面的岔路
       return node;
     }
     var tree = build(root, 0, 0), mine = myCircles(state, me);
+    // 把圈接回起點的那張，如果是接在起點「可以給」下面的：不另外畫成岔路，併進彎回起點的那條線
+    var merged = {};
+    live.forEach(function (c) {
+      if (!c.edges.length) return; var cl = nodes[c.edges[0].notice]; if (!cl || !cl.edge || cl.side !== 'give') return;
+      var ns0 = c.notices.filter(function (id) { return nodes[id]; }).map(function (id) { return nodes[id]; }).sort(function (a, b) { return a.depth - b.depth; });
+      if (!ns0.length || cl.parentId !== ns0[0].id) return;
+      var pa = nodes[cl.parentId]; pa.children = pa.children.filter(function (k) { return k !== cl; }); merged[cl.id] = c.id; cl.merged = true;
+    });
+    order = order.filter(function (nd) { return !nd.merged; });
     var circles = live.filter(function (c) { return c.notices.some(function (id) { return nodes[id]; }); }).map(function (c) {
-      var ns = c.notices.filter(function (id) { return nodes[id]; }).map(function (id) { return nodes[id]; }).sort(function (a, b) { return a.depth - b.depth; }), mc = mine.find(function (x) { return x.id === c.id; }) || null;
-      return { id: c.id, status: c.status, gift: !!c.gift, leader: c.leader, leaderName: nameOf(state, c.leader), mine: c.leader === me, member: c.members.indexOf(me) >= 0, n: c.members.length, top: ns[0].id, last: ns[ns.length - 1].id, nodes: ns.map(function (x) { return x.id; }), chooser: !!(mc && mc.chooser), slot: mc ? mc.slot : null, why: c.why || null };
+      var ns = c.notices.filter(function (id) { return nodes[id] && !nodes[id].merged; }).map(function (id) { return nodes[id]; }).sort(function (a, b) { return a.depth - b.depth; }), mc = mine.find(function (x) { return x.id === c.id; }) || null;
+      var cl = c.edges.length ? nodes[c.edges[0].notice] : null, loopText = cl && cl.merged ? cl.edge.text : '';
+      return { id: c.id, status: c.status, gift: !!c.gift, leader: c.leader, leaderName: nameOf(state, c.leader), mine: c.leader === me, member: c.members.indexOf(me) >= 0, n: c.members.length, top: ns[0].id, last: ns[ns.length - 1].id, nodes: ns.map(function (x) { return x.id; }), closing: cl ? cl.id : null, loopText: loopText, chooser: !!(mc && mc.chooser), slot: mc ? mc.slot : null, why: c.why || null };
     });
     var tails = order.filter(function (nd) { return !nd.children.length && !nd.circles.length; }).map(function (nd) { return nd.id; });
+    Object.keys(merged).forEach(function (id) { delete nodes[id]; });
     var focus = order.find(function (nd) { return nd.mine; });
     return { root: tree, nodes: nodes, circles: circles, tails: tails, focus: focus ? focus.id : null, start: noticeId };
   }
@@ -1950,7 +1999,7 @@ var CORE = (function () {
   /* ---------- 純資料檢查：角色 ---------- */
   function cleanVersion(v) {
     obj(v, '版本'); var ru = obj(v.rules, '規則表');
-    return { id: ident(v.id, '版本'), fromDay: num(v.fromDay, '版本'), dailyPoints: num(v.dailyPoints, '每天的點'),
+    return { id: ident(v.id, '版本'), fromDay: num(v.fromDay, '版本'), dailyPoints: num(v.dailyPoints, '每天的點'), tag: cleanTag(v.tag),
       rules: { uses: list(ru.uses || [], LIMITS.rules, '用途').map(function (t) { return str(t, LIMITS.text, '用途'); }),
                conditions: list(ru.conditions || [], LIMITS.rules, '條件').map(function (c) { obj(c, '條件'); if (!COND_FIELDS[c.field]) bad('條件格式錯'); if (COND_FIELDS[c.field].kinds) { if (!GIVE_KINDS[c.value]) bad('條件格式錯'); return { field: c.field, op: '=', value: c.value }; } if (!OPS[c.op]) bad('條件格式錯'); return { field: c.field, op: c.op, value: num(c.value, '條件') }; }),
                bothMustPass: !!ru.bothMustPass, mustAcceptVillage: !!ru.mustAcceptVillage, village: str(ru.village || '', LIMITS.text, '家規'), site: (function () { try { return cleanSite(ru.site); } catch (e) { return ''; } })(), villageKey: ru.villageKey == null ? null : str(ru.villageKey, 200, '金鑰'), maxGiveDefault: ru.maxGiveDefault == null ? null : num(ru.maxGiveDefault, '每人最多給') },
@@ -2141,6 +2190,7 @@ var CORE = (function () {
     DOCK_WINDOW_US: DOCK_WINDOW_US, missed: missed, setPresent: setPresent, isPresent: isPresent, judge: judge, expire: expire, myBookings: myBookings, settleDirection: settleDirection,
     itemsText: itemsText, holdStatus: holdStatus, expireHolds: expireHolds, holdsOf: holdsOf, heldPoints: heldPoints, holdings: holdings, redeem: redeem,
     VILLAGE_CELL: VILLAGE_CELL, villagesOf: villagesOf, villageOf: villageOf, neighborsOf: neighborsOf, freeSpots: freeSpots, suggestedSpot: suggestedSpot, spotProblem: spotProblem, inviteNeighbor: inviteNeighbor, applyVillage: applyVillage, approveVillage: approveVillage, rejectVillage: rejectVillage, joinVillage: joinVillage, moveHouse: moveHouse, leaveVillage: leaveVillage, askLeave: askLeave, villageInfo: villageInfo, myInvites: myInvites, viewVillage: viewVillage, cleanVillages: cleanVillages, connected: connected,
+    foodAvail: foodAvail, foodSupply: foodSupply, FOOD_FAIL: FOOD_FAIL, NAME_TAG_MAX: NAME_TAG_MAX, TAG_MODES: TAG_MODES, TAG_SHOWS: TAG_SHOWS, cleanTag: cleanTag, nameTag: nameTag, nameWith: nameWith, setNameTag: setNameTag,
     CATS: CATS, SUBS: SUBS, BIGS: BIGS, VERBS: VERBS, TAG_MAX: TAG_MAX, NOTICE_DAYS: NOTICE_DAYS, NOTICE_MAX: NOTICE_MAX, renewNotice: renewNotice, expiringNotices: expiringNotices, inActiveCircle: inActiveCircle, chainTree: chainTree, NODE_STATUS: NODE_STATUS, catOf: catOf, classify: classify, cleanTags: cleanTags, normText: normText, matchText: matchText, matchItem: matchItem, setNotice: setNotice, VACATED_MAX: VACATED_MAX,
     circlesOf: circlesOf, noticeOf: noticeOf, edgesOf: edgesOf, linkNotice: linkNotice, chooseCircle: chooseCircle, openCircleSlot: openCircleSlot, bookCircle: bookCircle, presetCircle: presetCircle, giftChain: giftChain, linksUnder: linksUnder, chainOf: chainOf, myCircles: myCircles, doneByOf: doneByOf, ackDoneBy: ackDoneBy, dropNotice: dropNotice,
     defaultWorld: defaultWorld, fresh: fresh, load: load, save: save, findRole: findRole, roleOf: roleOf, GUIDE: GUIDE, isGuide: isGuide, createPlayer: createPlayer, demoMe: demoMe, blankRole: blankRole

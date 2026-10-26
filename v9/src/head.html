@@ -136,8 +136,10 @@ button.box{cursor:pointer}
 .page input.tg{font-family:var(--serif);font-size:calc(var(--mm)*2.7);width:calc(var(--mm)*22);border:0;border-bottom:calc(var(--mm)*.25) dotted var(--rule);background:transparent;color:var(--pen);padding:0;min-height:0;vertical-align:baseline}
 .page td small .cs,.page td small .tg{display:inline-block}
 .page .cats .mini{min-height:32px;font-size:max(calc(var(--mm)*2.9),13px);padding:4px 6px;line-height:1.2}
+.page .fields .foodline{width:100%;font-size:calc(var(--mm)*3.4);gap:calc(var(--mm)*.8)} .page .fields .foodline.warn{color:var(--stamp)} .page .fields .foodline.warn .mini{border-color:var(--stamp);color:var(--stamp)}
+.page .fields .tagset{font-size:calc(var(--mm)*3);color:var(--muted)} .page .fields .tagset b{color:var(--pen);font-family:var(--hand);font-size:calc(var(--mm)*3.8)} .page .fields .tagset select.cs{font-size:calc(var(--mm)*3)}
 /* 整條鏈：分支樹（補二十） */
-.page .tree{position:relative;overflow-x:auto;overflow-y:hidden;padding:calc(var(--mm)*2) calc(var(--mm)*8) calc(var(--mm)*3)}
+.page .tree{position:relative;overflow-x:auto;overflow-y:hidden;padding:calc(var(--mm)*2) calc(var(--mm)*8) 30px}
 .page .tsvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:0}
 .page .tsvg path{stroke:var(--teal);stroke-width:2.5;stroke-dasharray:6 4} .page .tsvg text{fill:var(--teal);font-family:var(--serif);font-size:11px}
 .page .tn{display:inline-flex;flex-direction:column;align-items:center;vertical-align:top;position:relative;z-index:1}

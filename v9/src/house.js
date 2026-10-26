@@ -30,7 +30,7 @@ var HOUSE = (function () {
     if (!r) return;
     var v = data(), own = mine(), vv = WORLD.available ? village() : null, inVillage = vv && vv.houses.length > 1;
     if (!own || !WORLD.available) st.building = false;
-    $('hwho').innerHTML = '<b>' + esc(CORE.abbrev(r.serial) + ' ' + r.name) + '</b> 的達秒屋' + (v.closed ? ' <span class="tag off">只給鄰居看</span>' : '<span class="small muted"> ' + esc(v.age.text + (v.sign ? '・「' + v.sign + '」' : '')) + '</span>') + (inVillage ? ' <span class="tag">村子 ' + vv.houses.length + ' 間</span>' : '');
+    $('hwho').innerHTML = '<b>' + esc(CORE.abbrev(r.serial) + ' ' + CORE.nameWith(APP.state(), r.serial, APP.now())) + '</b> 的達秒屋' + (v.closed ? ' <span class="tag off">只給鄰居看</span>' : '<span class="small muted"> ' + esc(v.age.text + (v.sign ? '・「' + v.sign + '」' : '')) + '</span>') + (inVillage ? ' <span class="tag">村子 ' + vv.houses.length + ' 間</span>' : '');
     $('hVillage').hidden = !inVillage || !!st.pick;
     $('hpick').hidden = !st.pick;
     if (st.pick) {

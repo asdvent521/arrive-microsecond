@@ -73,6 +73,18 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   assert((await H.main()).indexOf('你的公告「想借梯子」3 天後到期，要續掛嗎') >= 0 && (await H.ev("!!document.querySelector('#tmain [data-act=\"renew\"]')")), '到期前 3 天事件簿最上面提醒，旁邊「續掛」');
   await H.finger("function(){ return document.querySelector('#tmain [data-act=\"renew\"]'); }", '提醒旁邊的續掛');
   assert((await H.ev("APP.state().notices.find(function(n){return n.id==='" + nid + "';}).untilDay")) === (await H.ev("CORE.dayNum(APP.now())+30")) && (await H.main()).indexOf('要續掛嗎') < 0, '續掛了，提醒不見');
+  // 7. 食物的供需（補二十一）：找的框上面一行；點「需要」切到我能給並篩食物、點「可以給」切到我在找並篩食物；缺的時候紅字；名字後面有括弧
+  await H.nav('find');
+  var fl = await H.ev("document.getElementById('foodLine').textContent");
+  assert(fl.indexOf('食物：') === 0 && fl.indexOf('需要 0 張') >= 0 && fl.indexOf('可以給 1 人') >= 0 && !(await H.ev("document.getElementById('foodLine').classList.contains('warn')")), '找的框上面一行「食物：需要 0 張・可以給 1 人」（我的早餐一頓算食物），不缺不紅：' + fl);
+  await H.ev("(function(){var S=APP.state(),t=APP.now();CORE.postNotice(S,'" + J2 + "',{need:'想吃便當',give:['r2b'],cap:2},t);CORE.postNotice(S,'" + J3 + "',{need:'想要一袋水果',give:['r3a'],cap:2},t);APP.changed();})()"); await H.nav('find');
+  fl = await H.ev("document.getElementById('foodLine').textContent"); assert(fl.indexOf('需要 2 張') >= 0 && fl.indexOf('可以給 1 人') >= 0 && (await H.ev("document.getElementById('foodLine').classList.contains('warn')")), '兩張食物的公告：需要 2 張・可以給 1 人，需要比可以給多 → 紅字');
+  await H.finger("function(){ return document.querySelector('#foodLine [data-act=\"foodNeed\"]'); }", '需要');
+  var rows7 = await H.ev("Array.from(document.querySelectorAll('#tmain table:nth-of-type(1) tr[data-row]:not([data-id=\"post\"])')).map(function(t){return t.textContent;})");
+  assert((await H.ev("document.querySelector('#tmain .modes [data-m=\"give\"]').getAttribute('aria-pressed')")) === 'true' && (await H.ev("document.querySelector('#catBar [data-id=\"food\"]').classList.contains('o')")) === false && rows7.length === 2 && rows7.every(function (r) { return r.indexOf('便當') >= 0 || r.indexOf('水果') >= 0; }), '點「需要」：切到「我能給」、篩食物，只剩兩張食物的需要');
+  assert(rows7.some(function (r) { return r.indexOf('阿澄（聊天傾聽）') >= 0; }), '公告上的名字後面有括弧（補二十一）');
+  await H.finger("function(){ return document.querySelector('#foodLine [data-act=\"foodGive\"]'); }", '可以給');
+  assert((await H.ev("document.querySelector('#tmain .modes [data-m=\"want\"]').getAttribute('aria-pressed')")) === 'true' && (await H.ev("document.querySelector('#catBar [data-id=\"food\"]').classList.contains('o')")) === false && (await H.main()).indexOf('誰的資源表裡有「食物」') >= 0, '點「可以給」：切到「我在找」並篩食物');
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');
 })().catch(function (e) { console.error(e); process.exit(1); });

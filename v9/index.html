@@ -137,8 +137,10 @@ button.box{cursor:pointer}
 .page input.tg{font-family:var(--serif);font-size:calc(var(--mm)*2.7);width:calc(var(--mm)*22);border:0;border-bottom:calc(var(--mm)*.25) dotted var(--rule);background:transparent;color:var(--pen);padding:0;min-height:0;vertical-align:baseline}
 .page td small .cs,.page td small .tg{display:inline-block}
 .page .cats .mini{min-height:32px;font-size:max(calc(var(--mm)*2.9),13px);padding:4px 6px;line-height:1.2}
+.page .fields .foodline{width:100%;font-size:calc(var(--mm)*3.4);gap:calc(var(--mm)*.8)} .page .fields .foodline.warn{color:var(--stamp)} .page .fields .foodline.warn .mini{border-color:var(--stamp);color:var(--stamp)}
+.page .fields .tagset{font-size:calc(var(--mm)*3);color:var(--muted)} .page .fields .tagset b{color:var(--pen);font-family:var(--hand);font-size:calc(var(--mm)*3.8)} .page .fields .tagset select.cs{font-size:calc(var(--mm)*3)}
 /* 整條鏈：分支樹（補二十） */
-.page .tree{position:relative;overflow-x:auto;overflow-y:hidden;padding:calc(var(--mm)*2) calc(var(--mm)*8) calc(var(--mm)*3)}
+.page .tree{position:relative;overflow-x:auto;overflow-y:hidden;padding:calc(var(--mm)*2) calc(var(--mm)*8) 30px}
 .page .tsvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:0}
 .page .tsvg path{stroke:var(--teal);stroke-width:2.5;stroke-dasharray:6 4} .page .tsvg text{fill:var(--teal);font-family:var(--serif);font-size:11px}
 .page .tn{display:inline-flex;flex-direction:column;align-items:center;vertical-align:top;position:relative;z-index:1}
@@ -508,6 +510,29 @@ var CORE = (function () {
   // 東西是一份能量，分三種：訊息、行為、物質。舊資料沒選的是 ''（畫面標「還沒選」，照樣能換）
   var KINDS = { info: '訊息', act: '行為', thing: '物質' };
   function cleanKind(k) { if (k == null || k === '') return ''; if (!KINDS[k]) bad('種類只有訊息、行為、物質'); return k; }
+  // 名字後面的括弧（補二十一）：寫這個人主要能給什麼，只能從自己的資源表挑一樣（價錢大於 0、可換至少 1 份）；顯示小類或名字，最多 6 個字；設定跟資源表一樣隔天生效（存在版本裡）
+  var NAME_TAG_MAX = 6, TAG_MODES = { auto: '自動', pick: '挑一樣', off: '不顯示' }, TAG_SHOWS = { cat: '小類', name: '名字' };
+  function cleanTag(t) { t = t && typeof t === 'object' ? t : {}; return { mode: TAG_MODES[t.mode] ? t.mode : 'auto', item: t.item == null || t.item === '' ? null : String(t.item), show: TAG_SHOWS[t.show] ? t.show : 'cat' }; }
+  function tagText(x, show) { var c = catOf(x.cat), t = show === 'name' || !c ? x.name : c.name, a = Array.from(String(t)); return a.length > NAME_TAG_MAX ? a.slice(0, NAME_TAG_MAX).join('') + '…' : t; }
+  // 括弧裡的字（或 ''）：v 可以指定用哪一版（自己的資源表看明天起的設定）
+  function nameTag(state, serial, atUs, v) {
+    var r = roleOf(state, serial); if (!r) return '';
+    v = v || version(r, atUs == null ? nowUs() : atUs); var cfg = cleanTag(v.tag);
+    if (cfg.mode === 'off') return '';
+    var ok = v.resources.filter(function (x) { return x.price > 0 && stockOf(r, x.id).avail >= 1; });
+    var pick = null;
+    if (cfg.mode === 'pick') pick = ok.find(function (x) { return x.id === cfg.item; }) || null;   // 挑的那樣沒貨就先不顯示
+    else ok.forEach(function (x) { if (!pick || stockOf(r, x.id).avail > stockOf(r, pick.id).avail) pick = x; });   // 自動：可換份數最多的，一樣多取排前面的
+    return pick ? tagText(pick, cfg.show) : '';
+  }
+  function nameWith(state, serial, atUs, v) { var r = roleOf(state, serial); if (!r) return abbrev(serial); var t = nameTag(state, serial, atUs, v); return r.name + (t ? '（' + t + '）' : ''); }
+  // 改設定：明天起（挑的那樣要在明天的資源表裡、價錢大於 0）
+  function setNameTag(state, serial, f, atUs) {
+    var v = tomorrow(state, serial, atUs), cfg = cleanTag(Object.assign({}, cleanTag(v.tag), f || {}));
+    if (cfg.mode === 'pick' && !cfg.item) { var first = v.resources.find(function (x) { return x.price > 0; }); cfg.item = first ? first.id : null; }   // 剛切到「挑一樣」：先選資源表排前面的
+    if (cfg.mode === 'pick') { var x = cfg.item ? resourceOf(v, cfg.item) : null; if (!x || !(x.price > 0)) bad('要從資源表挑一樣有價錢的東西'); }
+    v.tag = cfg; return cfg;
+  }
   function cleanRes(x) {
     var price = Math.floor(+x.price), keep = x.keepDays == null || x.keepDays === '' ? null : Math.floor(+x.keepDays);
     if (!x.name || !String(x.name).trim()) bad('資源要有名稱'); if (!(price >= 0)) bad('價格要是 0 以上的整數'); if (keep != null && !(keep >= 1)) bad('保留天數要是正整數，或空白＝一直保留');
@@ -573,6 +598,7 @@ var CORE = (function () {
     avail:     { label: '對方可換的東西（全部加起來）', unit: '份', get: function (state, other, atUs) { return availTotal(other, atUs); } },
     myPoints:  { label: '對方收著多少我的東西（價錢加起來）', unit: '點', get: function (state, other, atUs, me) { return heldPoints(state, other.serial, me.serial, atUs); } },
     dockCount: { label: '對方對接過幾次', unit: '次', get: function (state, other, atUs) { return dockCount(state, other.serial); } },
+    food:      { label: '對方可換的食物', unit: '份', get: function (state, other, atUs) { return foodAvail(other, atUs); }, fail: '對方沒有可換的食物' },   // 補二十一：資源表裡掛在食物大類的東西，可換的份數加起來（已保留的不算、0 點的也算）
     giveKind:  { label: '對方要給的東西種類', kinds: true }   // 那一微秒才判：看對方這一筆選給我的那幾樣（0 點的空物件不算）
   };
   var GIVE_KINDS = { same: '跟我同一種', info: '只收訊息', act: '只收行為', thing: '只收物質' };
@@ -581,9 +607,14 @@ var CORE = (function () {
   function condText(c) { var f = COND_FIELDS[c.field]; if (!f) return '？'; if (f.kinds) return c.value === 'same' ? '對方要給的東西跟我同一種' : GIVE_KINDS[c.value] || '？'; return f.label + ' ' + OPS[c.op] + ' ' + c.value + (f.unit || ''); }
   // 條件表用 ruleUs 那一刻生效的版本（改規則不溯及既往），條件裡的事實照 atUs 算
   function passes(state, owner, visitor, atUs, ruleUs) {
-    var failed = version(owner, ruleUs == null ? atUs : ruleUs).rules.conditions.filter(function (c) { return !COND_FIELDS[c.field].kinds && !cmp(COND_FIELDS[c.field].get(state, visitor, atUs, owner), c.op, c.value); }).map(condText);
+    var failed = version(owner, ruleUs == null ? atUs : ruleUs).rules.conditions.filter(function (c) { return !COND_FIELDS[c.field].kinds && !cmp(COND_FIELDS[c.field].get(state, visitor, atUs, owner), c.op, c.value); }).map(function (c) { return COND_FIELDS[c.field].fail || condText(c); });
     return { ok: !failed.length, failed: failed };
   }
+  var FOOD_FAIL = COND_FIELDS.food.fail;
+  // 可換的食物：今天的資源表裡類別掛在食物大類的東西，可換份數加起來（已保留的不算；0 點的也算）
+  function foodAvail(role, atUs) { var v = version(role, atUs == null ? nowUs() : atUs), n = 0; v.resources.forEach(function (x) { if (SUBS[x.cat] && SUBS[x.cat].big === 'food') n += stockOf(role, x.id).avail; }); return n; }
+  // 不通的原因裡有「對方沒有可換的食物」：補一句他只跟有食物可換的人換（預約前看得到）
+  function foodHint(r, pa, pb) { if (pa.failed.indexOf(FOOD_FAIL) >= 0) r.reason += '（他只跟有食物可換的人換）'; else if (pb.failed.indexOf(FOOD_FAIL) >= 0) r.reason += '（你只跟有食物可換的人換）'; return r; }
   // 接受家規記下接受的是哪一版（家規內容）；家規改了，舊的接受不算
   function accepted(state, who, of, village) { return state.acceptances.some(function (a) { return a.who === who && a.of === of && (village == null || a.village === village); }); }
   function acceptedAny(state, who, of) { return state.acceptances.some(function (a) { return a.who === who && a.of === of; }); }
@@ -600,9 +631,9 @@ var CORE = (function () {
     if (ra.mustAcceptVillage && !accepted(state, b.serial, a.serial, ra.village)) return { ok: false, reason: abbrev(b.serial) + ' 還沒接受 ' + abbrev(a.serial) + ' 的家規' + (acceptedAny(state, b.serial, a.serial) ? '（接受的是舊版）' : '') };
     if (rb.mustAcceptVillage && !accepted(state, a.serial, b.serial, rb.village)) return { ok: false, reason: abbrev(a.serial) + ' 還沒接受 ' + abbrev(b.serial) + ' 的家規' + (acceptedAny(state, a.serial, b.serial) ? '（接受的是舊版）' : '') };
     var pa = passes(state, a, b, atUs, ruleUs), pb = passes(state, b, a, atUs, ruleUs);   // pa：b 通 a 的條件
-    if (ra.bothMustPass || rb.bothMustPass) return pa.ok && pb.ok ? { ok: true, how: '兩方都通' } : { ok: false, reason: '要求兩方都通，' + (!pa.ok ? abbrev(b.serial) + ' 不通 ' + abbrev(a.serial) + ' 的條件（' + pa.failed.join('；') + '）' : abbrev(a.serial) + ' 不通 ' + abbrev(b.serial) + ' 的條件（' + pb.failed.join('；') + '）') };
+    if (ra.bothMustPass || rb.bothMustPass) return pa.ok && pb.ok ? { ok: true, how: '兩方都通' } : foodHint({ ok: false, reason: '要求兩方都通，' + (!pa.ok ? abbrev(b.serial) + ' 不通 ' + abbrev(a.serial) + ' 的條件（' + pa.failed.join('；') + '）' : abbrev(a.serial) + ' 不通 ' + abbrev(b.serial) + ' 的條件（' + pb.failed.join('；') + '）') }, !pa.ok ? pa : { failed: [] }, !pa.ok ? { failed: [] } : pb);
     if (pa.ok || pb.ok) return { ok: true, how: pa.ok && pb.ok ? '兩方都通' : pa.ok ? abbrev(b.serial) + ' 通 ' + abbrev(a.serial) + ' 的條件' : abbrev(a.serial) + ' 通 ' + abbrev(b.serial) + ' 的條件' };
-    return { ok: false, reason: '兩邊都不通：' + pa.failed.concat(pb.failed).join('；') };
+    return foodHint({ ok: false, reason: '兩邊都不通：' + pa.failed.concat(pb.failed).join('；') }, pa, pb);
   }
 
   /* ---------- 角色（一人一個） ---------- */
@@ -616,7 +647,7 @@ var CORE = (function () {
     if (!f.name || !String(f.name).trim()) bad('角色要有名字');
     var daily = f.dailyPoints == null ? DEFAULT_DAILY : Math.floor(+f.dailyPoints); if (!(daily >= 1)) bad('每天的點要是正整數');
     var r = { serial: serial, name: String(f.name).trim(), contact: String(f.contact || ''), slots: [], stock: {}, world: f.world || defaultWorld(serial), born: dayNum(atUs), house: cleanHouse(f.house && f.house.template ? Object.assign({}, f.house, { blocks: template(f.house.template, f.house.wall, f.house.roof).concat(f.house.extra || []), cal: { dir: f.house.calDir || 'up', blocks: [] } }) : (f.house || {}), plotOf(0), false, dayNum(atUs), dayNum(atUs)),
-              versions: [{ id: newId('v'), fromDay: dayNum(atUs), dailyPoints: daily, rules: cleanRules(f.rules), resources: (f.resources || []).map(cleanRes) }] };
+              versions: [{ id: newId('v'), fromDay: dayNum(atUs), dailyPoints: daily, rules: cleanRules(f.rules), resources: (f.resources || []).map(cleanRes), tag: cleanTag(f.tag) }] };
     r.versions[0].resources.forEach(function (x, i) { var src = f.resources[i]; r.stock[x.id] = { avail: Math.max(0, Math.floor(+(src && src.avail) || 0)), reserved: 0 }; });
     r.house.calRemoved = 0;   // 新角色：第一塊日曆本來就在牆上，不算拆
     state.roles.push(r);
@@ -1333,6 +1364,14 @@ var CORE = (function () {
     return { notices: notices, resources: resources, mode: mode, kw: kw, cat: Q.cat };
   }
 
+  // 食物的供需（補二十一）：需要＝還掛著、需要掛在食物大類的公告（起頭和接上去的都算，教學公告不算）；可以給＝資源表裡有可換食物的人（自己也算，引路人不算）
+  function foodSupply(state, atUs) {
+    atUs = atUs || nowUs();
+    var need = noticesOf(state).filter(function (n) { return !n.pinned && roleOf(state, n.owner) && SUBS[n.cat] && SUBS[n.cat].big === 'food'; }).length;
+    var give = state.roles.filter(function (r) { return r.serial !== GUIDE && !r.quit && foodAvail(r, atUs) > 0; }).length;
+    return { need: need, give: give, short: need > give };
+  }
+
   /* ---------- 公告欄：接上去、鏈、岔路、接成一圈（第 5 節「公告欄」）。平台不幫忙找，線是人自己接的 ----------
    * 接上去就是自己也掛一張公告，記著接在哪一張的哪一邊（parent：need＝我給他、give＝我拿他的那樣）。
    * 「給」的線：接在 need 下面＝我給他；接在 give 下面＝他給我。線接回起點就是一圈，接起來的人當圈主，開一起成交的時段，平台替每個人先選好東西。 */
@@ -1468,17 +1507,29 @@ var CORE = (function () {
     function build(n, depth, index) {
       var gives = giveNames(state, n, atUs), pr = n.parent ? noticeOf(state, n.parent.notice) : null, edge = null;
       if (pr) edge = n.parent.side === 'need' ? { from: n.owner, to: pr.owner, item: gives[0] || '—', text: nameOf(state, n.owner) + ' 給 ' + nameOf(state, pr.owner) + '：' + (gives[0] || '—') } : { from: pr.owner, to: n.owner, item: resourceName(roleOf(state, pr.owner) || { versions: [] }, n.parent.item), text: nameOf(state, pr.owner) + ' 給 ' + nameOf(state, n.owner) + '：' + resourceName(roleOf(state, pr.owner) || { versions: [] }, n.parent.item) };
-      var st = statusOf(n), node = { id: n.id, owner: n.owner, name: nameOf(state, n.owner), mine: n.owner === me, need: n.need, give: gives, cap: n.cap, untilDay: n.untilDay, daysLeft: n.untilDay == null ? null : n.untilDay - dn, status: st, statusText: NODE_STATUS[st] || '', noReport: !!n.noReport, edge: edge, depth: depth, index: index, circles: live.filter(function (c) { return c.notices.indexOf(n.id) >= 0; }).map(function (c) { return c.id; }), children: [] };
+      var st = statusOf(n), node = { id: n.id, owner: n.owner, name: nameWith(state, n.owner, atUs), plain: nameOf(state, n.owner), mine: n.owner === me, parentId: pr ? pr.id : null, side: n.parent ? n.parent.side : null, branchNo: null, branchOf: 0, need: n.need, give: gives, cap: n.cap, untilDay: n.untilDay, daysLeft: n.untilDay == null ? null : n.untilDay - dn, status: st, statusText: NODE_STATUS[st] || '', noReport: !!n.noReport, edge: edge, depth: depth, index: index, circles: live.filter(function (c) { return c.notices.indexOf(n.id) >= 0; }).map(function (c) { return c.id; }), children: [] };
       nodes[n.id] = node; order.push(node);
       node.children = linksUnder(state, n.id).map(function (k, i) { return build(k, depth + 1, i); });
+      var needKids = node.children.filter(function (k) { return k.side === 'need'; }); needKids.forEach(function (k, i) { k.branchNo = i + 1; k.branchOf = needKids.length; });   // 「第幾條」只數接在同一個需要下面的岔路
       return node;
     }
     var tree = build(root, 0, 0), mine = myCircles(state, me);
+    // 把圈接回起點的那張，如果是接在起點「可以給」下面的：不另外畫成岔路，併進彎回起點的那條線
+    var merged = {};
+    live.forEach(function (c) {
+      if (!c.edges.length) return; var cl = nodes[c.edges[0].notice]; if (!cl || !cl.edge || cl.side !== 'give') return;
+      var ns0 = c.notices.filter(function (id) { return nodes[id]; }).map(function (id) { return nodes[id]; }).sort(function (a, b) { return a.depth - b.depth; });
+      if (!ns0.length || cl.parentId !== ns0[0].id) return;
+      var pa = nodes[cl.parentId]; pa.children = pa.children.filter(function (k) { return k !== cl; }); merged[cl.id] = c.id; cl.merged = true;
+    });
+    order = order.filter(function (nd) { return !nd.merged; });
     var circles = live.filter(function (c) { return c.notices.some(function (id) { return nodes[id]; }); }).map(function (c) {
-      var ns = c.notices.filter(function (id) { return nodes[id]; }).map(function (id) { return nodes[id]; }).sort(function (a, b) { return a.depth - b.depth; }), mc = mine.find(function (x) { return x.id === c.id; }) || null;
-      return { id: c.id, status: c.status, gift: !!c.gift, leader: c.leader, leaderName: nameOf(state, c.leader), mine: c.leader === me, member: c.members.indexOf(me) >= 0, n: c.members.length, top: ns[0].id, last: ns[ns.length - 1].id, nodes: ns.map(function (x) { return x.id; }), chooser: !!(mc && mc.chooser), slot: mc ? mc.slot : null, why: c.why || null };
+      var ns = c.notices.filter(function (id) { return nodes[id] && !nodes[id].merged; }).map(function (id) { return nodes[id]; }).sort(function (a, b) { return a.depth - b.depth; }), mc = mine.find(function (x) { return x.id === c.id; }) || null;
+      var cl = c.edges.length ? nodes[c.edges[0].notice] : null, loopText = cl && cl.merged ? cl.edge.text : '';
+      return { id: c.id, status: c.status, gift: !!c.gift, leader: c.leader, leaderName: nameOf(state, c.leader), mine: c.leader === me, member: c.members.indexOf(me) >= 0, n: c.members.length, top: ns[0].id, last: ns[ns.length - 1].id, nodes: ns.map(function (x) { return x.id; }), closing: cl ? cl.id : null, loopText: loopText, chooser: !!(mc && mc.chooser), slot: mc ? mc.slot : null, why: c.why || null };
     });
     var tails = order.filter(function (nd) { return !nd.children.length && !nd.circles.length; }).map(function (nd) { return nd.id; });
+    Object.keys(merged).forEach(function (id) { delete nodes[id]; });
     var focus = order.find(function (nd) { return nd.mine; });
     return { root: tree, nodes: nodes, circles: circles, tails: tails, focus: focus ? focus.id : null, start: noticeId };
   }
@@ -2216,7 +2267,7 @@ var CORE = (function () {
   /* ---------- 純資料檢查：角色 ---------- */
   function cleanVersion(v) {
     obj(v, '版本'); var ru = obj(v.rules, '規則表');
-    return { id: ident(v.id, '版本'), fromDay: num(v.fromDay, '版本'), dailyPoints: num(v.dailyPoints, '每天的點'),
+    return { id: ident(v.id, '版本'), fromDay: num(v.fromDay, '版本'), dailyPoints: num(v.dailyPoints, '每天的點'), tag: cleanTag(v.tag),
       rules: { uses: list(ru.uses || [], LIMITS.rules, '用途').map(function (t) { return str(t, LIMITS.text, '用途'); }),
                conditions: list(ru.conditions || [], LIMITS.rules, '條件').map(function (c) { obj(c, '條件'); if (!COND_FIELDS[c.field]) bad('條件格式錯'); if (COND_FIELDS[c.field].kinds) { if (!GIVE_KINDS[c.value]) bad('條件格式錯'); return { field: c.field, op: '=', value: c.value }; } if (!OPS[c.op]) bad('條件格式錯'); return { field: c.field, op: c.op, value: num(c.value, '條件') }; }),
                bothMustPass: !!ru.bothMustPass, mustAcceptVillage: !!ru.mustAcceptVillage, village: str(ru.village || '', LIMITS.text, '家規'), site: (function () { try { return cleanSite(ru.site); } catch (e) { return ''; } })(), villageKey: ru.villageKey == null ? null : str(ru.villageKey, 200, '金鑰'), maxGiveDefault: ru.maxGiveDefault == null ? null : num(ru.maxGiveDefault, '每人最多給') },
@@ -2407,6 +2458,7 @@ var CORE = (function () {
     DOCK_WINDOW_US: DOCK_WINDOW_US, missed: missed, setPresent: setPresent, isPresent: isPresent, judge: judge, expire: expire, myBookings: myBookings, settleDirection: settleDirection,
     itemsText: itemsText, holdStatus: holdStatus, expireHolds: expireHolds, holdsOf: holdsOf, heldPoints: heldPoints, holdings: holdings, redeem: redeem,
     VILLAGE_CELL: VILLAGE_CELL, villagesOf: villagesOf, villageOf: villageOf, neighborsOf: neighborsOf, freeSpots: freeSpots, suggestedSpot: suggestedSpot, spotProblem: spotProblem, inviteNeighbor: inviteNeighbor, applyVillage: applyVillage, approveVillage: approveVillage, rejectVillage: rejectVillage, joinVillage: joinVillage, moveHouse: moveHouse, leaveVillage: leaveVillage, askLeave: askLeave, villageInfo: villageInfo, myInvites: myInvites, viewVillage: viewVillage, cleanVillages: cleanVillages, connected: connected,
+    foodAvail: foodAvail, foodSupply: foodSupply, FOOD_FAIL: FOOD_FAIL, NAME_TAG_MAX: NAME_TAG_MAX, TAG_MODES: TAG_MODES, TAG_SHOWS: TAG_SHOWS, cleanTag: cleanTag, nameTag: nameTag, nameWith: nameWith, setNameTag: setNameTag,
     CATS: CATS, SUBS: SUBS, BIGS: BIGS, VERBS: VERBS, TAG_MAX: TAG_MAX, NOTICE_DAYS: NOTICE_DAYS, NOTICE_MAX: NOTICE_MAX, renewNotice: renewNotice, expiringNotices: expiringNotices, inActiveCircle: inActiveCircle, chainTree: chainTree, NODE_STATUS: NODE_STATUS, catOf: catOf, classify: classify, cleanTags: cleanTags, normText: normText, matchText: matchText, matchItem: matchItem, setNotice: setNotice, VACATED_MAX: VACATED_MAX,
     circlesOf: circlesOf, noticeOf: noticeOf, edgesOf: edgesOf, linkNotice: linkNotice, chooseCircle: chooseCircle, openCircleSlot: openCircleSlot, bookCircle: bookCircle, presetCircle: presetCircle, giftChain: giftChain, linksUnder: linksUnder, chainOf: chainOf, myCircles: myCircles, doneByOf: doneByOf, ackDoneBy: ackDoneBy, dropNotice: dropNotice,
     defaultWorld: defaultWorld, fresh: fresh, load: load, save: save, findRole: findRole, roleOf: roleOf, GUIDE: GUIDE, isGuide: isGuide, createPlayer: createPlayer, demoMe: demoMe, blankRole: blankRole
@@ -3224,6 +3276,7 @@ var SHEETS = (function () {
   function btn(act, label, attrs, cls) { return '<button type="button" class="mini' + (cls ? ' ' + cls : '') + '" data-act="' + act + '"' + (attrs || '') + '>' + esc(label) + '</button>'; }
   function lk(serial) { var r = roleOf(serial); return '<button type="button" class="lk" data-act="visit" data-id="' + esc(serial) + '">' + esc(CORE.abbrev(serial)) + '</button>' + (r ? '' : '<small>（不玩了）</small>'); }
   function nameOf(serial) { var r = roleOf(serial); return r ? r.name : CORE.abbrev(serial); }
+  function nameW(serial) { return CORE.nameWith(S(), serial, now()); }   // 名字後面的括弧（補二十一）：公告欄、事件簿、分支樹、他的那張紙最上面都用這個
   function sig(text) { return '<span class="sig">' + esc(text) + '</span>'; }
   function hhmm(us) { return CORE.fmtUs(us).slice(11, 16); }
   function md(dn) { var l = CORE.dayLabel(dn); return +l.slice(5, 7) + '/' + +l.slice(8, 10); }
@@ -3267,7 +3320,7 @@ var SHEETS = (function () {
     var trs = '', shown = 0, all = [];
     rows.forEach(function (r) {
       if (r.kind === 'open') { var s = r.s; all.push('<tr data-row data-id="' + s.id + '"' + rowH(9.6) + '><td>' + hhmm(s.atUs) + (s.together ? '<span class="cd">一起</span>' : '') + '</td><td>我開的</td><td colspan="2"><span class="dim">等人來約（0／' + s.capacity + '）' + (s.judged ? '，沒人來' : '') + '</span></td><td>' + (s.judged ? '沒人約' : '') + '</td><td></td><td></td><td>' + (!s.judged && s.atUs > t ? btn('delSlot', '刪', ' data-id="' + s.id + '"', 'o') : '') + '</td></tr>'); return; }
-      var e = r.e, other = e.a === m.serial ? e.b : e.a, on = e.names[other] || nameOf(other), x = CORE.slotOf(S(), e.slot), s = x ? x.slot : null, dk = e.docking ? CORE.dockingOf(S(), e.docking) : null;
+      var e = r.e, other = e.a === m.serial ? e.b : e.a, onPlain = e.names[other] || nameOf(other), on = roleOf(other) ? nameW(other) : onPlain, x = CORE.slotOf(S(), e.slot), s = x ? x.slot : null, dk = e.docking ? CORE.dockingOf(S(), e.docking) : null;
       var tag = e.together ? '<span class="cd">一起</span>' : e.daily ? '<span class="cd">每天' + (s && s.standing ? ' ' + btn('stopDaily', '停', ' data-id="' + s.standing + '"', 'o') : '') + '</span>' : e.greet ? '<span class="cd">密鑰</span>' : e.tutorial ? '<span class="cd">教學</span>' : '';
       if (e.status === 'booked' && s && !s.judged) {
         var myPick = CORE.wantsValid(S(), s, m.serial, other), theirs = CORE.wantsValid(S(), s, other, m.serial), vo = CORE.version(roleOf(other) || m, s.atUs), vm = CORE.version(m, s.atUs);
@@ -3285,11 +3338,11 @@ var SHEETS = (function () {
       var redeemCell = '';
       if (e.status === 'traded' && gotItems.length) {
         var done = holds.filter(function (h) { return h.status === 'redeemed'; }), open = holds.filter(function (h) { return CORE.holdStatus(h, t) === 'held'; });
-        if (open.length) redeemCell = btn('redeem', '兌現', ' data-id="' + open[0].id + '"'); else if (done.length) redeemCell = hhmm(done[done.length - 1].redeemedAt) + ' ' + sig(on); else redeemCell = '<span class="dim">' + (holds.length ? '到期作廢' : '') + '</span>';
+        if (open.length) redeemCell = btn('redeem', '兌現', ' data-id="' + open[0].id + '"'); else if (done.length) redeemCell = hhmm(done[done.length - 1].redeemedAt) + ' ' + sig(onPlain); else redeemCell = '<span class="dim">' + (holds.length ? '到期作廢' : '') + '</span>';
       }
       var result = e.status === 'traded' ? '成交' : e.status === 'miss' ? '沒來' : '沒成';
       var gotText = gotItems.length ? gotItems.map(function (it) { var h = holds.find(function (y) { return y.resource === it.id; }); return esc(it.name) + (h ? '<small>' + (h.untilDay == null ? '一直留' : '留到 ' + md(h.untilDay)) + '</small>' : ''); }).join('') : dash;
-      all.push('<tr data-row data-id="' + e.id + '" class="' + e.status + '"' + rowH(9.6) + '><td>' + hhmm(e.atUs) + tag + '</td><td>' + lk(other) + ' ' + esc(on) + '</td><td>' + (gaveItems.length ? esc(itemsText(gaveItems)) : dash) + '</td><td>' + gotText + '</td><td>' + result + (e.status !== 'traded' && e.reason ? btn('why', '？', ' data-why="' + esc(e.reason) + '"', 'o') : '') + '</td><td class="r">' + (e.status === 'traded' || e.status === 'nodock' ? left : '') + '</td><td>' + (e.status === 'traded' ? sig(on) : '') + '</td><td>' + redeemCell + '</td></tr>');
+      all.push('<tr data-row data-id="' + e.id + '" class="' + e.status + '"' + rowH(9.6) + '><td>' + hhmm(e.atUs) + tag + '</td><td>' + lk(other) + ' ' + esc(on) + '</td><td>' + (gaveItems.length ? esc(itemsText(gaveItems)) : dash) + '</td><td>' + gotText + '</td><td>' + result + (e.status !== 'traded' && e.reason ? btn('why', '？', ' data-why="' + esc(e.reason) + '"', 'o') : '') + '</td><td class="r">' + (e.status === 'traded' || e.status === 'nodock' ? left : '') + '</td><td>' + (e.status === 'traded' ? sig(onPlain) : '') + '</td><td>' + redeemCell + '</td></tr>');
     });
     if (canOpen) all.push('<tr class="addrow"' + rowH(9.6) + '><td><input type="time" id="addSlotTime" aria-label="在這裡寫時間就開一個時段"></td><td><span class="dim">我開的</span><small>名額 <input type="number" id="addSlotCap" value="1" min="1" aria-label="名額"> <label class="arr"><input type="checkbox" id="addSlotTogether">一起成交</label></small></td><td colspan="5"><span class="dim">在時間格寫時間，就開了一個時段，等人來約</span></td><td>' + btn('addSlot', '開時段', '', '') + '</td></tr>');
     var from = UI.page * PAGE_ROWS, slice = all.slice(from, from + PAGE_ROWS);
@@ -3378,8 +3431,12 @@ var SHEETS = (function () {
     if (own) all.push('<tr class="addrow"' + rowH(12.5) + '><td class="k">' + (list.length + 1) + '</td><td>' + inp(' data-new="res" aria-label="寫一樣東西就是加"', '', '寫一樣東西') + '</td><td class="k"><span class="dim">寫了名字再勾</span></td><td class="k"><span class="dim">照名字自動選</span></td><td></td><td></td><td></td><td></td></tr>');
     var from = UI.page * ROWS, slice = all.slice(from, from + ROWS), trs = slice.join('') + pad(ROWS - slice.length, 8, 12.5);
     var fromDay = p ? CORE.dayLabel(p.fromDay) : CORE.dayLabel(CORE.dayNum(t));
-    var fields = '<span>名字 ' + ln(esc(r.name)) + '</span><span>序號 ' + ln(esc(CORE.abbrev(r.serial)), 's') + '</span><span>每天最多給 ' + ln(own ? '<input type="number" data-ed="daily" value="' + (p ? p.dailyPoints : todayV.dailyPoints) + '" min="1" aria-label="每天最多給">' : String(todayV.dailyPoints), 's') + ' 點</span><span>從 ' + ln(esc(fromDay.slice(5).replace('-', ' 月 ') + ' 日'), 's') + ' 起</span>' +
-      (own ? '<span>只跟這樣的人換（不寫＝誰都可以） ' + ln(esc(condSummary(r) || '誰都可以') + ' ' + btn('open', '改', ' data-s="rules"', 'o'), 'l') + '</span>' : '<span>換點比例 ' + ln(esc(CORE.ratio(S(), r.serial).text), 'l') + '</span><span>對接過 ' + ln(String(CORE.dockCount(S(), r.serial)), 's') + ' 次</span><span>只跟這樣的人換 ' + ln(esc(condSummary(r) || '誰都可以'), 'l') + '</span>');
+    var tagV = p || todayV, tagCfg = CORE.cleanTag(tagV.tag), tagItems = tagV.resources.filter(function (y) { return y.price > 0; });
+    var tagSet = own ? '<span class="tagset small">別人看到 <b id="tagPreview">' + esc(CORE.nameWith(S(), r.serial, t, tagV)) + '</b>　括弧 <select class="cs" data-ed="tagMode" aria-label="括弧">' + Object.keys(CORE.TAG_MODES).map(function (k) { return opt(k, CORE.TAG_MODES[k], tagCfg.mode); }).join('') + '</select>' +
+      (tagCfg.mode === 'pick' ? ' <select class="cs" data-ed="tagItem" aria-label="挑一樣">' + (tagItems.length ? tagItems.map(function (y) { return opt(y.id, y.name, tagCfg.item); }).join('') : '<option value="">（先寫一樣有價錢的東西）</option>') + '</select>' : '') +
+      (tagCfg.mode !== 'off' ? ' 顯示 <select class="cs" data-ed="tagShow" aria-label="顯示小類或名字">' + Object.keys(CORE.TAG_SHOWS).map(function (k) { return opt(k, CORE.TAG_SHOWS[k], tagCfg.show); }).join('') + '</select>' : '') + (p ? '<small class="warn">明天起</small>' : '') + '</span>' : '';
+    var fields = '<span>名字 ' + ln(esc(own ? r.name : nameW(r.serial))) + '</span><span>序號 ' + ln(esc(CORE.abbrev(r.serial)), 's') + '</span><span>每天最多給 ' + ln(own ? '<input type="number" data-ed="daily" value="' + (p ? p.dailyPoints : todayV.dailyPoints) + '" min="1" aria-label="每天最多給">' : String(todayV.dailyPoints), 's') + ' 點</span><span>從 ' + ln(esc(fromDay.slice(5).replace('-', ' 月 ') + ' 日'), 's') + ' 起</span>' +
+      (own ? '<span>只跟這樣的人換（不寫＝誰都可以） ' + ln(esc(condSummary(r) || '誰都可以') + ' ' + btn('open', '改', ' data-s="rules"', 'o'), 'l') + '</span>' + tagSet : '<span>換點比例 ' + ln(esc(CORE.ratio(S(), r.serial).text), 'l') + '</span><span>對接過 ' + ln(String(CORE.dockCount(S(), r.serial)), 's') + ' 次</span><span>只跟這樣的人換 ' + ln(esc(condSummary(r) || '誰都可以'), 'l') + '</span>');
     var sub = (own ? '一人一張・改了隔天才算（份數馬上算）' : esc(r.name) + ' 的資源表（不能改）・' + eligTag(CORE.canBook(S(), r, m, t))) + (pages > 1 ? '　' + btn('pagePrev', '‹', UI.page ? '' : ' disabled', 'o') + ' 第 ' + (UI.page + 1) + '／' + pages + ' 張 ' + btn('pageNext', '›', UI.page < pages - 1 ? '' : ' disabled', 'o') : '');
     var empties = todayV.resources.filter(function (x) { return x.price === 0; }), emptyAvail = empties.reduce(function (n, x) { return n + CORE.stockOf(m, x.id).avail; }, 0);
     var remind = own ? (!empties.length ? '想只收不給，要有一樣 0 點的「空的」給對方選：在空白那一行寫「空的」，價錢 0，按「補」' : emptyAvail === 0 ? '0 點的「' + esc(empties[0].name) + '」可換 0 份：按「補」才能只收不給' : '') : '';
@@ -3428,7 +3485,7 @@ var SHEETS = (function () {
     var giveCell = esc(x.give.join('、') || '—') + (viaGive ? '<small>' + howText(x.match) + (x.items.filter(function (y) { return y.name === x.via; }).map(function (y) { return catChip(y.cat) + tagChips(y.tags); })[0] || '') + '</small>' : '');
     var acts = own ? btn('unpost', '撤掉', ' data-id="' + n.id + '"', 'o') + (n.pinned ? '' : btn('renew', '續掛', ' data-id="' + n.id + '"', 'o')) + (n.parent && !n.noReport && !CORE.linksUnder(S(), n.id).some(function (k) { return k.parent.side === 'need'; }) ? btn('gift', '不用回報', ' data-id="' + n.id + '"', 'o') : '') : (APP.isBlank() ? '' : btn('bookNext', '約他', ' data-id="' + n.owner + '"') + btn('link', '接上去', ' data-id="' + n.id + '"', 'o') + eligTag(x.elig) + ' ');
     if (n.parent || CORE.linksUnder(S(), n.id).length) acts += btn('chain', '整條鏈', ' data-id="' + n.id + '"', 'o');
-    return '<tr data-row data-id="' + n.id + '" class="' + (own ? 'mine' : '') + (depth ? ' link' : '') + '"' + rowH(9) + '><td>' + ind + lk(n.owner) + '</td><td>' + (own ? '我' : esc(x.role.name)) + '</td><td>' + esc(n.need) + (small ? '<small>' + small + '</small>' : '') + '</td><td>' + giveCell + '</td><td>' + (n.untilDay == null ? '<span class="dim">沒有期限</span>' : md(n.untilDay)) + '<small>最多 ' + n.cap + ' 人</small></td><td>' + acts + '</td></tr>';
+    return '<tr data-row data-id="' + n.id + '" class="' + (own ? 'mine' : '') + (depth ? ' link' : '') + '"' + rowH(9) + '><td>' + ind + lk(n.owner) + '</td><td>' + (own ? '我' : esc(nameW(n.owner))) + '</td><td>' + esc(n.need) + (small ? '<small>' + small + '</small>' : '') + '</td><td>' + giveCell + '</td><td>' + (n.untilDay == null ? '<span class="dim">沒有期限</span>' : md(n.untilDay)) + '<small>最多 ' + n.cap + ' 人</small></td><td>' + acts + '</td></tr>';
   }
   // 公告欄（補十九）：找的框、「我在找」／「我能給」、12 個大類的鈕（點了展開小類）；列表不限幾張幾人，紙往下長
   function findPage() {
@@ -3442,14 +3499,14 @@ var SHEETS = (function () {
     tops.forEach(function (x) { walk(x, 0); });
     var nMine = res.notices.filter(function (x) { return x.notice.owner === m.serial && !x.notice.parent && !x.notice.pinned; }).length;
     if (!APP.isBlank()) mineRow = mineRow.replace('</td></tr>', (nMine >= CORE.NOTICE_MAX ? '<small class="warn">已經掛了 ' + nMine + ' 張（最多 ' + CORE.NOTICE_MAX + '）</small>' : '<small>' + nMine + '／' + CORE.NOTICE_MAX + ' 張・最多掛 30 天</small>') + '</td></tr>');
-    var total = res.notices.length, trs = mineRow + rows.join('') + pad(Math.max(0, (circles.length ? 4 : 5) - rows.length), 6, 9);
+    var total = res.notices.length, trs = mineRow + rows.join('') + pad(Math.max(0, (circles.length ? 3 : 4) - rows.length), 6, 9);
     // 誰的資源表裡有：打了詞、選了類別就是查資源（對上的那幾樣、怎麼對上的）；沒有就列全部的人（0 點的不列）；「我能給」不列
     var people = [], seen = {};
     res.resources.forEach(function (x) { if (!seen[x.role.serial]) { seen[x.role.serial] = { role: x.role, items: [], elig: x.elig }; people.push(seen[x.role.serial]); } seen[x.role.serial].items.push(x); });
     var trs2 = people.map(function (q) {
       var sl = CORE.nextSlot(q.role, t), items = q.items.map(function (x) { return esc(x.resource.name + '・' + x.resource.price); }).join('、'), hows = [];
       q.items.forEach(function (x) { var h = (x.match && x.match.how ? howText(x.match) : '') + catChip(x.resource.cat) + tagChips(x.resource.tags); if (h && hows.indexOf(h) < 0) hows.push(h); });
-      return '<tr data-row data-id="' + q.role.serial + '"' + rowH(10) + '><td>' + lk(q.role.serial) + '</td><td>' + esc(q.role.name) + '</td><td>' + items + (filtered && hows.length ? '<small>' + hows.slice(0, 3).join('　') + '</small>' : '') + '</td><td>' + (sl ? CORE.dayLabel(CORE.dayNum(sl.atUs)).slice(5) + ' ' + hhmm(sl.atUs) + '<small>' + sl.bookings.length + '／' + sl.capacity + '</small>' : '<span class="dim">沒開時段</span>') + '</td><td>' + btn('bookNext', '約他', ' data-id="' + q.role.serial + '"') + btn('visit', '看資源表', ' data-id="' + q.role.serial + '"', 'o') + '<small>' + eligTag(q.elig) + '</small></td></tr>';
+      return '<tr data-row data-id="' + q.role.serial + '"' + rowH(10) + '><td>' + lk(q.role.serial) + '</td><td>' + esc(nameW(q.role.serial)) + '</td><td>' + items + (filtered && hows.length ? '<small>' + hows.slice(0, 3).join('　') + '</small>' : '') + '</td><td>' + (sl ? CORE.dayLabel(CORE.dayNum(sl.atUs)).slice(5) + ' ' + hhmm(sl.atUs) + '<small>' + sl.bookings.length + '／' + sl.capacity + '</small>' : '<span class="dim">沒開時段</span>') + '</td><td>' + btn('bookNext', '約他', ' data-id="' + q.role.serial + '"') + btn('visit', '看資源表', ' data-id="' + q.role.serial + '"', 'o') + '<small>' + eligTag(q.elig) + '</small></td></tr>';
     }).join('') + pad(Math.max(0, 3 - people.length), 5, 10);
     // 接成一圈的：圈主開時段、大家約、選一條
     var trs3 = circles.map(function (c) {
@@ -3458,7 +3515,9 @@ var SHEETS = (function () {
       var act = c.status === 'open' && c.mine ? btn('circleOpen', '開一起成交的時段', ' data-id="' + c.id + '"') : c.status === 'slotted' && c.slot && !c.slot.booked && !c.slot.judged ? btn('circleBook', '約', ' data-id="' + c.id + '"') : c.status === 'queued' && c.chooser ? btn('circleChoose', '選這一條', ' data-id="' + c.id + '"') : c.status === 'slotted' && c.slot ? btn('goLog', '去事件簿', ' data-day="' + CORE.dayNum(c.slot.atUs) + '" data-id="' + c.slot.id + '"', 'o') : '';
       return '<tr data-row data-id="' + c.id + '"' + rowH(9) + '><td>' + (c.gift ? '送禮鏈' : '一圈') + '<small>圈主 ' + esc(c.leaderName) + '・' + c.members.length + ' 人</small></td><td>' + who + '</td><td>' + st + '</td><td>' + act + '</td></tr>';
     }).join('');
-    var fields = '<span>找 ' + ln('<input type="search" id="kwIn" value="' + esc(UI.kw) + '" placeholder="例如：飯、傘、修水龍頭" aria-label="找">', 'l') + ' ' + btn('search', '找', '', 'o') + (UI.kw ? ' ' + btn('clearKw', '清掉', '', 'o') : '') + '</span>' +
+    var fs = CORE.foodSupply(S(), t);
+    var fields = '<span class="foodline' + (fs.short ? ' warn' : '') + '" id="foodLine">食物：' + btn('foodNeed', '需要 ' + fs.need + ' 張', '', 'o') + '・' + btn('foodGive', '可以給 ' + fs.give + ' 人', '', 'o') + '</span>' +
+      '<span>找 ' + ln('<input type="search" id="kwIn" value="' + esc(UI.kw) + '" placeholder="例如：飯、傘、修水龍頭" aria-label="找">', 'l') + ' ' + btn('search', '找', '', 'o') + (UI.kw ? ' ' + btn('clearKw', '清掉', '', 'o') : '') + '</span>' +
       '<span class="modes">' + btn('mode', '我在找', ' data-m="want" aria-pressed="' + (!giveMode) + '"', giveMode ? 'o' : '') + btn('mode', '我能給', ' data-m="give" aria-pressed="' + giveMode + '"', giveMode ? '' : 'o') + '</span>' +
       '<span class="small tot">公告 ' + total + ' 張' + (giveMode ? '' : '・資源表 ' + people.length + ' 人') + '</span>';
     // 12 個大類的鈕；點了展開小類；再點一次（或「全部」）清掉
@@ -3499,8 +3558,8 @@ var SHEETS = (function () {
     }
     function node(nd) {
       var kids = nd.children, html = '<div class="tn" data-node="' + nd.id + '">' + card(nd);
-      if (kids.length) html += '<div class="tk">' + kids.map(function (k, i) { var kc = circleOf[k.id], litE = kc && circleOf[nd.id] === kc; return '<div class="tb"><div class="te' + (litE ? ' lit' : '') + '">' + (kids.length > 1 ? '<span class="tno">第 ' + (i + 1) + ' 條</span>' : '') + '<span class="tet">' + esc(k.edge.text) + '</span></div>' + node(k) + '</div>'; }).join('') + '</div>';
-      else if (tr.tails.indexOf(nd.id) >= 0) html += '<div class="tk"><div class="tb"><div class="te"></div>' + (nd.owner === m.serial ? '<div class="ttail dim">等人接上來<small>能幫你（' + esc(nd.need) + '）的人會接在這裡</small></div>' : '<button type="button" class="ttail" data-act="link" data-id="' + nd.id + '">接在這裡<small>能幫' + esc(nd.name) + '（' + esc(nd.need) + '）的人，點一下就接上來</small></button>') + '</div></div>';
+      if (kids.length) html += '<div class="tk">' + kids.map(function (k, i) { var kc = circleOf[k.id], litE = kc && circleOf[nd.id] === kc; return '<div class="tb"><div class="te' + (litE ? ' lit' : '') + '">' + (k.branchNo && k.branchOf > 1 ? '<span class="tno">第 ' + k.branchNo + ' 條</span>' : '') + '<span class="tet">' + esc(k.edge.text) + '</span></div>' + node(k) + '</div>'; }).join('') + '</div>';
+      else if (tr.tails.indexOf(nd.id) >= 0) html += '<div class="tk"><div class="tb"><div class="te"></div>' + (nd.owner === m.serial ? '<div class="ttail dim">等人接上來<small>能幫你（' + esc(nd.need) + '）的人會接在這裡</small></div>' : '<button type="button" class="ttail" data-act="link" data-id="' + nd.id + '">接在這裡<small>能幫' + esc(nd.plain) + '（' + esc(nd.need) + '）的人，點一下就接上來</small></button>') + '</div></div>';
       return html + '</div>';
     }
     var body = '<div class="tree" id="tree"><svg class="tsvg" id="treeSvg" aria-hidden="true"></svg>' + node(tr.root) + '</div>';
@@ -3518,7 +3577,7 @@ var SHEETS = (function () {
       var rt = top.getBoundingClientRect(), rl = last.getBoundingClientRect(), sx = box.scrollLeft, sy = box.scrollTop;
       var minL = Infinity; c.nodes.forEach(function (id) { var el = box.querySelector('.tcard[data-node="' + CSS.escape(id) + '"]'); if (el) minL = Math.min(minL, el.getBoundingClientRect().left); });
       var ax = rl.left - b0.left + sx + rl.width / 2, ay = rl.bottom - b0.top + sy, bx = rt.left - b0.left + sx, by = rt.top - b0.top + sy + rt.height / 2, lx = Math.max(6, minL - b0.left + sx - 16);
-      paths += '<path d="M' + ax + ',' + ay + ' v14 H' + lx + ' V' + by + ' H' + (bx - 2) + '" fill="none"/><text x="' + (lx + 4) + '" y="' + ((ay + by) / 2) + '" transform="rotate(-90 ' + (lx + 4) + ',' + ((ay + by) / 2) + ')" text-anchor="middle">彎回起點・接成一圈</text>';
+      paths += '<path data-circle="' + c.id + '" d="M' + ax + ',' + ay + ' v16 H' + lx + ' V' + by + ' H' + (bx - 2) + '" fill="none"/><text x="' + ((lx + ax) / 2) + '" y="' + (ay + 13) + '" text-anchor="middle">' + esc(c.loopText ? c.loopText + '・彎回起點' : '彎回起點・接成一圈') + '</text>';
     });
     svg.innerHTML = paths;
   }
@@ -3658,7 +3717,7 @@ var SHEETS = (function () {
   function render() {
     var m = me(), o = UI.other ? roleOf(UI.other) : null;
     if (UI.other && !o) UI.other = null;
-    $('tother').innerHTML = o ? '<b>' + esc(CORE.abbrev(o.serial) + ' ' + o.name) + '</b> 的' + (UI.osheet === 'cal' ? '日曆 ' : '那張紙 ') + btn('home', '回我自己', '', 'o') : '<span class="small muted">' + (APP.isBlank() ? '還沒創角色' : '我是 <b>' + esc(CORE.abbrev(m.serial) + ' ' + m.name) + '</b>') + '</span>';
+    $('tother').innerHTML = o ? '<b>' + esc(CORE.abbrev(o.serial) + ' ' + nameW(o.serial)) + '</b> 的' + (UI.osheet === 'cal' ? '日曆 ' : '那張紙 ') + btn('home', '回我自己', '', 'o') : '<span class="small muted">' + (APP.isBlank() ? '還沒創角色' : '我是 <b>' + esc(CORE.abbrev(m.serial) + ' ' + m.name) + '</b>') + '</span>';
     var st = APP.tutActive() && !APP.isBlank() ? APP.steps() : null;
     $('tutbar').hidden = !APP.tutActive();
     if (APP.tutActive()) $('tutbar').innerHTML = '<span class="small">' + esc(APP.isBlank() ? '新手教學 ① 創角色：資源表那張紙已經寫好「空的」，填名字和每天的點，按「建立」' : st.hint) + '</span>' + (APP.tut().step === 6 ? btn('myHouse', '去我的達秒屋', '', 'go') : '') + (APP.isBlank() ? '' : btn('tutSkip', '跳過教學', '', 'o'));
@@ -3759,6 +3818,8 @@ var SHEETS = (function () {
     search: function () { UI.kw = val('kwIn').trim(); render(); },
     clearKw: function () { UI.kw = ''; render(); },
     mode: function (b) { UI.mode = b.dataset.m === 'give' ? 'give' : 'want'; render(); },
+    foodNeed: function () { UI.mode = 'give'; UI.cat = 'food'; render(); },
+    foodGive: function () { UI.mode = 'want'; UI.cat = 'food'; render(); },
     cat: function (b) { var id = b.dataset.id || '', cur = UI.cat, curBig = cur ? (CORE.SUBS[cur] ? CORE.SUBS[cur].big : cur) : ''; UI.cat = id && (cur === id || (CORE.BIGS[id] && curBig === id)) ? '' : id; render(); },   // 再點一次同一個大類（或它底下的小類亮著）就收起來
     post: function () { var give = [].slice.call(document.querySelectorAll('#tmain [data-give]')).filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.give; }); var u = val('ntUntil'); run(function () { CORE.postNotice(S(), me().serial, { need: val('ntNeed'), cat: val('ntCat'), tags: val('ntTags'), give: give, cap: val('ntCap') || 3, untilDay: u ? CORE.dayNum(new Date(u + 'T12:00:00').getTime() * 1000) : null }, now()); }, '公告掛上去了'); },
     renew: function (b) { var r = run(function () { return CORE.renewNotice(S(), me().serial, b.dataset.id, now()); }, '續掛了'); if (r.ok && r.value) msg('續掛了，掛到 ' + CORE.dayLabel(r.value.untilDay)); },
@@ -3824,6 +3885,9 @@ var SHEETS = (function () {
     resKeep: function (id, v) { CORE.setResource(S(), me().serial, id, { keepDays: v }, now()); },
     resCat: function (id, v) { CORE.setResource(S(), me().serial, id, { cat: v }, now()); },
     resTags: function (id, v) { CORE.setResource(S(), me().serial, id, { tags: v }, now()); },
+    tagMode: function (id, v) { CORE.setNameTag(S(), me().serial, { mode: v }, now()); },
+    tagItem: function (id, v) { CORE.setNameTag(S(), me().serial, { mode: 'pick', item: v }, now()); },
+    tagShow: function (id, v) { CORE.setNameTag(S(), me().serial, { show: v }, now()); },
     noticeCat: function (id, v) { CORE.setNotice(S(), me().serial, id, { cat: v }); },
     noticeTags: function (id, v) { CORE.setNotice(S(), me().serial, id, { tags: v }); },
     present: function (id, v, el) { CORE.setPresent(S(), me().serial, id, el.checked); }
@@ -3839,7 +3903,7 @@ var SHEETS = (function () {
     if (t.id === 'addSlotTime') { busy = true; try { ACT.addSlot(); } finally { busy = false; } return; }
     if (!t.dataset || !t.dataset.ed || !EDIT[t.dataset.ed]) return;
     busy = true;
-    try { var okMsg = t.dataset.ed === 'present' ? (t.checked ? '會到' : '不去了，時間到記成沒來') : (['daily', 'useText', 'condField', 'condOp', 'condValue', 'switch', 'maxGiveDefault', 'village', 'site', 'resName', 'resDef', 'resPrice', 'resKeep', 'resCat', 'resTags'].indexOf(t.dataset.ed) >= 0 ? '改了，明天起算' : ['noticeCat', 'noticeTags'].indexOf(t.dataset.ed) >= 0 ? '改了' : ''); try { EDIT[t.dataset.ed](t.dataset.id, t.value, t); APP.changed(); msg(okMsg); } catch (err) { APP.changed(); msg(err.message); return; } if (t.dataset.ed !== 'me') render(); }
+    try { var okMsg = t.dataset.ed === 'present' ? (t.checked ? '會到' : '不去了，時間到記成沒來') : (['daily', 'useText', 'condField', 'condOp', 'condValue', 'switch', 'maxGiveDefault', 'village', 'site', 'resName', 'resDef', 'resPrice', 'resKeep', 'resCat', 'resTags', 'tagMode', 'tagItem', 'tagShow'].indexOf(t.dataset.ed) >= 0 ? '改了，明天起算' : ['noticeCat', 'noticeTags'].indexOf(t.dataset.ed) >= 0 ? '改了' : ''); try { EDIT[t.dataset.ed](t.dataset.id, t.value, t); APP.changed(); msg(okMsg); } catch (err) { APP.changed(); msg(err.message); return; } if (t.dataset.ed !== 'me') render(); }
     finally { busy = false; }
   });
   $('serialIn').addEventListener('keydown', function (e) { if (e.key === 'Enter') goSerial(); });
@@ -3912,7 +3976,7 @@ var HOUSE = (function () {
     if (!r) return;
     var v = data(), own = mine(), vv = WORLD.available ? village() : null, inVillage = vv && vv.houses.length > 1;
     if (!own || !WORLD.available) st.building = false;
-    $('hwho').innerHTML = '<b>' + esc(CORE.abbrev(r.serial) + ' ' + r.name) + '</b> 的達秒屋' + (v.closed ? ' <span class="tag off">只給鄰居看</span>' : '<span class="small muted"> ' + esc(v.age.text + (v.sign ? '・「' + v.sign + '」' : '')) + '</span>') + (inVillage ? ' <span class="tag">村子 ' + vv.houses.length + ' 間</span>' : '');
+    $('hwho').innerHTML = '<b>' + esc(CORE.abbrev(r.serial) + ' ' + CORE.nameWith(APP.state(), r.serial, APP.now())) + '</b> 的達秒屋' + (v.closed ? ' <span class="tag off">只給鄰居看</span>' : '<span class="small muted"> ' + esc(v.age.text + (v.sign ? '・「' + v.sign + '」' : '')) + '</span>') + (inVillage ? ' <span class="tag">村子 ' + vv.houses.length + ' 間</span>' : '');
     $('hVillage').hidden = !inVillage || !!st.pick;
     $('hpick').hidden = !st.pick;
     if (st.pick) {
