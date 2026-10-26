@@ -1,5 +1,5 @@
 // 自己蓋（DESIGN 7-2「自己蓋」）：用手指加一塊（地上、方塊的面上）、拆一塊、轉擺設、復原；蓋到地皮外、日曆、日曆正面那一條、門前擋下；日曆拆不掉；
-// 換範本先問、可以復原；換人看得到；重新整理還在。「我的達秒屋」那頁：地皮大小、蓋了幾塊、去我的達秒屋蓋。
+// 換範本先問、可以復原；換人看得到；重新整理還在。「我的能量之家」那頁：地皮大小、蓋了幾塊、去我的能量之家蓋。
 // node v9/tests/t_build.js <test9.html> [截圖資料夾]
 var lib = require('./lib'), assert = lib.assert;
 var J1 = '00000000001', J3 = '00000000003';
@@ -10,13 +10,13 @@ var J1 = '00000000001', J3 = '00000000003';
   var count = function () { return H.ev("CORE.houseOf(APP.roleOf('" + J1 + "')).blocks.filter(function(b){return b[3]!=='door';}).length"); };
   var becomeMe = H.becomeMe;
   await H.fresh();
-  // 1. 「我的達秒屋」那頁：門牌、整間屋給誰看、新的一筆預設、地皮、蓋了幾塊；沒有屋型、顏色、樣式、擺設
+  // 1. 「我的能量之家」那頁：門牌、整間屋給誰看、新的一筆預設、地皮、蓋了幾塊；沒有屋型、顏色、樣式、擺設
   await H.nav('house');
   var main = await H.main(), n0 = await count();
-  assert(main.indexOf('12×12、高 12') >= 0 && main.indexOf(n0 + ' 塊') >= 0 && main.indexOf('門牌一句話') >= 0 && main.indexOf('整間屋給誰看') >= 0 && main.indexOf('新的一筆預設') >= 0, '我的達秒屋：地皮 12×12、高 12，已經蓋了 ' + n0 + ' 塊，門牌、給誰看、新的一筆預設都在');
+  assert(main.indexOf('12×12、高 12') >= 0 && main.indexOf(n0 + ' 塊') >= 0 && main.indexOf('門牌一句話') >= 0 && main.indexOf('整間屋給誰看') >= 0 && main.indexOf('新的一筆預設') >= 0, '我的能量之家：地皮 12×12、高 12，已經蓋了 ' + n0 + ' 塊，門牌、給誰看、新的一筆預設都在');
   assert(['屋型', '牆的顏色', '屋頂的樣式', '擺設'].every(function (w) { return main.indexOf(w) < 0; }) && n0 > 50, '拿掉了屋型、顏色、樣式、擺設那幾列；新角色先有一間預設小屋');
-  await H.clickText('去我的達秒屋蓋', '#tmain'); await pg.waitForTimeout(500);
-  assert((await H.ev("WORLD.info().building")) && (await pg.isVisible('#hbuild')) && (await H.ev("WORLD.info().phi")) < 1, '按「去我的達秒屋蓋」：到自己的達秒屋，開始蓋，鏡頭從高一點往下看');
+  await H.clickText('去我的能量之家蓋', '#tmain'); await pg.waitForTimeout(500);
+  assert((await H.ev("WORLD.info().building")) && (await pg.isVisible('#hbuild')) && (await H.ev("WORLD.info().phi")) < 1, '按「去我的能量之家蓋」：到自己的能量之家，開始蓋，鏡頭從高一點往下看');
   if (shots) await pg.screenshot({ path: shots + '/v9_build_1.png' });
   // 2. 選天藍，點地上一格：加一塊；點它的頂面：上面再加一塊
   await H.hclick('#hblk [data-blk="sky"]');

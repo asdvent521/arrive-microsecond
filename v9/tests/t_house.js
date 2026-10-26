@@ -1,32 +1,32 @@
-// 達秒屋：一打開這個月那塊日曆在畫面中間附近（轉橫、直放）；轉到背面、拉遠以後按「看日曆」鏡頭轉回來、資料沒變；日曆上的磚數對；拖著轉、兩指縮放、滾輪縮放真的有變；
+// 能量之家：一打開這個月那塊日曆在畫面中間附近（轉橫、直放）；轉到背面、拉遠以後按「看日曆」鏡頭轉回來、資料沒變；日曆上的磚數對；拖著轉、兩指縮放、滾輪縮放真的有變；
 // 點日曆上的磚跳出那天；點預告框上的虛線磚跳出那天；點門、「進門」到他的表格世界；序號框和隨機（不會跳到自己）；3D 用不了時顯示日曆；
-// 滿滿一面日曆加地皮塞滿一個畫面的繪製次數不超過 50；成交那一刻開著達秒屋：白光，今天那塊磚亮起來。
+// 滿滿一面日曆加地皮塞滿一個畫面的繪製次數不超過 50；成交那一刻開著能量之家：白光，今天那塊磚亮起來。
 // node v9/tests/t_house.js <test9.html> [截圖資料夾]
 var lib = require('./lib'), assert = lib.assert, path = require('path'), fs = require('fs');
 var OUT = process.argv[3] || path.join(__dirname, 'shots'); fs.mkdirSync(OUT, { recursive: true });
 var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
 var BULK = fs.readFileSync(path.join(__dirname, 'bulk.js'), 'utf8'); BULK = BULK.slice(BULK.indexOf('function bulk'), BULK.indexOf('if (typeof module'));
 // 找一塊看得到、點得到的磚：畫面上那一點打到的就是那一天
-var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){return !b.future&&(kind==='lit'?b.lit:kind==='cover'?b.cover:true);});for(var i=list.length-1;i>=0;i--){var s=WORLD.screenOf({day:list[i].day});if(!s||s.y<60||s.y>innerHeight-60||s.x<10||s.x>innerWidth-10)continue;var h=WORLD.hitAt(s.x,s.y);if(h&&h.kind==='brick'&&h.day===list[i].day&&document.elementFromPoint(s.x,s.y).tagName==='CANVAS')return list[i].day;}return null;})";
+var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){return !b.future&&(kind==='lit'?b.level:kind==='cover'?b.cover:true);});for(var i=list.length-1;i>=0;i--){var s=WORLD.screenOf({day:list[i].day});if(!s||s.y<60||s.y>innerHeight-60||s.x<10||s.x>innerWidth-10)continue;var h=WORLD.hitAt(s.x,s.y);if(h&&h.kind==='brick'&&h.day===list[i].day&&document.elementFromPoint(s.x,s.y).tagName==='CANVAS')return list[i].day;}return null;})";
 (async function () {
   var H = await lib.open(process.argv[2], { touch: true }), pg = H.pg;
   await H.fresh({ history: true });
-  // 1. 從「我的／我的達秒屋」進去
-  await H.nav('house'); await H.clickText('去我的達秒屋', '#tmain'); await pg.waitForTimeout(700);
-  assert(!(await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("!!document.querySelector('#hstage canvas')")), '從「我的達秒屋」進到自己的達秒屋外面，整個畫面就是達秒屋');
-  assert((await pg.textContent('#hwho')).indexOf('J1 我（便當熟食） 的達秒屋') >= 0 && (await pg.textContent('#hwho')).indexOf('0 歲 0 天') >= 0, '最上面寫誰的達秒屋（名字後面有括弧）、幾歲幾天');
+  // 1. 從「我的／我的能量之家」進去
+  await H.nav('house'); await H.clickText('去我的能量之家', '#tmain'); await pg.waitForTimeout(700);
+  assert(!(await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("!!document.querySelector('#hstage canvas')")), '從「我的能量之家」進到自己的能量之家外面，整個畫面就是能量之家');
+  assert((await pg.textContent('#hwho')).indexOf('J1 我（便當熟食） 的能量之家') >= 0 && (await pg.textContent('#hwho')).indexOf('0 歲 0 天') >= 0, '最上面寫誰的能量之家（名字後面有括弧）、幾歲幾天');
   assert((await H.ev("WORLD.info().bricks")) === (await H.ev("HOUSE.data().bricks.filter(function(b){return b.onHouse;}).length")), '日曆上的磚數對：' + (await H.ev("WORLD.info().bricks")));
   // 這個月那塊日曆（今天那塊磚）在畫面中間附近、在上下兩條列之間
-  var MID = "(function(){var v=HOUSE.data(),s=WORLD.screenOf({day:v.today}),c=document.querySelector('#hstage canvas').getBoundingClientRect(),hb=document.querySelector('.hbar').getBoundingClientRect(),fb=document.querySelector('.hfoot').getBoundingClientRect();if(!s)return null;var el=document.elementFromPoint(s.x,s.y);return {dx:Math.abs(s.x-(c.left+c.width/2))/c.width,dy:Math.abs(s.y-(hb.bottom+fb.top)/2)/(fb.top-hb.bottom),inBand:s.y>hb.bottom&&s.y<fb.top,canvas:!!el&&el.tagName==='CANVAS'};})()";
+  var MID = "(function(){var v=HOUSE.data(),s=WORLD.screenOf({day:v.today}),c=document.querySelector('#hstage canvas').getBoundingClientRect(),hb=document.querySelector('.hbar').getBoundingClientRect(),hh=document.getElementById('hhome'),fb=document.querySelector('.hfoot').getBoundingClientRect();if(!s)return null;var top=hh&&!hh.hidden?hh.getBoundingClientRect().bottom:hb.bottom;var el=document.elementFromPoint(s.x,s.y);return {dx:Math.abs(s.x-(c.left+c.width/2))/c.width,dy:Math.abs(s.y-(top+fb.top)/2)/(fb.top-top),inBand:s.y>top&&s.y<fb.top,canvas:!!el&&el.tagName==='CANVAS'};})()";   // 自己的家：首頁那一排下面才是房子
   var mid = await H.ev(MID);
   assert(mid && mid.dx < 0.2 && mid.dy < 0.3 && mid.inBand && mid.canvas, '一打開這個月那塊日曆在畫面中間附近（今天那塊磚離正中 ' + (mid.dx * 100).toFixed(0) + '%／' + (mid.dy * 100).toFixed(0) + '%）');
-  // 2. 序號框：到阿澄的達秒屋外面
+  // 2. 序號框：到阿澄的能量之家外面
   await H.houseSerial('J2');
   var v2 = await H.ev("JSON.stringify({b:WORLD.info().bricks,n:CORE.viewHouse(APP.state(),'" + J2 + "','" + J1 + "').bricks.length,s:WORLD.info().serial,calls:WORLD.info().calls})"); v2 = JSON.parse(v2);
-  assert(v2.s === J2 && v2.b === v2.n && v2.n > 400, '序號框輸入 J2：到阿澄的達秒屋外面，磚數對（' + v2.b + ' 塊）');
+  assert(v2.s === J2 && v2.b === v2.n && v2.n > 400, '序號框輸入 J2：到阿澄的能量之家外面，磚數對（' + v2.b + ' 塊）');
   assert((await H.ev("WORLD.info().cal")) === (await H.ev("HOUSE.data().cal.blocks.length")) && (await H.ev("WORLD.info().cal")) > 10, '一個月一塊日曆：' + (await H.ev("WORLD.info().cal")) + ' 塊');
   mid = await H.ev(MID); assert(mid && mid.dx < 0.2 && mid.dy < 0.3 && mid.inBand, '阿澄的屋一打開也對著這個月那塊');
-  assert((await H.ev("WORLD.info().lit")) > 10 && (await H.ev("WORLD.info().cover")) > 0 && (await H.ev("WORLD.info().marks")) > 0, '亮的磚、蓋布、小記號都有');
+  assert((await H.ev("WORLD.info().colored")) > 10 && (await H.ev("WORLD.info().cover")) > 0 && (await H.ev("WORLD.info().marks")) > 0, '彩色的磚（跟人換過）、蓋布、小記號都有');
   await pg.screenshot({ path: OUT + '/v9_house_1_j2.png' });
   // 3. 一指拖著轉；滾輪縮放；兩指縮放
   var c0 = await H.ev("WORLD.info()");
@@ -54,7 +54,7 @@ var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){
   await H.hclick('#hLook'); await pg.waitForTimeout(800); assert((await H.ev(MID)).dx < 0.2, '鏡頭已經在那裡時再按也沒關係');
   // 4. 點一塊亮的磚：跳出那天的明細
   await H.ev("HOUSE.render({resetCamera:true})"); await pg.waitForTimeout(300);
-  var day = await H.ev(FIND + "('lit')"); assert(day != null, '畫面上找得到一塊亮的磚');
+  var day = await H.ev(FIND + "('lit')"); assert(day != null, '畫面上找得到一塊彩色的磚');
   await H.tap3d({ day: day }, '亮的磚');
   assert((await H.popOpen()) && (await H.popTitle()).indexOf(await H.ev("CORE.dayLabel(" + day + ")")) >= 0 && (await H.popBody()).indexOf('成交') >= 0, '點一塊磚：跳出那天的明細（' + (await H.popTitle()) + '）');
   assert((await H.popBody()).indexOf('那天生效的規則表和資源表') >= 0, '明細有那天生效的規則表和資源表'); await H.popOk();
@@ -71,27 +71,27 @@ var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){
   await H.ev("(function(){var d=HOUSE.data().look.door;WORLD.setCamera({target:[d[0]+0.5,1,d[2]+0.5],theta:0,phi:1.3,dist:6});WORLD.renderNow();})()"); await pg.waitForTimeout(200);
   await H.tap3d('door', '門'); await pg.waitForTimeout(300);
   assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.sheetName()) === 'other:res' && (await pg.textContent('#tother')).indexOf('J2 阿澄') >= 0, '點門：到阿澄的資源表那張紙');
-  await H.clickText('看他的達秒屋', '#tmain'); await pg.waitForTimeout(400); await H.hclick('#hDoor'); await pg.waitForTimeout(300);
+  await H.clickText('看他的能量之家', '#tmain'); await pg.waitForTimeout(400); await H.hclick('#hDoor'); await pg.waitForTimeout(300);
   assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.sheetName()) === 'other:res', '「進門」按鈕也到他的資源表那張紙');
-  // 他的那張紙下面有「看他的達秒屋」
-  await H.clickText('看他的達秒屋', '#tmain'); await pg.waitForTimeout(400);
-  assert(!(await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("WORLD.info().serial")) === J2, '他的那張紙下面「看他的達秒屋」');
-  // 6. 骰子＋去：到一間還在玩、不是自己的達秒屋；回我的表格世界
+  // 他的那張紙下面有「看他的能量之家」
+  await H.clickText('看他的能量之家', '#tmain'); await pg.waitForTimeout(400);
+  assert(!(await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("WORLD.info().serial")) === J2, '他的那張紙下面「看他的能量之家」');
+  // 6. 骰子＋去：到一間還在玩、不是自己的能量之家；回我的表格世界
   var ok6 = true; for (var i = 0; i < 10; i++) { await H.hclick('#hDice'); await pg.waitForTimeout(100); await H.hclick('#hSerialGo'); await pg.waitForTimeout(150); var w = await H.ev("WORLD.info().serial"); if (!w || w === J1) ok6 = false; }
-  assert(ok6, '骰子再按「去」10 次，都到不是自己的達秒屋');
+  assert(ok6, '骰子再按「去」10 次，都到不是自己的能量之家');
   await H.hclick('#hBack'); assert((await H.ev("document.getElementById('view-house').hidden")) && (await H.ev("SHEETS.ui.other")) === null, '「回我的表格世界」');
-  // 7. 成交那一刻開著自己的達秒屋：白光一閃，今天那塊磚亮起來
-  await H.nav('house'); await H.clickText('去我的達秒屋', '#tmain'); await pg.waitForTimeout(400);
-  var litBefore = await H.ev("WORLD.info().lit");
+  // 7. 成交那一刻開著自己的能量之家：白光一閃，今天那塊磚亮起來
+  await H.nav('house'); await H.clickText('去我的能量之家', '#tmain'); await pg.waitForTimeout(400);
+  var litBefore = await H.ev("WORLD.info().colored");
   var sid = await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+3e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2b']);CORE.setWants(S,s.id,'" + J2 + "','" + J1 + "',['r1b']);APP.changed();return s.id;})()");
   assert((await H.ev("WORLD.info().future + WORLD.info().bricks")) >= 1, '約好了：今天有一筆預約');
   await H.ev("window.__flashed=false;new MutationObserver(function(){if(document.getElementById('flash').classList.contains('go'))window.__flashed=true;}).observe(document.getElementById('flash'),{attributes:true})");
   await pg.waitForFunction("CORE.slotOf(APP.state(),'" + sid + "').slot.judged", null, { timeout: 15000 }); await pg.waitForTimeout(500);
-  assert((await H.ev("window.__flashed")) && (await H.ev("WORLD.info().lit")) === litBefore + 1 && (await H.ev("HOUSE.data().bricks.find(function(b){return b.day===HOUSE.data().today;}).lit")) === 1, '成交那一刻：白光一閃，今天那塊磚亮起來');
+  assert((await H.ev("window.__flashed")) && (await H.ev("WORLD.info().colored")) === litBefore + 1 && (await H.ev("HOUSE.data().bricks.find(function(b){return b.day===HOUSE.data().today;}).level")) === 1, '成交那一刻：白光一閃，今天那塊磚變彩色');
   await pg.screenshot({ path: OUT + '/v9_house_2_lit.png' }); if (await H.popOpen()) await H.popOk();
   // 8. 360×780 直放也打得開
   await pg.setViewportSize({ width: 360, height: 780 }); await pg.waitForTimeout(300); await H.houseSerial('J3');
-  assert((await H.ev("WORLD.info().serial")) === J3 && (await H.ev("WORLD.info().bricks")) === (await H.ev("HOUSE.data().bricks.length")), '360×780 打得開小樂的達秒屋，磚數對');
+  assert((await H.ev("WORLD.info().serial")) === J3 && (await H.ev("WORLD.info().bricks")) === (await H.ev("HOUSE.data().bricks.length")), '360×780 打得開小樂的能量之家，磚數對');
   mid = await H.ev(MID); assert(mid && mid.dx < 0.25 && mid.inBand && mid.canvas, '直放：這個月那塊日曆也在畫面中間附近、沒被下面那一排擋住');
   await H.ev("WORLD.setCamera({theta:2.5,phi:0.9,dist:30})"); await H.hclick('#hLook'); await pg.waitForTimeout(900); mid = await H.ev(MID);
   assert(mid && mid.dx < 0.25 && mid.inBand, '直放按「看日曆」也轉回來');
@@ -115,14 +115,14 @@ var FIND = "(function(kind){var v=HOUSE.data(),list=v.bricks.filter(function(b){
   await pg.screenshot({ path: OUT + '/v9_house_5_full.png' });
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close();
-  // 11. 3D 用不了：達秒屋改顯示成日曆，點一格跟點一塊磚一樣
+  // 11. 3D 用不了：能量之家改顯示成日曆，點一格跟點一塊磚一樣
   var N = await lib.open(process.argv[2], { noWebGL: true }), np = N.pg;
   await N.fresh({ history: true });
   assert((await N.ev("WORLD.available")) === false, '擋掉 WebGL：3D 用不了');
   await N.ev("APP.goHouse('" + J2 + "')"); await np.waitForTimeout(300);
-  assert(!(await N.ev("document.getElementById('hcal').hidden")) && (await N.ev("document.querySelectorAll('#hcal section.page[data-sheet=cal] td.day').length")) >= 28, '達秒屋顯示成日曆紙（一個月一張、一格一天）');
-  var cell = await N.ev("(function(){var b=[...document.querySelectorAll('#hcal td[data-act=calDay]')].find(function(x){return /lit/.test(x.className);});return b?b.dataset.day:null;})()");
-  if (cell == null) { await N.hclick('#hcal [data-act="calMonth"][data-n="-1"]'); cell = await N.ev("(function(){var b=[...document.querySelectorAll('#hcal td[data-act=calDay]')].find(function(x){return /lit/.test(x.className);});return b?b.dataset.day:null;})()"); }
+  assert(!(await N.ev("document.getElementById('hcal').hidden")) && (await N.ev("document.querySelectorAll('#hcal section.page[data-sheet=cal] td.day').length")) >= 28, '能量之家顯示成日曆紙（一個月一張、一格一天）');
+  var cell = await N.ev("(function(){var b=[...document.querySelectorAll('#hcal td[data-act=calDay]')].find(function(x){return /lv\\d/.test(x.className);});return b?b.dataset.day:null;})()");
+  if (cell == null) { await N.hclick('#hcal [data-act="calMonth"][data-n="-1"]'); cell = await N.ev("(function(){var b=[...document.querySelectorAll('#hcal td[data-act=calDay]')].find(function(x){return /lv\\d/.test(x.className);});return b?b.dataset.day:null;})()"); }
   await N.hclick('#hcal td[data-act="calDay"][data-day="' + cell + '"]');
   assert((await N.popOpen()) && (await N.popBody()).indexOf('成交') >= 0, '點日曆的一格跟點一塊磚一樣：跳出那天的明細');
   assert(N.errs.length === 0, '3D 用不了也沒有頁面錯誤' + (N.errs.length ? '：' + N.errs.join(' | ') : ''));

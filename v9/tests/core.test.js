@@ -635,7 +635,7 @@ ok('每一筆：兌現和到期作廢寫進原本那一筆的狀態，不另外�
   assert.ok(/^換了 \d\d-\d\d$/.test(st['一杯茶']), '換了 月-日：' + st['一杯茶']); assert.ok(/^到期作廢/.test(st['畫一張圖']), '畫保留 2 天，到期作廢：' + st['畫一張圖']);
   assert.ok(e.got[0].state === '保留中', '我拿到的空的還保留著');
 });
-ok('藏：每一筆兩邊各有設定，約的人在約的那一刻、主人在被約的那一刻照自己的「新的一筆預設」；之後在那一筆上隨時改，各管各的達秒屋', function () {
+ok('藏：每一筆兩邊各有設定，約的人在約的那一刻、主人在被約的那一刻照自己的「新的一筆預設」；之後在那一筆上隨時改，各管各的能量之家', function () {
   var s = houseBase();
   C.setHouse(s, J1, { defaultVis: 'hidden' }); C.setHouse(s, J2, { defaultVis: 'neighbors' });
   var a = C.addSlot(s, J1, T0 + 60e6, 5, null, T0); C.book(s, J2, a.id, T0); C.book(s, J3, a.id, T0);
@@ -659,20 +659,20 @@ ok('看一間屋：對接的兩個人永遠看得到；陌生人只看到蓋布�
   var stranger = C.dayDetail(s, J1, null, day);
   assert.strictEqual(stranger.entries.length, 0); assert.strictEqual(stranger.covered, 2, '陌生人：兩筆都蓋著');
   var vb = C.viewHouse(s, J1, null, T0 + 200e6), brick = vb.bricks.find(function (x) { return x.day === day; });
-  assert.ok(brick.cover && !brick.lit && !brick.mark, '那天全蓋著：磚只看得到布');
+  assert.ok(brick.cover && !brick.level && !brick.mark, '那天全蓋著：磚只看得到布');
   var vJ2 = C.dayDetail(s, J1, J2, day); assert.strictEqual(vJ2.entries.length, 1); assert.strictEqual(vJ2.entries[0].other.serial, J2, '對接的人看得到自己那一筆'); assert.strictEqual(vJ2.covered, 1, '另一筆（只給鄰居看）蓋著');
   var vJ3 = C.dayDetail(s, J1, J3, day); assert.strictEqual(vJ3.entries[0].other.serial, J3, '只給鄰居看的，對接的人還是看得到');
   assert.ok(vJ2.entries[0].gave[0].state, '對接的人看得到選好的東西現在怎樣');
   C.setVis(s, J1, e1.id, 'public'); var pub = C.dayDetail(s, J1, null, day);
   assert.strictEqual(pub.entries.length, 1); assert.strictEqual(pub.entries[0].gave[0].state, undefined, '選好的東西的狀態只給對接的兩個人'); assert.strictEqual(pub.covered, 1);
-  assert.strictEqual(C.viewHouse(s, J1, null, T0 + 200e6).bricks.find(function (x) { return x.day === day; }).lit, 1, '亮度只算看得到的成交');
+  assert.strictEqual(C.viewHouse(s, J1, null, T0 + 200e6).bricks.find(function (x) { return x.day === day; }).level, 1, '亮度只算看得到的成交');
   assert.strictEqual(C.dockCount(s, J1), dc0); assert.strictEqual(C.ratio(s, J1).text, ratio0, '藏了，對接過幾次和換點比例照算');
-  // 藏只藏自己這一邊：乙沒藏，乙的達秒屋照樣看得到這一筆
-  C.setVis(s, J1, e1.id, 'hidden'); assert.strictEqual(C.dayDetail(s, J2, null, day).entries.length, 1, '對方的達秒屋照樣看得到');
+  // 藏只藏自己這一邊：乙沒藏，乙的能量之家照樣看得到這一筆
+  C.setVis(s, J1, e1.id, 'hidden'); assert.strictEqual(C.dayDetail(s, J2, null, day).entries.length, 1, '對方的能量之家照樣看得到');
   // 整間屋只給鄰居看：陌生人只看到外觀和牌子
   C.setHouse(s, J1, { visibility: 'neighbors', sign: '甲的家' });
   var closed = C.viewHouse(s, J1, null, T0 + 200e6);
-  assert.ok(closed.closed && closed.sign === '' && closed.age === null && closed.bricks.every(function (x) { return x.lit === undefined && x.cover === undefined; }), '只給鄰居看：沒有亮暗、門牌沒有字');
+  assert.ok(closed.closed && closed.sign === '' && closed.age === null && closed.bricks.every(function (x) { return x.level === undefined && x.cover === undefined; }), '只給鄰居看：沒有亮暗、門牌沒有字');
   assert.ok(closed.look.blocks.length > 0 && closed.bricks.every(function (x) { return x.g; }), '外觀（自己蓋的）和日曆上的磚位置還看得到'); assert.ok(C.dayDetail(s, J1, null, day).closed, '點不開');
   assert.ok(!C.viewHouse(s, J1, J1, T0 + 200e6).closed, '自己看得到');
   assert.strictEqual(C.viewHouse(s, J1, J2, T0 + 200e6).closed, true, '對接過的人也不是鄰居，整間屋看不到');
@@ -693,7 +693,7 @@ ok('引路人那一邊的教學紀錄固定全藏，不能改；玩家那一邊�
   throws(function () { C.setVis(s, J4, e.id, 'public'); }, /教學紀錄固定全藏/);
   assert.strictEqual(C.dayDetail(s, J4, null, C.dayNum(T0)).covered, 1, '別人看引路人的屋：教學那一筆蓋著');
   var mine = C.dayDetail(s, J1, J1, C.dayNum(T0)); assert.ok(mine.entries[0].tutorial, '自己那一筆標「教學」');
-  assert.ok(C.viewHouse(s, J1, null, T0 + 61e6).bricks.slice(-1)[0].lit === 1, '達秒屋那塊磚照樣亮');
+  assert.ok(C.viewHouse(s, J1, null, T0 + 61e6).bricks.slice(-1)[0].level === 1, '能量之家那塊磚照樣亮');
 });
 ok('門牌和磚：幾歲幾天（滿 365 天 1 歲，創角色那天 0 歲 0 天）、一天一塊、換日照 dayNum、未來有預約的那幾天是虛線（中間空著）、那天生效的規則表和資源表', function () {
   var s = houseBase(), born = T0 - 400 * DAY;
@@ -859,7 +859,7 @@ ok('viewHouse：每塊磚對到第幾塊日曆、第幾排第幾欄；預告框�
   assert.ok(fut[0].onHouse && fut[0].g.m === v.cal.blocks.length && v.cal.preview && v.cal.preview.month.m === C.calMonth(born, v.cal.blocks.length).m, '下個月的預約在預告框上');
   assert.ok(!fut[1].onHouse, '再後面的預約不在房子上（表格世界的日曆照舊有）');
   C.setHouse(s, S6, { visibility: 'neighbors' }); var c = C.viewHouse(s, S6, null, T0);
-  assert.ok(c.closed && c.cal.blocks.length === v.cal.blocks.length && c.cal.preview && c.bricks.every(function (b) { return b.lit === undefined && b.g; }), '只給鄰居看：日曆和預告框的形狀照畫，磚沒有亮暗');
+  assert.ok(c.closed && c.cal.blocks.length === v.cal.blocks.length && c.cal.preview && c.bricks.every(function (b) { return b.level === undefined && b.g; }), '只給鄰居看：日曆和預告框的形狀照畫，磚沒有亮暗');
   assert.strictEqual(c.look.door.length, 5, '門照樣看得到');
 });
 ok('存檔：第 3 輪的存檔讀得進來：門牆拿掉、門補在預設位置、日曆從起點照 up 補長到現在、擋到的照日曆優先拆掉並記下來', function () {
@@ -941,7 +941,7 @@ ok('示範資料：阿澄、小樂、引路人很久以前就創了，帶一段�
   assert.ok(st.traded > 20 && st.nodock > 3 && st.miss > 3, '有成交、不成交、錯過：' + JSON.stringify(st));
   assert.ok(s.entries.some(function (e) { return e.vis['00000000002'] !== 'public' || e.vis['00000000003'] !== 'public'; }), '有幾筆藏起來');
   assert.ok(s.entries.every(function (e) { return !e.docking || s.dockings.some(function (d) { return d.id === e.docking; }); }), '照正式的格式：每一筆都連到對接紀錄');
-  var v = C.viewHouse(s, '00000000002', null, now); assert.ok(v.bricks.filter(function (b) { return b.lit; }).length > 10 && v.bricks.some(function (b) { return b.cover; }), '隨機跳過去看得到亮的磚和蓋布');
+  var v = C.viewHouse(s, '00000000002', null, now); assert.ok(v.bricks.filter(function (b) { return b.level; }).length > 10 && v.bricks.some(function (b) { return b.cover; }), '隨機跳過去看得到亮的磚和蓋布');
   var looks = ['00000000002', '00000000003', C.GUIDE].map(function (x) { return JSON.stringify(C.houseOf(C.roleOf(s, x)).blocks); });
   assert.ok(looks[0] !== looks[1] && looks[1] !== looks[2] && looks[0] !== looks[2] && looks.every(function (l) { return JSON.parse(l).length > 100; }), '阿澄、小樂、引路人各有一間不一樣的房子（塔、長屋、圓屋再改過）');
 });
@@ -1083,12 +1083,12 @@ ok('打招呼密鑰：要對方同意才成立；第三人找不到；不能像�
   assert.ok(r.slot.greet === g.id && C.isPresent(s, J1, r.slot.id) && C.isPresent(s, J2, r.slot.id), '兩人都算到達');
   assert.strictEqual(C.dockCount(s, J1), 1, '算一次對接'); assert.strictEqual(C.myGreets(s, J1, T0 + 131e6)[0].lastDay, C.dayNum(T0 + 130e6), '上次哪天');
   assert.ok(s.entries.some(function (e) { return e.slot === r.slot.id && e.greet && e.status === 'traded'; }), '事件簿多一行');
-  assert.ok(C.viewHouse(s, J1, null, T0 + 131e6).bricks.find(function (b) { return b.day === C.dayNum(T0 + 130e6); }).lit === 1, '亮一塊磚');
+  assert.ok(C.viewHouse(s, J1, null, T0 + 131e6).bricks.find(function (b) { return b.day === C.dayNum(T0 + 130e6); }).level === 1, '亮一塊磚');
   // 同一對人一天第二次：照樣記一筆、亮磚，但不算進對接過幾次和換點比例
   C.enterKey(s, J1, '早安', T0 + 200e6); var r2 = C.enterKey(s, J2, '早安', T0 + 210e6);
   assert.ok(r2.docked && r2.docking.traded && r2.docking.noCount, '第二次：成交、記一筆');
   assert.strictEqual(C.dockCount(s, J1), 1, '不算進對接過幾次'); assert.strictEqual(C.ratio(s, J1).n, 1, '不算進換點比例');
-  assert.strictEqual(C.viewHouse(s, J1, null, T0 + 211e6).bricks.find(function (b) { return b.day === C.dayNum(T0 + 210e6); }).lit, 2, '磚照樣算');
+  assert.strictEqual(C.viewHouse(s, J1, null, T0 + 211e6).bricks.find(function (b) { return b.day === C.dayNum(T0 + 210e6); }).level, 2, '磚照樣算');
   // 規則照常：貨不夠就不成交、照事實記錄
   C.restock(s, J2, 'e2', -C.stockOf(s.roles[1], 'e2').avail);
   C.enterKey(s, J1, '早安', T0 + 300e6); var r3 = C.enterKey(s, J2, '早安', T0 + 301e6);
@@ -1210,7 +1210,7 @@ ok('鄰居：看得到彼此「只給鄰居看」的屋和那幾筆；非鄰居�
   assert.ok(C.viewHouse(s, J1, J3, T0 + 61e6).closed && C.dayDetail(s, J1, J3, C.dayNum(T0), T0 + 61e6).closed, '丙不是鄰居：整間屋只給鄰居看，看不到');
   var inv = C.inviteNeighbor(s, J1, J3, T0); C.joinVillage(s, J3, C.villageOf(s, J1).id, inv.id, [1, 0], 0, T0);
   var vh = C.viewHouse(s, J1, J3, T0 + 61e6);
-  assert.ok(!vh.closed && vh.bricks.find(function (b) { return b.day === C.dayNum(T0); }).lit === 1 && C.dayDetail(s, J1, J3, C.dayNum(T0), T0 + 61e6).entries.length === 1, '丙搬進來當鄰居：看得到整間屋和只給鄰居看的那一筆');
+  assert.ok(!vh.closed && vh.bricks.find(function (b) { return b.day === C.dayNum(T0); }).level === 1 && C.dayDetail(s, J1, J3, C.dayNum(T0), T0 + 61e6).entries.length === 1, '丙搬進來當鄰居：看得到整間屋和只給鄰居看的那一筆');
   assert.strictEqual(C.viewVillage(s, J1, J2, T0).houses.length, 1, '乙不是鄰居：從只給鄰居看的那一間看，只看得到那一間');
   var vv = C.viewVillage(s, J3, J2, T0); assert.strictEqual(vv.houses.length, 2); assert.ok(vv.houses.find(function (h) { return h.serial === J1; }).view.closed && !vv.houses.find(function (h) { return h.serial === J3; }).view.closed, '從公開的那一間看：看得到全村，只給鄰居看的那間只有外觀');
   assert.strictEqual(C.viewVillage(s, J1, J3, T0).houses.length, 2, '鄰居從哪一間看都看得到全村');
@@ -1542,5 +1542,83 @@ ok('分支樹（第 11 輪小修正）：接在起點「可以給」下面、把
   // 接在需要下面接回起點的（甲接到丙的需要下面）照舊畫出來，線上沒有字
   var s2 = base(); var a2 = C.postNotice(s2, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0), c2 = C.linkNotice(s2, J3, a2.id, { side: 'need', give: ['q'], need: '畫一張圖' }, T0 + 1), g2 = C.linkNotice(s2, J1, c2.notice.id, { side: 'need', give: ['x'], need: '一首歌' }, T0 + 2);
   var tr2 = C.chainTree(s2, a2.id, J1, T0); assert.ok(tr2.nodes[g2.notice.id] && tr2.circles[0].last === g2.notice.id && tr2.circles[0].loopText === '', '接在需要下面的照舊畫，彎回去的線沒有字');
+});
+ok('前情提要（補二十二）：字或點數少一個擋下來；點數 0、超過 300 字擋下來；扣今天的點、不動份數；點不夠擋下來；只能寫今天；當天改少退回、改多要夠、撤掉全退、隔天不能改', function () {
+  var s = base(), r = s.roles[0], left0 = C.remainingToday(s, r, T0), avail0 = C.availTotal(r, T0), dn = C.dayNum(T0);
+  throws(function () { C.writeNature(s, J1, { text: '', points: 5 }, T0); }, /寫一點今天跟自然的交流/);
+  throws(function () { C.writeNature(s, J1, { text: '早上走了走', points: '' }, T0); }, /給自然至少 1 點/); throws(function () { C.writeNature(s, J1, { text: '早上走了走', points: 0 }, T0); }, /給自然至少 1 點/);
+  throws(function () { C.writeNature(s, J1, { text: '很'.repeat(301), points: 1 }, T0); }, /最多 300 字/);
+  assert.strictEqual(C.naturesOf(s).length, 0, '擋下來就什麼都沒記');
+  var x = C.writeNature(s, J1, { text: '早上走了走', points: 5 }, T0);
+  assert.strictEqual(C.remainingToday(s, r, T0), left0 - 5, '扣今天的點'); assert.strictEqual(C.availTotal(r, T0), avail0, '不動資源表的份數'); assert.strictEqual(x.vis, 'hidden', '預設全藏'); assert.strictEqual(C.natureToday(s, J1, T0), 5);
+  throws(function () { C.writeNature(s, J1, { text: 'x', points: left0 + 1 }, T0); }, /今天還剩的點不夠/);
+  C.writeNature(s, J1, { text: '改一下', points: 2 }, T0); assert.strictEqual(C.remainingToday(s, r, T0), left0 - 2, '改少退回'); assert.strictEqual(C.naturesOf(s).length, 1, '一天一段，改的是同一段'); assert.strictEqual(C.natureOf(s, J1, dn).text, '改一下');
+  C.writeNature(s, J1, { text: '改多', points: left0 }, T0); assert.strictEqual(C.remainingToday(s, r, T0), 0, '改多到剛好用完也行');
+  throws(function () { C.writeNature(s, J1, { text: '改多', points: left0 + 1 }, T0); }, /不夠/);
+  throws(function () { C.writeNature(s, J1, { text: '昨天的', points: 1, day: dn - 1 }, T0); }, /過了今天就不能改/); throws(function () { C.writeNature(s, J1, { text: '明天的', points: 1, day: dn + 1 }, T0); }, /不能先寫明天/);
+  C.removeNature(s, J1, T0); assert.strictEqual(C.remainingToday(s, r, T0), left0, '撤掉全退'); assert.strictEqual(C.naturesOf(s).length, 0); throws(function () { C.removeNature(s, J1, T0); }, /今天還沒寫前情提要/);
+  C.writeNature(s, J1, { text: '今天的', points: 3 }, T0);
+  throws(function () { C.writeNature(s, J1, { text: '改昨天', points: 3, day: dn }, T0 + DAY); }, /過了今天就不能改/); throws(function () { C.removeNature(s, J1, T0 + DAY); }, /今天還沒寫/, '隔天撤不了昨天的');
+  assert.strictEqual(C.natureOf(s, J1, dn).text, '今天的', '昨天的還在'); C.writeNature(s, J1, { text: '第二天', points: 1 }, T0 + DAY); assert.strictEqual(C.naturesOf(s).length, 2, '第二天另一段');
+  assert.strictEqual(C.remainingToday(s, r, T0 + DAY), C.dailyPoints(r, T0 + DAY) - 1, '隔天的點只扣隔天給的');
+});
+ok('前情提要（續）：不算進對接過幾次、換點比例、對接條件、食物供需、括弧；磚的四種樣子（亮＝前情提要、顏色＝跟人換）；別人看藏著的不亮；那天的明細最上面有前情提要；示範角色有、引路人沒有；存檔', function () {
+  var s = C.fresh({ history: false }); C.demoMe(s, T0); var r = s.roles[0], today = C.dayNum(T0), J2 = '00000000002';
+  var before = JSON.stringify([C.dockCount(s, J1), C.ratio(s, J1).text, C.foodSupply(s, T0), C.nameWith(s, J1, T0), C.availTotal(r, T0), C.canBook(s, C.roleOf(s, J2), r, T0).ok]);
+  C.writeNature(s, J1, { text: '今天給自然', points: 10 }, T0);
+  assert.strictEqual(JSON.stringify([C.dockCount(s, J1), C.ratio(s, J1).text, C.foodSupply(s, T0), C.nameWith(s, J1, T0), C.availTotal(r, T0), C.canBook(s, C.roleOf(s, J2), r, T0).ok]), before, '對接過幾次、換點比例、食物供需、括弧、份數、條件都不看前情提要');
+  var b = C.viewHouse(s, J1, J1, T0).bricks.find(function (x) { return x.day === today; }); assert.deepStrictEqual([b.lit, b.level, b.traded], [true, 0, 0], '只有前情提要：亮的灰白（lit、level 0）');
+  assert.strictEqual(C.viewHouse(s, J1, J2, T0).bricks.find(function (x) { return x.day === today; }).lit, false, '別人看：預設全藏 → 暗的');
+  C.setNatureVis(s, J1, today, 'public'); assert.strictEqual(C.viewHouse(s, J1, J2, T0).bricks.find(function (x) { return x.day === today; }).lit, true, '改成公開：別人看就亮');
+  C.setNatureVis(s, J1, today, 'neighbors'); assert.strictEqual(C.viewHouse(s, J1, J2, T0).bricks.find(function (x) { return x.day === today; }).lit, false, '只給鄰居看：阿澄不是鄰居，暗的'); assert.strictEqual(C.viewHouse(s, J1, null, T0).bricks.find(function (x) { return x.day === today; }).lit, false, '陌生人看：暗的');
+  throws(function () { C.setNatureVis(s, J1, today, 'nope'); }, /只能選/); throws(function () { C.setNatureVis(s, J1, today - 1, 'public'); }, /那天沒有前情提要/);
+  assert.ok(C.dayDetail(s, J1, J1, today, T0).nature && C.dayDetail(s, J1, J1, today, T0).nature.points === 10 && C.dayDetail(s, J1, J1, today, T0).nature.mine, '那天的明細最上面有前情提要'); assert.strictEqual(C.dayDetail(s, J1, J2, today, T0).nature, null, '別人看不到藏著的');
+  // 跟人換：暗的彩色；兩個都有：亮的彩色；什麼都沒有：暗的灰白
+  var s2 = base(), at = T0 + 60e6, d2 = C.dayNum(at); meet(s2, J1, [J2], at); C.judge(s2, at + 1000);
+  var bb = function (viewer) { return C.viewHouse(s2, J1, viewer, at + 2000).bricks.find(function (x) { return x.day === d2; }); };
+  assert.deepStrictEqual([bb(J1).lit, bb(J1).level, bb(J1).traded], [false, 1, 1], '只跟人換：暗的彩色 1 級：' + JSON.stringify(bb(J1)));
+  C.writeNature(s2, J1, { text: '也跟自然', points: 1 }, at + 1500); assert.deepStrictEqual([bb(J1).lit, bb(J1).level], [true, 1], '兩個都有：亮的彩色');
+  assert.deepStrictEqual([bb(J2).lit, bb(J2).level], [false, 1], '乙看：前情提要藏著所以暗，跟人換的彩色看得到（對接的人永遠看得到那一筆）');
+  var s3 = base(); var b3 = C.viewHouse(s3, J1, J1, T0).bricks.find(function (x) { return x.day === C.dayNum(T0); }); assert.deepStrictEqual([b3.lit, b3.level], [false, 0], '什麼都沒有：暗的灰白');
+  // 三筆成交最深
+  var s4 = base(); meet(s4, J1, [J2, J3], T0 + 60e6); C.judge(s4, T0 + 60e6 + 1000); var s4b = C.viewHouse(s4, J1, J1, T0 + 60e6 + 2000).bricks.find(function (x) { return x.day === C.dayNum(T0 + 60e6); }); assert.strictEqual(s4b.level, 2, '兩筆成交 2 級');
+  assert.strictEqual(C.natureDays(s2, J1, J1, d2 - 30, d2), 1); assert.strictEqual(C.natureDays(s2, J1, J2, d2 - 30, d2), 0, '別人看不到的不算進天數');
+  var f = C.fresh(); assert.strictEqual(C.naturesOf(f).filter(function (x) { return x.serial === J2 && x.vis === 'public'; }).length, 3, '示範（帶歷史）：阿澄最近三天公開的前情提要'); assert.strictEqual(C.naturesOf(f).filter(function (x) { return x.serial === C.GUIDE; }).length, 0, '引路人沒有');
+  assert.strictEqual(C.viewHouse(f, J2, null, C.nowUs()).bricks.filter(function (x) { return x.lit; }).length, 3, '陌生人看阿澄的家：三塊亮的（公開的）'); assert.strictEqual(C.viewHouse(f, J3, null, C.nowUs()).bricks.filter(function (x) { return x.lit; }).length, 1, '小樂一天公開、一天只給鄰居看：陌生人看一塊亮的');
+  var f0 = C.fresh({ history: false }); assert.strictEqual(C.naturesOf(f0).length, 0, '不帶歷史的示範（測試用）：沒有前情提要，今天的點不扣');
+  var raw = JSON.parse(JSON.stringify(s2)); raw.v = 9; raw.tutorial = { step: 'done' };
+  var store = {}; global.localStorage = { getItem: function (k) { return store[k] || null; }, setItem: function (k, v) { store[k] = v; }, removeItem: function (k) { delete store[k]; } };
+  store['arrive-v9'] = JSON.stringify(raw); var st = C.load(); assert.strictEqual(st.natures.length, 1, '存檔讀回來'); assert.strictEqual(st.natures[0].text, '也跟自然');
+  raw.natures.push({ id: 'bad', serial: 'nobody', day: 1, text: 'x', points: 1, atUs: 1, vis: 'public' }); raw.natures.push({ id: 'dup', serial: J1, day: d2, text: '重複的', points: 1, atUs: 1, vis: 'public' }); store['arrive-v9'] = JSON.stringify(raw); st = C.load(); assert.strictEqual(st.natures.length, 1, '不存在的人、同一天第二段都丟掉');
+  delete raw.natures; store['arrive-v9'] = JSON.stringify(raw); st = C.load(); assert.ok(Array.isArray(st.natures) && st.natures.length === 0, '舊存檔沒有前情提要也行'); delete global.localStorage;
+  assert.deepStrictEqual([C.freshTutorial().step, C.freshTutorial().seven], [1, true]); assert.strictEqual(C.cleanTutorial({ six: true, step: 2 }).step, 3, '六步存檔的第 2 步讀進來變第 3 步'); assert.strictEqual(C.cleanTutorial({ six: true, step: 1 }).step, 1); assert.strictEqual(C.cleanTutorial({ six: true, seven: true, step: 2 }).step, 2); assert.strictEqual(C.cleanTutorial({ step: 8 }).step, 7, '八步存檔的第 8 步變第 7 步');
+});
+ok('交換關係（補二十二）：固定約、已約、在一圈裡、以前換過；好幾種時最近要發生的那一種；換過幾次、最近一次、你給他、他給你；不含前情提要、教學、引路人', function () {
+  var s = base(), G = C.GUIDE, J5 = '00000000005';
+  C.createRole(s, { serial: G, name: '引路人', dailyPoints: 100, rules: {}, resources: [{ id: 'g0', name: '空的', price: 0, avail: 9 }] }, T0); C.createRole(s, { serial: J5, name: '戊', dailyPoints: 100, rules: {}, resources: [{ id: 'w1', name: '一杯水', price: 1, keepDays: 1, avail: 9 }, { id: 'e5', name: '空的', price: 0, avail: 9 }] }, T0);
+  EMPTY[G] = 'g0'; EMPTY[J5] = 'e5';
+  assert.deepStrictEqual(C.relations(s, J1, T0), [], '還沒換過：沒有');
+  var at1 = T0 + 60e6; meet(s, J1, [J2, J3, J5, G], at1); C.judge(s, at1 + 1000);   // 跟乙、丙、戊、引路人各換一次（跟引路人的算教學）
+  var at2 = T0 + 120e6; var sl2 = meet(s, J1, [J2], at2); C.setWants(s, sl2.id, J2, J1, ['y']); C.setWants(s, sl2.id, J1, J2, ['p']); C.judge(s, at2 + 1000);   // 跟乙第二次：甲給一杯茶、乙給一首歌
+  var now = at2 + 2000, rel = C.relations(s, J1, now), by = {}; rel.forEach(function (x) { by[x.serial] = x; });
+  assert.deepStrictEqual(Object.keys(by).sort(), [J2, J3, J5].sort(), '引路人（教學）不算');
+  assert.deepStrictEqual([by[J2].count, by[J2].gave, by[J2].got, by[J2].lastDay, by[J2].tier, by[J2].rels.length, by[J2].next], [2, ['空的', '一杯茶'], ['空的', '一首歌'], C.dayNum(at2), 'past', 0, null], '乙：換過 2 次、你給他、他給你、最近一次；現在沒有關係');
+  assert.strictEqual(by[J2].name, '乙（寫歌）', '名字後面有括弧');
+  // 固定約（乙）、已約（丙，兩天後）、在一圈裡（戊）；乙另外也約了三天後 → 兩項，最近的是固定約
+  var dk = s.dockings.find(function (d) { return d.slot === sl2.id && d.traded; }); C.wantDaily(s, J1, dk.id, true, now); C.wantDaily(s, J2, dk.id, true, now);
+  var slB = C.addSlot(s, J3, now + 2 * C.DAY_US, 1, null, now); C.book(s, J1, slB.id, now);
+  var slC = C.addSlot(s, J2, now + 3 * C.DAY_US, 1, null, now); C.book(s, J1, slC.id, now);
+  var nt = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 3 }, now); var l5 = C.linkNotice(s, J5, nt.id, { side: 'need', give: ['w1'], need: '畫一張圖' }, now + 1); var g = C.linkNotice(s, J1, l5.notice.id, { side: 'need', give: ['x'], need: '一首歌' }, now + 2); assert.ok(g.circle);
+  rel = C.relations(s, J1, now + 3); by = {}; rel.forEach(function (x) { by[x.serial] = x; });
+  assert.strictEqual(by[J2].rels.length, 2); assert.strictEqual(by[J2].next.kind, 'standing'); assert.ok(/^固定約・每天 \d+:\d\d$/.test(by[J2].next.text), '乙：固定約最近要發生：' + by[J2].next.text); assert.strictEqual(by[J2].tier, 'standing'); assert.strictEqual(by[J2].rels[1].kind, 'booked');
+  assert.ok(by[J3].next && by[J3].next.kind === 'booked' && by[J3].next.text.indexOf('已約・') === 0 && by[J3].tier === 'active', '丙：已約・哪天：' + by[J3].next.text);
+  assert.deepStrictEqual([by[J5].next.kind, by[J5].next.text, by[J5].circle, by[J5].tier], ['circle', '在一圈裡・2 人', g.circle.id, 'active'], '戊：在一圈裡・2 人，帶圈的代號');
+  assert.deepStrictEqual(rel.map(function (x) { return x.serial; }), [J2, J3, J5], '排序：固定約（今天或明天就會發生）→ 兩天後已約 → 一圈（還沒開時段）');
+  C.writeNature(s, J1, { text: '跟自然', points: 1 }, now + 3); assert.strictEqual(C.relations(s, J1, now + 4).length, 3, '前情提要不放進來');
+  // 只換過、現在沒關係的排後面
+  var J6 = '00000000006'; C.createRole(s, { serial: J6, name: '己', dailyPoints: 100, rules: {}, resources: [{ id: 'e6', name: '空的', price: 0, avail: 9 }] }, T0); EMPTY[J6] = 'e6';
+  var at3 = now + 3600e6; meet(s, J1, [J6], at3); C.judge(s, at3 + 1000); rel = C.relations(s, J1, at3 + 2000);
+  assert.strictEqual(rel[rel.length - 1].serial, J6); assert.strictEqual(rel[rel.length - 1].tier, 'past', '己：以前換過、現在沒在換，排最後');
+  delete EMPTY[G]; delete EMPTY[J5]; delete EMPTY[J6];
 });
 console.log('core.test.js ok（' + n + ' 項）');

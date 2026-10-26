@@ -139,6 +139,20 @@ button.box{cursor:pointer}
 .page .fields .foodline{width:100%;font-size:calc(var(--mm)*3.4);gap:calc(var(--mm)*.8)} .page .fields .foodline.warn{color:var(--stamp)} .page .fields .foodline.warn .mini{border-color:var(--stamp);color:var(--stamp)}
 .page .fields .tagset{font-size:calc(var(--mm)*3);color:var(--muted)} .page .fields .tagset b{color:var(--pen);font-family:var(--hand);font-size:calc(var(--mm)*3.8)} .page .fields .tagset select.cs{font-size:calc(var(--mm)*3)}
 /* 整條鏈：分支樹（補二十） */
+/* 交換關係圖（補二十二）：這一頁用 px，直放時紙縮到螢幕寬 */
+.stage.fit{min-width:0}
+.page[data-sheet=map]{font-size:14px;padding:16px 14px 18px} .page[data-sheet=map] h1{font-size:22px;letter-spacing:.2em} .page[data-sheet=map] .sub{font-size:12px} .page[data-sheet=map] .foot{font-size:12px;line-height:1.5} .page[data-sheet=map] .lab{font-size:14px;margin:12px 0 6px}
+.page[data-sheet=map] table{font-size:13px} .page[data-sheet=map] th{font-size:12px;padding:4px 6px} .page[data-sheet=map] td{font-size:13px;padding:4px 6px;line-height:1.3;font-family:var(--serif);color:var(--ink)} .page[data-sheet=map] td.r{text-align:right} .page[data-sheet=map] tr.past td{color:#888} .page[data-sheet=map] .mini{font-size:13px;padding:4px 10px;min-height:32px}
+.page[data-sheet=map] .lk{font-size:13px}
+.map{position:relative;width:100%;min-height:260px;margin:8px 0 10px;background:#FBFAF6;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.map svg{position:absolute;left:0;top:0;z-index:0} .map svg line{stroke-width:2} .map svg line.standing{stroke-width:3.5} .map svg line.active{stroke-dasharray:7 5;stroke-width:2.5} .map svg line.past{stroke-width:1.5}
+.mnode{position:absolute;z-index:2;border:2px solid #999;border-radius:999px;background:#fff;padding:6px 12px;font:inherit;font-size:13px;line-height:1.2;white-space:nowrap;cursor:pointer;color:var(--ink);max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.mnode.me{border-color:var(--ink);background:var(--ink);color:#fff;cursor:default;padding:8px 14px;font-size:15px}
+.mnode.standing{border-color:#1C7A73} .mnode.active{border-color:#2D5A86} .mnode.past{border-color:#BBB;color:#777} .mnode.sel{box-shadow:0 0 0 3px var(--gold) !important}
+.mlbl{position:absolute;z-index:1;font-size:11px;line-height:1.2;padding:1px 6px;border-radius:999px;background:rgba(255,255,255,.92);color:#2D5A86;white-space:nowrap;pointer-events:none;border:1px solid rgba(0,0,0,.06)} .mlbl.standing{color:#1C7A73;font-weight:600} .mlbl.past{color:#999}
+.mmore{position:absolute;z-index:2} .mempty{position:absolute;left:0;right:0;bottom:12px;text-align:center}
+.mcard{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;font-size:13px;line-height:1.5} .mcard .mch{font-size:15px;margin-bottom:2px} .mcard .mcb{margin-top:6px} .mcard-empty{padding:4px 2px}
+@media (max-width:480px){.page[data-sheet=map] .wide{display:none}}
 .page .tree{position:relative;overflow-x:auto;overflow-y:hidden;padding:calc(var(--mm)*2) calc(var(--mm)*8) 30px}
 .page .tsvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:0}
 .page .tsvg path{stroke:var(--teal);stroke-width:2.5;stroke-dasharray:6 4} .page .tsvg text{fill:var(--teal);font-family:var(--serif);font-size:11px}
@@ -185,8 +199,12 @@ button.box{cursor:pointer}
 .page .calp td.none .dn{color:#BBB;border-color:#DDD}
 .page .calp .ev{margin-top:calc(var(--mm)*.8);font-family:var(--hand);color:var(--pen);font-size:calc(var(--mm)*2.9);line-height:1.3}
 .page .calp .more{font-size:calc(var(--mm)*2.5);color:#777;margin-top:calc(var(--mm)*.4)}
-.page .calp td.lit1{background:#FBF0D9}.page .calp td.lit2{background:#F7E2B0}.page .calp td.lit3{background:#F3D27C}
-.page .calp td.lit1::after,.page .calp td.lit2::after,.page .calp td.lit3::after{border-right-color:var(--pen)}
+/* 磚的四種樣子（補二十二）：暗的灰白、亮的灰白（前情提要）、暗的彩色（跟人換）、亮的彩色；顏色越深成交越多 */
+.page .calp td.empty,.page .calp td.day{background:#ECE9E1}
+.page .calp td.lit{background:#FFFDF4}
+.page .calp td.lv1{background:#D9C27E}.page .calp td.lv2{background:#C8A64E}.page .calp td.lv3{background:#AE8A2C}
+.page .calp td.lit.lv1{background:#F8E7B0}.page .calp td.lit.lv2{background:#F3D77C}.page .calp td.lit.lv3{background:#EBBF4A}
+.page .calp td.lv1::after,.page .calp td.lv2::after,.page .calp td.lv3::after{border-right-color:var(--pen)}
 .page .calp td.mark::before{content:"";position:absolute;right:calc(var(--mm)*1.6);top:calc(var(--mm)*1.6);width:calc(var(--mm)*1.6);height:calc(var(--mm)*1.6);border-radius:50%;background:var(--ink);z-index:1}
 .page .calp td.cover{background:repeating-linear-gradient(45deg,#C9C3B6 0 calc(var(--mm)*1.5),#B9B3A6 calc(var(--mm)*1.5) calc(var(--mm)*3))}
 .page .calp td.fut.bk,.page .calp td.bk{box-shadow:inset 0 0 0 calc(var(--mm)*.5) #FFF,inset 0 0 0 calc(var(--mm)*.9) var(--pen)}
@@ -199,12 +217,22 @@ button.box{cursor:pointer}
 .ent-h{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .vis{margin-top:4px}
 .vis select{min-height:30px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
-/* ===== 達秒屋：外面整個畫面就是達秒屋 ===== */
+/* ===== 能量之家：外面整個畫面就是能量之家 ===== */
 #view-house{position:fixed;inset:0;z-index:40;background:#DCE6EE;overflow:hidden}
 .hbar{position:absolute;left:0;right:0;top:0;z-index:3;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:6px 10px;background:var(--hud);border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
 .hbar input[type=text]{width:8.5em;min-height:36px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
 .hbar .btn{min-height:36px}
 .hbar .who{flex:1 1 12em;min-width:0;font-size:.9rem}
+.hhome{position:absolute;left:0;right:0;top:52px;z-index:3;display:flex;flex-direction:column;gap:6px;padding:4px 10px;pointer-events:none}
+.hhome>*{pointer-events:auto}
+.hnat{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:var(--r-m);background:var(--hud);backdrop-filter:blur(6px);padding:8px 12px;font:inherit;color:var(--ink);cursor:pointer}
+.hnat .small{display:block;color:var(--muted)} .hnat .natext{display:block;font-size:1.02rem;line-height:1.45;max-height:4.4em;overflow:hidden}
+.hnat.empty{font-size:1.05rem;border-style:dashed}
+.hnat.edit{cursor:default} .hnat.edit textarea{width:100%;box-sizing:border-box;font:inherit;font-size:1rem;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg);margin:4px 0;resize:vertical}
+.hnatrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px} .hnatrow input[type=number]{width:4.5em;min-height:32px;font:inherit;padding:2px 6px;border:1px solid var(--line);border-radius:var(--r-s)}
+.hleft{background:var(--hud);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:var(--r-m);padding:6px 12px;font-size:.95rem} .hleft b{font-size:1.15rem}
+.hrow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;pointer-events:none} .hrow>*{pointer-events:auto} .hbig{display:flex;flex-wrap:wrap;gap:8px;align-items:center} .hbig .btn.big{font-size:1.1rem;padding:10px 22px;min-height:46px}
+body.in-house #view-table{display:none}
 #hstage{position:absolute;inset:0}
 #hstage canvas{display:block}
 #hcal{position:absolute;inset:0;overflow:auto;padding:110px 10px 90px;background:var(--bg);container-type:normal}
@@ -229,7 +257,7 @@ button.box{cursor:pointer}
 .hrow .btn{white-space:nowrap}
 @media (max-width:520px){.hblk{order:0;flex:1 0 100%}.hops{order:1;flex:1 1 auto;overflow-x:auto}.hdir{order:2}.hrow{flex-wrap:wrap}}
 .hops .btn.on{background:var(--ink);color:var(--panel)}
-.hmsg{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:4;background:var(--ink);color:var(--panel);border-radius:var(--r-m);padding:6px 12px;font-size:.88rem;max-width:calc(100% - 32px)}
+.hmsg{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:4;pointer-events:none;background:var(--ink);color:var(--panel);border-radius:var(--r-m);padding:6px 12px;font-size:.88rem;max-width:calc(100% - 32px)}
 .pop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);padding:16px}
 .pop.low{align-items:flex-end;background:transparent;pointer-events:none}
 .pop.low .card{pointer-events:auto;max-width:34em}
@@ -250,6 +278,7 @@ button.box{cursor:pointer}
   <div id="hstage"></div>
   <div id="hcal" hidden></div>
   <div class="hbar"><input type="text" id="hSerialIn" placeholder="序號或密鑰" aria-label="序號或密鑰" autocomplete="off" autocapitalize="off"><button type="button" class="btn sm pri" data-hact="go" id="hSerialGo">去</button><button type="button" class="btn sm dice" data-hact="dice" id="hDice" aria-label="隨機骰一個序號" title="隨機骰一個序號"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="16" cy="8" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="8" cy="16" r="1.8" fill="currentColor"/><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg></button><span class="who" id="hwho"></span><button type="button" class="btn sm" data-hact="back" id="hBack">回我的表格世界</button></div>
+  <div class="hhome" id="hhome" hidden></div>
   <div class="hmsg" id="hmsg" hidden></div>
   <div class="hfoot"><div class="htut" id="htut" hidden></div><div class="hpick" id="hpick" hidden><span id="hpickText"></span><span class="hrots" id="hRots"></span><button type="button" class="btn sm pri" data-hact="pickSel" id="hPickSel" hidden>放在選好的這塊</button><button type="button" class="btn sm" data-hact="pickCancel">不放了</button></div><div class="hbuild" id="hbuild" hidden><div class="hblk" id="hblk" role="toolbar" aria-label="選方塊"></div><div class="hops"><button type="button" class="btn sm on" data-hact="modeAdd" id="hModeAdd">蓋</button><button type="button" class="btn sm" data-hact="modeDel" id="hModeDel">拆</button><button type="button" class="btn sm" data-hact="undo" id="hUndo">復原上一步</button><button type="button" class="btn sm" data-hact="tpl" id="hTpl">範本</button></div><div class="hdir"><span>日曆往哪長：</span><span id="hDirs"></span><span class="muted" id="hDirNote"></span></div></div><div class="hrow"><span class="hhint" id="hhint"></span><span><button type="button" class="btn sm" data-hact="build" id="hBuild" hidden>蓋</button> <button type="button" class="btn sm" data-hact="look" id="hLook">看日曆</button> <button type="button" class="btn sm" data-hact="village" id="hVillage" hidden>看村子</button> <button type="button" class="btn sm pri" data-hact="door" id="hDoor">進門</button></span></div></div>
 </main>

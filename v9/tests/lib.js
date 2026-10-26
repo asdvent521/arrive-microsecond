@@ -4,7 +4,7 @@ var path = require('path');
 var fails = 0;
 function assert(c, m) { if (!c) { console.error('FAIL: ' + m); fails++; process.exitCode = 1; } else console.log('ok: ' + m); }
 var TABS = { log: '事件簿', cal: '日曆', res: '資源表', find: '公告欄', more: '更多' };
-var NAME = { log: '事件簿', cal: '日曆', res: '資源表', find: '公告欄', more: '更多', rules: '規則表', together: '一起成交', greet: '打招呼密鑰', slots: '我開的時段', house: '我的達秒屋', village: '鄰居和村子', role: '角色設定', help: '說明', orules: '他的規則' };
+var NAME = { log: '事件簿', cal: '日曆', res: '資源表', find: '公告欄', more: '更多', rules: '規則表', together: '一起成交', greet: '打招呼密鑰', slots: '我開的時段', house: '我的能量之家', village: '鄰居和村子', map: '交換關係', role: '角色設定', help: '說明', orules: '他的規則' };
 async function open(pagePath, opts) {
   opts = opts || {};
   var browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -44,6 +44,8 @@ async function open(pagePath, opts) {
     check: async function (sel, on) { var cur = await pg.evaluate(function (s) { var el = document.querySelector(s); return el ? el.checked : null; }, sel); if (cur === null) throw new Error('找不到勾選框 ' + sel); if (cur !== on) await H.click(sel); },
     // 換到某一張紙：五張紙按最上面的分頁；更多裡的一張，先按「更多」再按那一列的「打開」（都用手指）
     nav: async function (sheet) {
+      // 一打開是自己的能量之家（補二十二）：在能量之家裡就先按首頁的「事件簿」（看別人的家就按「回我的表格世界」）回表格世界
+      if (await pg.isVisible('#view-house')) { if (await pg.isVisible('#hhome [data-hact="toLog"]')) await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"toLog\"]'); }", '首頁的「事件簿」'); else await H.clickText('回我的表格世界', '.hbar'); await pg.waitForTimeout(250); }
       if (TABS[sheet]) await H.clickText(TABS[sheet], '#ttabs');
       else { await H.clickText('更多', '#ttabs'); await H.finger("function(){ return document.querySelector('#tmain tr[data-id=" + JSON.stringify(sheet) + "] [data-act=\"open\"]'); }", '更多裡的「' + NAME[sheet] + '」'); }
       if ((await H.sheetName()) !== sheet) throw new Error('換不到 ' + sheet + '（現在是 ' + (await H.sheetName()) + '）');
@@ -76,7 +78,7 @@ async function open(pagePath, opts) {
     // 在事件簿那一行選他的東西（可以多樣）
     pick: async function (slotId, other, resIds) { await H.finger("function(){ var tr=" + H.entryRow(slotId, other) + "; return tr && tr.querySelector('[data-act=\"pick\"]'); }", '選他的東西'); for (var r of resIds) await H.click('#popBody [data-add="' + r + '"]'); await H.popOk('選好了'); },
     // 把時段的那一微秒拉到幾秒後（資料層直接改，省得等）
-    // 達秒屋：點 3D 裡的東西（'door'、{day}、{block:[x,y,z], n:[0,1,0]}、{block, prop:true}、{ground:[x,z]}、{house: 序號}（村裡別間屋）、{spot:[gx,gz]}（挑地）），，先確認那一點是畫布、打到的就是它，再點座標
+    // 能量之家：點 3D 裡的東西（'door'、{day}、{block:[x,y,z], n:[0,1,0]}、{block, prop:true}、{ground:[x,z]}、{house: 序號}（村裡別間屋）、{spot:[gx,gz]}（挑地）），，先確認那一點是畫布、打到的就是它，再點座標
     tap3d: async function (target, what) {
       await pg.waitForTimeout(200);
       var p = await pg.evaluate(function (t) { var s = WORLD.screenOf(t); if (!s) return { err: '不在畫面上' }; var el = document.elementFromPoint(Math.round(s.x), Math.round(s.y)); if (!el || el.tagName !== 'CANVAS') return { err: '那一點不是畫布：' + (el ? el.tagName + '#' + el.id : '空的') }; s.x = Math.round(s.x); s.y = Math.round(s.y); var h = WORLD.hitAt(s.x, s.y); s.hit = h; if (!h) return { err: '那一點什麼都沒打到' }; if (t === 'door' ? h.kind !== 'door' : t === 'gate' ? h.kind !== 'gate' : t.day != null ? h.day !== t.day : t.block ? !(h.kind === 'block' && h.x === t.block[0] && h.y === t.block[1] && h.z === t.block[2] && (t.prop || !t.n || h.n.join() === t.n.join())) : t.ground ? !(h.kind === 'ground' && h.x === t.ground[0] && h.z === t.ground[1]) : t.house ? !(h.kind === 'house' && h.serial === t.house) : t.spot ? !(h.kind === 'spot' && h.pos.join() === t.spot.join()) : false) return { err: '那一點打到的是 ' + JSON.stringify(h) }; return s; }, target);

@@ -1,4 +1,4 @@
-/* ===== v9 達秒屋（3D）：只畫 CORE.viewHouse／viewVillage 回傳的資料 =====
+/* ===== v9 能量之家（3D）：只畫 CORE.viewHouse／viewVillage 回傳的資料 =====
  * 村子（第 6 輪）：每一間照村子的格子座標和朝向放（一格 CORE.VILLAGE_CELL）；看的那一間畫全部，其他間畫簡單（外形、日曆方塊、門，全村合成幾個網格）；
  * 點別間畫面滑過去（約一秒）；挑地時把能放的地畫框，點一塊就放。
  * 兩部分：日曆（一個月一塊 2×2×1 的方塊，全部在 z＝0 那一面、正面朝前；正面畫月份和一天一塊磚，位置照 CORE 算好的清單）和自己蓋的方塊（門也是一塊）。
@@ -70,7 +70,10 @@ var WORLD = (function () {
     lastAtlas = { w: c.width, h: c.height };
     var tex = new T.CanvasTexture(c); tex.anisotropy = 4; tex.flipY = false; return tex;
   }
-  function litColor(level) { return new T.Color(level >= 3 ? '#FFF4B8' : level === 2 ? '#FFD54F' : '#F2A93B'); }
+  // 磚的顏色（補二十二）：跟人成交越多顏色越深（1～3 級）；亮的（有前情提要）是自己發光的亮色，暗的是受光的深色
+  function litColor(level) { return new T.Color(level >= 3 ? '#E8A41C' : level === 2 ? '#F0BE4A' : '#F7D684'); }
+  function darkColor(level) { return new T.Color(level >= 3 ? '#8A5E16' : level === 2 ? '#B07F2A' : '#C9A14A'); }
+  var LIT_GRAY = '#F6F1E3';   // 亮的灰白：只有前情提要
 
   /* ---------- 建場景 ---------- */
   function init(el) {
@@ -134,11 +137,12 @@ var WORLD = (function () {
       counts.previewThrough = true;
     }
     // 磚：沒亮、亮、蓋布、虛線（未來的預約），加上小記號；只畫在房子上有位置的
-    var unlit = [], lit = [], cover = [], fut = [], mark = [];
+    var unlit = [], litGray = [], dark = [], litCol = [], cover = [], fut = [], mark = [];
     var posOf = function (b) { return b.g.m < list.length ? list[b.g.m] : (cal.preview && b.g.m === list.length ? cal.preview.pos : null); };
     view.bricks.forEach(function (b) {
       if (!b.onHouse || !b.g) return; var p = posOf(b); if (!p) return; b._p = p;
-      if (closed) unlit.push(b); else if (b.future) fut.push(b); else if (b.lit) lit.push(b); else if (b.cover) cover.push(b); else unlit.push(b);
+      // 暗的灰白（都沒有）、亮的灰白（只有前情提要）、暗的彩色（只跟人換）、亮的彩色（兩個都有）；藏起來的蓋布；未來的虛線
+      if (closed) unlit.push(b); else if (b.future) fut.push(b); else if (b.cover) cover.push(b); else if (b.level && b.lit) litCol.push(b); else if (b.level) dark.push(b); else if (b.lit) litGray.push(b); else unlit.push(b);
       if (!closed && b.mark && !b.future) mark.push(b);
     });
     var geo = new T.BoxGeometry(BS, BS, BD);
@@ -149,7 +153,10 @@ var WORLD = (function () {
       m.userData.days = bl.map(function (b) { return b.day; }); picks.push(m); counts[name] = bl.length; return m;
     };
     put(unlit, new T.MeshLambertMaterial({ color: closed ? '#A99C88' : BRICK }), 'unlit');
-    put(lit, new T.MeshBasicMaterial({ color: 0xffffff }), 'lit', function (b) { return litColor(b.lit); });
+    put(litGray, new T.MeshBasicMaterial({ color: LIT_GRAY }), 'litgray');
+    put(dark, new T.MeshLambertMaterial({ color: 0xffffff }), 'dark', function (b) { return darkColor(b.level); });
+    put(litCol, new T.MeshBasicMaterial({ color: 0xffffff }), 'lit', function (b) { return litColor(b.level); });
+    counts.litAll = litGray.length + litCol.length; counts.colored = dark.length + litCol.length;
     put(cover, new T.MeshLambertMaterial({ map: cloth() }), 'cover');
     put(fut, new T.MeshBasicMaterial({ map: dashed(), transparent: true, opacity: 0.95, depthWrite: false }), 'future');
     var mk = inst(new T.BoxGeometry(BS * 0.36, BS * 0.36, 0.02), new T.MeshBasicMaterial({ color: '#2B2520' }), mark.length, 'mark');
@@ -368,7 +375,8 @@ var WORLD = (function () {
     var pos = b.g.m < current.cal.blocks.length ? current.cal.blocks[b.g.m] : current.cal.preview.pos, p = brickPos(pos, b.g);
     var box = add(new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(BS + 0.08, BS + 0.08, BD + 0.06)), new T.LineBasicMaterial({ color: '#E0402B' })), 'focus');
     box.position.set(p.x, p.y, p.z); focus = day; anim = null; root.updateMatrixWorld(true);
-    cam.target.copy(toWorld(new T.Vector3(p.x, p.y - 0.42, p.z))); cam.theta = rotRad(); cam.phi = 1.5; cam.dist = 2.6; applyCam(); loop(); return true;   // 鏡頭往下挪一點：磚在畫面上半，下面留給說明
+    var fov = camera.fov * Math.PI / 180, band = Math.max(80, vh - insets.t - insets.b), fullH = vh + Math.abs(insets.t - insets.b), worldBand = 2 * 2.6 * Math.tan(fov / 2) * band / fullH;   // 可用的那一段畫面在磚那裡有幾個世界單位高
+    cam.target.copy(toWorld(new T.Vector3(p.x, p.y - Math.min(0.42, worldBand * 0.15), p.z))); cam.theta = rotRad(); cam.phi = 1.5; cam.dist = 2.6; applyCam(); loop(); return true;   // 鏡頭往下挪一點：磚在那一段的上半，下面留給說明
   }
 
   /* ---------- 鏡頭 ---------- */
@@ -487,7 +495,7 @@ var WORLD = (function () {
     available: true, atlasSize: atlasSize, texSize: function () { return lastAtlas; }, init: init, show: show, resize: resize, setInsets: setInsets, hitAt: hitAt, screenOf: screenOf, focusDay: focusDay, lookCalendar: lookCalendar, lookVillage: lookVillage,
     onTap: function (fn) { onTap = fn; },
     pause: function () { paused = true; if (raf) { cancelAnimationFrame(raf); raf = 0; } }, resume: function () { paused = false; dirty = true; loop(); },
-    info: function () { var c = (counts.unlit || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.lit || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length - 1 + (hg ? hg.children.length : 0) : 0, serial: current ? current.serial : null, building: building, focus: focus, animating: !!anim, previewThrough: !!counts.previewThrough, houses: counts.houses || 0, farFaces: counts.farFaces || 0, spots: counts.spots || 0, selSpot: counts.selSpot || null, rot: hg ? hg.rot || 0 : 0 }; },
+    info: function () { var c = (counts.unlit || 0) + (counts.litgray || 0) + (counts.dark || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.litAll || 0, colored: counts.colored || 0, litColored: counts.lit || 0, litGray: counts.litgray || 0, dark: counts.dark || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length - 1 + (hg ? hg.children.length : 0) : 0, serial: current ? current.serial : null, building: building, focus: focus, animating: !!anim, previewThrough: !!counts.previewThrough, houses: counts.houses || 0, farFaces: counts.farFaces || 0, spots: counts.spots || 0, selSpot: counts.selSpot || null, rot: hg ? hg.rot || 0 : 0 }; },
     calPose: function () { return current ? calPose() : null; },
     villagePose: function () { if (!current) return null; var p = villagePose(); return { target: p.target.toArray(), theta: p.theta, phi: p.phi, dist: p.dist, neighbor: p.neighbor || null }; },
     // 畫面上看到的這個月那塊有多大（像素，高和寬）

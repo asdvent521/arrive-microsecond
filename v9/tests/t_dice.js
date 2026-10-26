@@ -1,4 +1,4 @@
-// 骰子：按下去骰子轉一圈、框裡出現一個還在玩的人的序號、沒跳過去；按「去」才到他的那張紙；骰 12 次不會骰到自己、會換人；達秒屋最上面那一列也是骰子。
+// 骰子：按下去骰子轉一圈、框裡出現一個還在玩的人的序號、沒跳過去；按「去」才到他的那張紙；骰 12 次不會骰到自己、會換人；能量之家最上面那一列也是骰子。
 // node v9/tests/t_dice.js <test9.html>
 var lib = require('./lib'), assert = lib.assert;
 var J1 = '00000000001';
@@ -18,14 +18,14 @@ var J1 = '00000000001';
   await H.click('#serialGo');
   assert((await H.ev("CORE.abbrev(SHEETS.ui.other)")) === last && (await H.sheetName()) === 'other:res', '按「去」才到 ' + last + ' 的那張紙');
   await H.clickText('回我自己', '#tother');
-  // 達秒屋最上面那一列：也是骰子，骰進框裡、按「去」才到他的達秒屋外面
+  // 能量之家最上面那一列：也是骰子，骰進框裡、按「去」才到他的能量之家外面
   await H.ev("APP.goHouse('" + J1 + "')"); await pg.waitForTimeout(500);
-  assert((await H.ev("document.getElementById('hDice').title")) === '隨機骰一個序號' && (await H.ev("!!document.querySelector('#hDice svg')")) && (await H.ev("document.getElementById('hRandom')")) === null, '達秒屋那一列也是骰子，沒有「隨機」兩個字');
+  assert((await H.ev("document.getElementById('hDice').title")) === '隨機骰一個序號' && (await H.ev("!!document.querySelector('#hDice svg')")) && (await H.ev("document.getElementById('hRandom')")) === null, '能量之家那一列也是骰子，沒有「隨機」兩個字');
   var ok2 = true, seen2 = {};
   for (var k = 0; k < 10; k++) { await H.hclick('#hDice'); await pg.waitForTimeout(100); var v = await H.ev("document.getElementById('hSerialIn').value"); var rr = await H.ev("(function(){var r=CORE.findRole(APP.state(),'" + v + "');return r?r.serial:null;})()"); if (!rr || rr === J1 || (await H.ev("WORLD.info().serial")) !== J1) ok2 = false; seen2[rr] = 1; }
-  assert(ok2 && Object.keys(seen2).length >= 2, '達秒屋骰 10 次：序號進框裡、還在自己的達秒屋外面（骰到 ' + Object.keys(seen2).join(',') + '）');
+  assert(ok2 && Object.keys(seen2).length >= 2, '能量之家骰 10 次：序號進框裡、還在自己的能量之家外面（骰到 ' + Object.keys(seen2).join(',') + '）');
   var v2 = await H.ev("document.getElementById('hSerialIn').value"); await H.hclick('#hSerialGo'); await pg.waitForTimeout(400);
-  assert((await H.ev("CORE.abbrev(WORLD.info().serial)")) === v2, '按「去」才到 ' + v2 + ' 的達秒屋外面');
+  assert((await H.ev("CORE.abbrev(WORLD.info().serial)")) === v2, '按「去」才到 ' + v2 + ' 的能量之家外面');
   await H.hclick('#hBack');
   assert(H.errs.length === 0, '沒有頁面錯誤' + (H.errs.length ? '：' + H.errs.join(' | ') : ''));
   await H.close(); console.log(lib.fails() ? 'FAILED ' + lib.fails() : 'ALL OK');

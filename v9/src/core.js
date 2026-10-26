@@ -312,7 +312,7 @@ var CORE = (function () {
     var dn = dayNum(atUs);
     return state.holds.filter(function (h) { return h.issuer === serial && dayNum(h.atUs) === dn; }).reduce(function (s, h) { return s + h.price; }, 0);
   }
-  function remainingToday(state, role, atUs) { return Math.max(0, dailyPoints(role, atUs) - givenToday(state, role.serial, atUs)); }
+  function remainingToday(state, role, atUs) { return Math.max(0, dailyPoints(role, atUs) - givenToday(state, role.serial, atUs) - natureToday(state, role.serial, atUs)); }   // 給了自然的點也扣（補二十二）
 
   /* ---------- 規則 3：資源分「可換」與「已保留」。可換隨時加減；已保留不能手動減 ---------- */
   function stockOf(role, id) { return role.stock[id] || (role.stock[id] = { avail: 0, reserved: 0 }); }
@@ -1265,6 +1265,34 @@ var CORE = (function () {
     var focus = order.find(function (nd) { return nd.mine; });
     return { root: tree, nodes: nodes, circles: circles, tails: tails, focus: focus ? focus.id : null, start: noticeId };
   }
+  /* ---------- 交換關係圖（補二十二）：每個跟我換過或現在有關係的人一筆。只算對接（教學、引路人不算；前情提要不在裡面）；藏起來的也算（只有自己看得到自己的） ---------- */
+  function relations(state, me, atUs) {
+    atUs = atUs || nowUs(); var by = {}, dn = dayNum(atUs);
+    var get = function (o) { if (!by[o]) { var r = roleOf(state, o); by[o] = { serial: o, name: r ? nameWith(state, o, atUs) : abbrev(o), plain: r ? r.name : abbrev(o), gone: !r, gave: [], got: [], count: 0, last: null, lastDay: null, rels: [], next: null, circle: null, tier: 'past' }; } return by[o]; };
+    state.dockings.forEach(function (d) {
+      if (!d.traded || d.tutorial || (d.a !== me && d.b !== me)) return; var o = d.a === me ? d.b : d.a; if (o === GUIDE) return;
+      var x = get(o), mine = d.a === me; x.count++; if (x.last == null || d.atUs > x.last) { x.last = d.atUs; x.lastDay = dayNum(d.atUs); }
+      (mine ? d.itemsA : d.itemsB).forEach(function (it) { if (x.gave.indexOf(it.name) < 0) x.gave.push(it.name); });
+      (mine ? d.itemsB : d.itemsA).forEach(function (it) { if (x.got.indexOf(it.name) < 0) x.got.push(it.name); });
+    });
+    standingsOf(state).forEach(function (st) {
+      if (!st.active || (st.a !== me && st.b !== me)) return; var o = st.a === me ? st.b : st.a; if (o === GUIDE || !roleOf(state, o)) return;
+      var hh = Math.floor(st.tod / 3600e6), mm = Math.floor((st.tod % 3600e6) / 60e6), at = dayStartUs(dn) + st.tod; if (at <= atUs) at += DAY_US;
+      get(o).rels.push({ kind: 'standing', text: '固定約・每天 ' + hh + ':' + (mm < 10 ? '0' : '') + mm, at: at });
+    });
+    entriesOf(state).forEach(function (e) {
+      if (e.status !== 'booked' || e.tutorial || e.atUs <= atUs || (e.a !== me && e.b !== me) || e.daily) return; var o = e.a === me ? e.b : e.a; if (o === GUIDE || !roleOf(state, o)) return;
+      get(o).rels.push({ kind: 'booked', text: '已約・' + dayLabel(dayNum(e.atUs)).slice(5).replace('-', '/') + ' ' + fmtUs(e.atUs).slice(11, 16), at: e.atUs });
+    });
+    myCircles(state, me).forEach(function (c) {
+      if (c.status === 'done') return;
+      c.members.forEach(function (m) { if (m.serial === me || m.serial === GUIDE || !roleOf(state, m.serial)) return; var x = get(m.serial); x.rels.push({ kind: 'circle', text: '在一圈裡・' + c.members.length + ' 人', at: c.slot ? c.slot.atUs : Infinity, circle: c.id }); if (!x.circle) x.circle = c.id; });
+    });
+    var out = Object.keys(by).map(function (k) { return by[k]; });
+    out.forEach(function (x) { x.rels.sort(function (p, q) { return p.at - q.at; }); x.next = x.rels[0] || null; x.tier = x.rels.some(function (r) { return r.kind === 'standing'; }) ? 'standing' : x.rels.length ? 'active' : 'past'; });
+    out.sort(function (p, q) { var tp = p.rels.length ? 0 : 1, tq = q.rels.length ? 0 : 1; return tp - tq || (p.next && q.next ? p.next.at - q.next.at : 0) || q.count - p.count || (q.last || 0) - (p.last || 0); });
+    return out;
+  }
   // 「已經有人做到了」的提醒：我接的那一張，上面那份需要已經成交了（看過就清掉）
   function doneByOf(state, me) { return noticesOf(state).filter(function (n) { return n.owner === me && n.doneBy; }); }
   function ackDoneBy(state, me, noticeId) { var n = noticeOf(state, noticeId); if (n && n.owner === me) delete n.doneBy; }
@@ -1278,7 +1306,7 @@ var CORE = (function () {
     return out;
   }
 
-  /* ---------- 達秒屋（7-2）：每一筆、藏、外觀、看一間屋 ---------- */
+  /* ---------- 能量之家（7-2）：每一筆、藏、外觀、看一間屋 ---------- */
   var VIS_LEVELS = { public: '公開', neighbors: '只給鄰居看', hidden: '全藏' };
   function cleanVisLevel(v) { return VIS_LEVELS[v] ? v : 'hidden'; }   // 讀到不認得的值就當全藏
   var PALETTE = { brick: { name: '磚紅', hex: '#A9533B' }, clay: { name: '陶土', hex: '#C7794A' }, sand: { name: '沙色', hex: '#D9C08C' }, cream: { name: '米白', hex: '#EDE4CC' }, stone: { name: '石灰', hex: '#9C9A92' }, slate: { name: '石板', hex: '#55606B' },
@@ -1515,7 +1543,7 @@ var CORE = (function () {
     h.blocks.push(best); return true;
   }
   var DEFAULT_HOUSE = { sign: '', visibility: 'public', defaultVis: 'public', blocks: [], cal: { dir: 'up', blocks: [] } };
-  // 達秒屋的資料：門牌一句話、整間屋給誰看、新的一筆預設、自己蓋的方塊清單（門在裡面）、日曆清單。born／today 用來檢查和補長
+  // 能量之家的資料：門牌一句話、整間屋給誰看、新的一筆預設、自己蓋的方塊清單（門在裡面）、日曆清單。born／today 用來檢查和補長
   function cleanHouse(h, plot, strict, born, today) {
     h = h && typeof h === 'object' ? h : {}; plot = plot || plotOf(0); born = born == null ? (today == null ? 0 : today) : born; today = today == null ? born : today;
     var sign = String(h.sign == null ? '' : h.sign);
@@ -1767,6 +1795,38 @@ var CORE = (function () {
       e.docking = d.id; e.status = d.traded ? 'traded' : d.ok ? 'nodock' : 'invalid'; e.reason = d.traded ? null : d.reason;
     });
   }
+  /* ---------- 跟自然換：前情提要（補二十二）。一天一段：一段自由寫的字（最多 300 字）加「今天給了自然幾點」（至少 1 點）；寫下就算，扣今天的點、不動資源表的份數；只能寫今天，今天之內能改、能撤掉；預設全藏；不算進任何靠對接紀錄的數字 ---------- */
+  var NATURE_MAX = 300;
+  function natVis(l) { if (!VIS_LEVELS[l]) bad('只能選公開、只給鄰居看或全藏'); return l; }
+  function naturesOf(state) { return state.natures || (state.natures = []); }
+  function natureOf(state, serial, day) { return naturesOf(state).find(function (x) { return x.serial === serial && x.day === day; }) || null; }
+  function natureToday(state, serial, atUs) { var x = natureOf(state, serial, dayNum(atUs == null ? nowUs() : atUs)); return x ? x.points : 0; }
+  function writeNature(state, serial, f, atUs) {
+    atUs = atUs || nowUs(); var r = need(state, serial), dn = dayNum(atUs); f = f || {};
+    if (f.day != null && f.day !== '' && Math.floor(+f.day) !== dn) bad(Math.floor(+f.day) < dn ? '過了今天就不能改' : '不能先寫明天');
+    var text = String(f.text == null ? '' : f.text).trim(); if (!text) bad('寫一點今天跟自然的交流');
+    if (Array.from(text).length > NATURE_MAX) bad('最多 ' + NATURE_MAX + ' 字');
+    if (f.points == null || f.points === '') bad('給自然至少 1 點'); var pts = Math.floor(+f.points); if (!(pts >= 1)) bad('給自然至少 1 點');
+    var cur = natureOf(state, serial, dn), have = remainingToday(state, r, atUs) + (cur ? cur.points : 0);   // 改點數：原本給的先退回再算
+    if (pts > have) bad('今天還剩的點不夠（還剩 ' + have + ' 點）');
+    if (cur) { cur.text = text; cur.points = pts; cur.atUs = atUs; if (f.vis !== undefined) cur.vis = natVis(f.vis); return cur; }
+    var x = { id: newId('na'), serial: serial, day: dn, text: text, points: pts, atUs: atUs, vis: f.vis !== undefined ? natVis(f.vis) : 'hidden' };
+    naturesOf(state).push(x); return x;
+  }
+  // 整段撤掉：點全退（只能撤今天的）
+  function removeNature(state, serial, atUs) { atUs = atUs || nowUs(); var dn = dayNum(atUs), cur = natureOf(state, serial, dn); if (!cur) bad('今天還沒寫前情提要'); state.natures = naturesOf(state).filter(function (x) { return x !== cur; }); return cur; }
+  function setNatureVis(state, serial, day, level) { var x = natureOf(state, serial, day); if (!x) bad('那天沒有前情提要'); x.vis = natVis(level); return x; }
+  function canSeeNature(state, x, viewer) { if (viewer && viewer === x.serial) return true; return x.vis === 'public' || (x.vis === 'neighbors' && !!viewer && isNeighbor(state, x.serial, viewer)); }
+  // 看的人看得到的那天的前情提要（或 null）
+  function natureView(state, serial, viewer, day) { var x = natureOf(state, serial, day); if (!x || !canSeeNature(state, x, viewer)) return null; return { id: x.id, day: x.day, text: x.text, points: x.points, vis: x.vis, mine: viewer === serial, atUs: x.atUs }; }
+  // 某一段日子寫了幾天（看的人看得到的）
+  function natureDays(state, serial, viewer, from, to) { var n = 0; naturesOf(state).forEach(function (x) { if (x.serial === serial && x.day >= from && x.day <= to && canSeeNature(state, x, viewer)) n++; }); return n; }
+  function cleanNature(state, x) {
+    obj(x, '前情提要'); var out = { id: str(x.id, 60, '前情提要'), serial: str(x.serial, 11, '前情提要'), day: num(x.day, '前情提要'), text: str(x.text, NATURE_MAX * 4, '前情提要'), points: num(x.points, '前情提要'), atUs: num(x.atUs, '前情提要'), vis: VIS_LEVELS[x.vis] ? x.vis : 'hidden' };
+    if (!roleOf(state, out.serial) || !(out.points >= 1) || !out.text.trim()) return null; return out;
+  }
+  function cleanNatures(state, raw) { var seen = {}, out = []; list(raw || [], 200000, '前情提要').forEach(function (x) { try { var c = cleanNature(state, x); if (c && !seen[c.serial + ':' + c.day]) { seen[c.serial + ':' + c.day] = true; out.push(c); } } catch (e) { /* 壞掉的丟掉 */ } }); state.natures = out; return out; }
+
   // 在那一筆上改自己那一邊的藏：馬上生效；引路人那一邊的教學紀錄不能改
   function setVis(state, serial, entryId, level) {
     var e = entriesOf(state).find(function (x) { return x.id === entryId; }); if (!e) bad('沒有這一筆');
@@ -1777,7 +1837,7 @@ var CORE = (function () {
   }
   function ageOf(born, today) { var d = Math.max(0, today - born); return { years: Math.floor(d / 365), days: d % 365, total: d, text: Math.floor(d / 365) + ' 歲 ' + (d % 365) + ' 天' }; }
   function bornOf(role) { return role.born != null ? role.born : role.versions[0].fromDay; }
-  // 這一筆在 owner 的達秒屋裡，viewer 看不看得到：對接的兩個人永遠看得到；其他人照 owner 那一邊的設定
+  // 這一筆在 owner 的能量之家裡，viewer 看不看得到：對接的兩個人永遠看得到；其他人照 owner 那一邊的設定
   function canSeeEntry(state, e, owner, viewer) {
     if (viewer && (viewer === e.a || viewer === e.b)) return true;
     var lv = e.vis[owner] || 'hidden';
@@ -1806,8 +1866,9 @@ var CORE = (function () {
     entriesOf(state).forEach(function (e) { if (e.a !== ownerSerial && e.b !== ownerSerial) return; var dd = dayNum(e.atUs); (byDay[dd] = byDay[dd] || []).push(e); });
     var brick = function (day, future) {
       var es = byDay[day] || [], vis = es.filter(function (e) { return canSeeEntry(state, e, ownerSerial, viewer); });
-      var lit = vis.filter(function (e) { return e.status === 'traded'; }).length, judged = vis.filter(function (e) { return e.status !== 'booked'; });
-      return { day: day, future: future, lit: lit, mark: !lit && judged.length > 0, booked: vis.some(function (e) { return e.status === 'booked'; }), cover: es.length > 0 && vis.length === 0, n: vis.length };
+      var traded = vis.filter(function (e) { return e.status === 'traded'; }).length, judged = vis.filter(function (e) { return e.status !== 'booked'; }), nat = future ? null : natureOf(state, ownerSerial, day);
+      // 補二十二：亮＝那天有（看得到的）前情提要；level＝跟人成交幾次（最多 3，顏色越深）；都沒有是暗的灰白
+      return { day: day, future: future, lit: !!(nat && canSeeNature(state, nat, viewer)), level: Math.min(3, traded), traded: traded, mark: !traded && judged.length > 0, booked: vis.some(function (e) { return e.status === 'booked'; }), cover: es.length > 0 && vis.length === 0, n: vis.length };
     };
     for (d = born; d <= today; d++) bricks.push(spot(brick(d, false)));
     Object.keys(byDay).map(Number).filter(function (x) { return x > today; }).sort(function (x, y) { return x - y; }).forEach(function (x) { bricks.push(spot(brick(x, true))); });
@@ -1836,7 +1897,7 @@ var CORE = (function () {
       if (viewer === ownerSerial) { out.vis = e.vis[ownerSerial]; out.locked = e.tutorial && ownerSerial === GUIDE; }
       return out;
     });
-    return { closed: false, day: day, label: dayLabel(day), owner: { serial: r.serial, name: r.name }, mine: viewer === ownerSerial, entries: rows, covered: es.length - vis.length,
+    return { closed: false, day: day, label: dayLabel(day), owner: { serial: r.serial, name: r.name }, mine: viewer === ownerSerial, entries: rows, covered: es.length - vis.length, nature: natureView(state, ownerSerial, viewer, day),
       rules: { uses: v.rules.uses.slice(), conditions: v.rules.conditions.map(condText), village: v.rules.village, site: v.rules.site || '' }, resources: v.resources.map(function (x) { return { name: x.name, price: x.price, keepDays: x.keepDays, def: x.def }; }) };
   }
   // 從舊存檔（第 1 輪）的對接紀錄、時段補出每一筆（每一筆公開，引路人的教學那一邊全藏）
@@ -1908,7 +1969,7 @@ var CORE = (function () {
   function fresh(opts) {
     opts = opts || {};
     var now = nowUs(), hist = opts.history !== false, ago = function (days) { return hist ? now - days * DAY_US : now; };
-    var st = { v: 9, me: -1, roles: [], issued: [], holds: [], dockings: [], redeems: [], acceptances: [], records: [], notices: [], tutorial: freshTutorial(), standings: [], greets: [], greetWaits: {}, villages: [], circles: [] };
+    var st = { v: 9, me: -1, roles: [], issued: [], holds: [], dockings: [], redeems: [], acceptances: [], records: [], notices: [], tutorial: freshTutorial(), standings: [], greets: [], greetWaits: {}, villages: [], circles: [], natures: [] };
     // 示範角色：阿澄（條件：可換的貨 ≥ 5）、小樂（要兩方都通、接受家規）、引路人（沒有條件、一堆 0 點的「空的」）。第一次打開從創角色開始
     createRole(st, { serial: '00000000002', name: '阿澄', dailyPoints: 2000, house: { template: 'tower', wall: 'brick', roof: 'slate', sign: '聽你講，幫你改', calDir: 'up', extra: [[-3, 0, 2, 'lamp'], [-4, 0, 3, 'flower', 0], [-5, 0, 3, 'flower', 0]] },
       rules: { uses: ['1 阿澄點 = 聽你講 1 分鐘', '100 阿澄點 = 幫你改一份履歷'], conditions: [{ field: 'avail', op: '>=', value: 5 }], village: '東恆家規：對接後要一起立一個難題。' },
@@ -1923,6 +1984,11 @@ var CORE = (function () {
       rules: { uses: ['引路人的點只用來教學'], conditions: [], village: '' },
       resources: [{ id: 'r4e', name: '空的', def: '什麼都不給；教學用', price: 0, keepDays: null, avail: 99999 }], contact: '' }, ago(800));
     if (hist) demoHistory(st, now);
+    // 示範的前情提要（補二十二）：阿澄最近三天公開、小樂一天公開一天只給鄰居看；引路人沒有。不帶過去紀錄的示範（測試用）不寫，今天的點才不會被扣
+    if (hist) {
+      [['今天一早去河堤走了一圈，撿了一袋垃圾，帶著清爽的心情開始今天的旅程', 30, 0], ['雨停了，把陽台的花都澆過一遍，聽了十分鐘的雨聲', 20, 1], ['去後山撿柴，順手把步道的落葉掃到旁邊', 40, 2]].forEach(function (x) { try { writeNature(st, '00000000002', { text: x[0], points: x[1], vis: 'public' }, now - x[2] * DAY_US); } catch (e) { /* 點不夠就不寫 */ } });
+      [['早上曬了棉被，跟巷口的野貓打了招呼', 10, 1, 'public'], ['晚上關了燈看星星，給自然一點安靜', 10, 3, 'neighbors']].forEach(function (x) { try { writeNature(st, '00000000003', { text: x[0], points: x[1], vis: x[3] }, now - x[2] * DAY_US); } catch (e) { /* 點不夠就不寫 */ } });
+    }
     // 示範角色的日曆用規則層一個月一個月長到現在：阿澄一直往上（到頂往右）、小樂往右（到邊往上）、引路人往左四個月再往上
     if (hist) { var g = roleOf(st, GUIDE), gh = houseOf(g); growTo(gh, bornOf(g), Math.min(4, monthIndex(bornOf(g), dayNum(now)) + 1)); gh.cal.dir = 'up'; growCalendars(st, now); st.roles.forEach(function (r) { houseOf(r).calRemoved = 0; }); }
     // 阿澄開兩個對接時段：3 分鐘後、10 分鐘後，各 2 個名額
@@ -1961,11 +2027,12 @@ var CORE = (function () {
     st.records.push({ kind: 'demo', at: now, text: '示範資料：阿澄、小樂過去的紀錄照規則跑出來' });
   }
   // 教學六步（第 5 輪起；之前是八步，讀舊存檔時把步數對過來）
-  function freshTutorial() { return { six: true, step: 1, skipped: false, slot: null, dice: false, went: false, house: false }; }
+  function freshTutorial() { return { six: true, seven: true, step: 1, skipped: false, slot: null, dice: false, went: false, house: false, nature: false }; }
   function cleanTutorial(tu) {
     var step = tu.step == null ? 'done' : (tu.step === 'done' ? 'done' : num(tu.step, '教學'));
     if (!tu.six && typeof step === 'number') step = step <= 1 ? 1 : step <= 4 ? 2 : step - 2;   // 八步的 2～4（隨機、找序號、看規則）併成一步「骰子」
-    return { six: true, step: step, skipped: !!tu.skipped, slot: tu.slot == null ? null : str(tu.slot, 60, '教學'), dice: !!tu.dice || !!tu.random, went: !!tu.went || !!tu.door, house: !!tu.house };
+    if (!tu.seven && typeof step === 'number' && step >= 2) step += 1;   // 補二十二：第 2 步變「寫前情提要」，六步存檔的 2～6 往後挪成 3～7
+    return { six: true, seven: true, step: step, skipped: !!tu.skipped, slot: tu.slot == null ? null : str(tu.slot, 60, '教學'), dice: !!tu.dice || !!tu.random, went: !!tu.went || !!tu.door, house: !!tu.house, nature: !!tu.nature };
   }
   // 引路人在公告欄一直掛著一張教學用的公告：需要「空的」、可以給「空的」；沒有期限，成交也不拿掉
   function guideNotice(st, now) {
@@ -2128,12 +2195,13 @@ var CORE = (function () {
           (j.acceptances || []).forEach(function (x) { x = obj(x, '接受'); seen(x.who); seen(x.of); }); (j.records || []).forEach(function (x) { x = obj(x, '紀錄'); seen(x.serial); });
           var tutorial;
           if (ver === 9) tutorial = cleanTutorial(tu);
-          else tutorial = me < 0 ? freshTutorial() : { six: true, step: 'done', skipped: !!tu.skipped, slot: null, dice: false, went: false, house: false };   // v8 搬過來：教學步驟不一樣，還沒創角色的從頭，其他算走完
-          var out = { v: 9, me: me, roles: roles, issued: issued, holds: holds, dockings: copy('dockings'), redeems: copy('redeems'), acceptances: copy('acceptances'), records: copy('records'), notices: (function (dn) { return list(j.notices || [], 20000, '公告').map(function (n) { return cleanNotice(n, dn); }); })(dayNum(nowUs())), tutorial: tutorial, standings: list(j.standings || [], 20000, '固定約').map(cleanStanding), greets: list(j.greets || [], 20000, '密鑰').map(cleanGreet), greetWaits: {}, villages: [], circles: [] };
+          else tutorial = me < 0 ? freshTutorial() : { six: true, seven: true, step: 'done', skipped: !!tu.skipped, slot: null, dice: false, went: false, house: false, nature: false };   // v8 搬過來：教學步驟不一樣，還沒創角色的從頭，其他算走完
+          var out = { v: 9, me: me, roles: roles, issued: issued, holds: holds, dockings: copy('dockings'), redeems: copy('redeems'), acceptances: copy('acceptances'), records: copy('records'), notices: (function (dn) { return list(j.notices || [], 20000, '公告').map(function (n) { return cleanNotice(n, dn); }); })(dayNum(nowUs())), tutorial: tutorial, standings: list(j.standings || [], 20000, '固定約').map(cleanStanding), natures: [], greets: list(j.greets || [], 20000, '密鑰').map(cleanGreet), greetWaits: {}, villages: [], circles: [] };
           out.notices.forEach(function (n) { if (n.parent && !out.notices.some(function (p) { return p.id === n.parent.notice; })) n.parent = null; });   // 接在不在了的公告下面：線拿掉
           cleanVillages(out, j.villages);
           out.circles = list(j.circles || [], 20000, '一圈').map(function (c) { return cleanCircle(out, c); });
           if (Array.isArray(j.entries)) out.entries = list(j.entries, LIMITS.rows, '每一筆').map(cleanEntry); else buildEntries(out);   // 第 1 輪的存檔：從對接紀錄和時段補出每一筆（每一筆公開）
+          cleanNatures(out, j.natures);
           guideNotice(out, nowUs());
           return out;
         }
@@ -2190,6 +2258,7 @@ var CORE = (function () {
     DOCK_WINDOW_US: DOCK_WINDOW_US, missed: missed, setPresent: setPresent, isPresent: isPresent, judge: judge, expire: expire, myBookings: myBookings, settleDirection: settleDirection,
     itemsText: itemsText, holdStatus: holdStatus, expireHolds: expireHolds, holdsOf: holdsOf, heldPoints: heldPoints, holdings: holdings, redeem: redeem,
     VILLAGE_CELL: VILLAGE_CELL, villagesOf: villagesOf, villageOf: villageOf, neighborsOf: neighborsOf, freeSpots: freeSpots, suggestedSpot: suggestedSpot, spotProblem: spotProblem, inviteNeighbor: inviteNeighbor, applyVillage: applyVillage, approveVillage: approveVillage, rejectVillage: rejectVillage, joinVillage: joinVillage, moveHouse: moveHouse, leaveVillage: leaveVillage, askLeave: askLeave, villageInfo: villageInfo, myInvites: myInvites, viewVillage: viewVillage, cleanVillages: cleanVillages, connected: connected,
+    freshTutorial: freshTutorial, cleanTutorial: cleanTutorial, NATURE_MAX: NATURE_MAX, naturesOf: naturesOf, natureOf: natureOf, natureToday: natureToday, writeNature: writeNature, removeNature: removeNature, setNatureVis: setNatureVis, natureView: natureView, natureDays: natureDays, cleanNatures: cleanNatures, relations: relations,
     foodAvail: foodAvail, foodSupply: foodSupply, FOOD_FAIL: FOOD_FAIL, NAME_TAG_MAX: NAME_TAG_MAX, TAG_MODES: TAG_MODES, TAG_SHOWS: TAG_SHOWS, cleanTag: cleanTag, nameTag: nameTag, nameWith: nameWith, setNameTag: setNameTag,
     CATS: CATS, SUBS: SUBS, BIGS: BIGS, VERBS: VERBS, TAG_MAX: TAG_MAX, NOTICE_DAYS: NOTICE_DAYS, NOTICE_MAX: NOTICE_MAX, renewNotice: renewNotice, expiringNotices: expiringNotices, inActiveCircle: inActiveCircle, chainTree: chainTree, NODE_STATUS: NODE_STATUS, catOf: catOf, classify: classify, cleanTags: cleanTags, normText: normText, matchText: matchText, matchItem: matchItem, setNotice: setNotice, VACATED_MAX: VACATED_MAX,
     circlesOf: circlesOf, noticeOf: noticeOf, edgesOf: edgesOf, linkNotice: linkNotice, chooseCircle: chooseCircle, openCircleSlot: openCircleSlot, bookCircle: bookCircle, presetCircle: presetCircle, giftChain: giftChain, linksUnder: linksUnder, chainOf: chainOf, myCircles: myCircles, doneByOf: doneByOf, ackDoneBy: ackDoneBy, dropNotice: dropNotice,

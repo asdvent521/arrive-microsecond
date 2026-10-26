@@ -3,7 +3,7 @@
 #   v9/build.sh            → v9/index.html（完整網頁，可直接用瀏覽器開）
 #   v9/build.sh fragment   → 印到標準輸出，沒有 doctype/html/body 外殼（發布成 Artifact 用）
 #   NO_THREE=1             → 不打包 Three.js（測「3D 用不了」用）
-# Three.js r128 直接打包進去（vendor/three.min.js，MIT），只用來畫達秒屋。
+# Three.js r128 直接打包進去（vendor/three.min.js，MIT），只用來畫能量之家。
 set -e
 cd "$(dirname "$0")/src"
 body() {
