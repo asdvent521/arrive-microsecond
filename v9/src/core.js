@@ -1818,9 +1818,11 @@ var CORE = (function () {
   function setNatureVis(state, serial, day, level) { var x = natureOf(state, serial, day); if (!x) bad('那天沒有前情提要'); x.vis = natVis(level); return x; }
   function canSeeNature(state, x, viewer) { if (viewer && viewer === x.serial) return true; return x.vis === 'public' || (x.vis === 'neighbors' && !!viewer && isNeighbor(state, x.serial, viewer)); }
   // 看的人看得到的那天的前情提要（或 null）
-  function natureView(state, serial, viewer, day) { var x = natureOf(state, serial, day); if (!x || !canSeeNature(state, x, viewer)) return null; return { id: x.id, day: x.day, text: x.text, points: x.points, vis: x.vis, mine: viewer === serial, atUs: x.atUs }; }
+  // 看的人看不到整間屋（只給鄰居看、他不是鄰居）就一律不給，跟 viewHouse 的 closed 同一個判斷（第 12 輪）
+  function natureHidden(state, serial, viewer) { if (viewer && viewer === serial) return false; var r = roleOf(state, serial); return !r || houseClosed(state, r, viewer); }
+  function natureView(state, serial, viewer, day) { if (natureHidden(state, serial, viewer)) return null; var x = natureOf(state, serial, day); if (!x || !canSeeNature(state, x, viewer)) return null; return { id: x.id, day: x.day, text: x.text, points: x.points, vis: x.vis, mine: viewer === serial, atUs: x.atUs }; }
   // 某一段日子寫了幾天（看的人看得到的）
-  function natureDays(state, serial, viewer, from, to) { var n = 0; naturesOf(state).forEach(function (x) { if (x.serial === serial && x.day >= from && x.day <= to && canSeeNature(state, x, viewer)) n++; }); return n; }
+  function natureDays(state, serial, viewer, from, to) { if (natureHidden(state, serial, viewer)) return 0; var n = 0; naturesOf(state).forEach(function (x) { if (x.serial === serial && x.day >= from && x.day <= to && canSeeNature(state, x, viewer)) n++; }); return n; }
   function cleanNature(state, x) {
     obj(x, '前情提要'); var out = { id: str(x.id, 60, '前情提要'), serial: str(x.serial, 11, '前情提要'), day: num(x.day, '前情提要'), text: str(x.text, NATURE_MAX * 4, '前情提要'), points: num(x.points, '前情提要'), atUs: num(x.atUs, '前情提要'), vis: VIS_LEVELS[x.vis] ? x.vis : 'hidden' };
     if (!roleOf(state, out.serial) || !(out.points >= 1) || !out.text.trim()) return null; return out;

@@ -55,6 +55,12 @@ var J1 = '00000000001', J2 = '00000000002';
   assert((await N.pg.isVisible('#hcal')) && (await N.pg.isVisible('#hhome')) && (await N.pg.textContent('#hhome')).indexOf('寫今天的前情提要') >= 0, '3D 用不了：顯示日曆紙，上面一樣有前情提要那一排');
   await N.finger("function(){ return document.querySelector('#hhome [data-hact=\"toFind\"]'); }", '公告欄'); assert((await N.sheetName()) === 'find', '公告欄大鈕點得到：到公告欄');
   assert(N.errs.length === 0, '3D 用不了也沒有頁面錯誤'); await N.close();
+  // 6b. 轉橫（780×360）寫 300 字：前情提要那一格只一行高、後面截掉，整排的下緣不超過畫面一半；點一下打開看全部和改（第 12 輪小修正）
+  await H.ev("(function(){CORE.writeNature(APP.state(),'" + J1 + "',{text:'山'.repeat(300),points:2},APP.now());APP.changed();})()"); await H.ev("APP.goHouse(APP.me().serial)"); await pg.waitForTimeout(500);
+  var land = await H.ev("(function(){var b=document.querySelector('#hhome .hnat').getBoundingClientRect(),h=document.getElementById('hhome').getBoundingClientRect(),t=document.querySelector('#hhome .natext');return {h:b.height,bottom:h.bottom,vh:window.innerHeight,clipped:t.scrollWidth>t.clientWidth+1};})()");
+  assert(land.h < 48 && land.bottom <= land.vh / 2 && land.clipped, '轉橫寫 300 字：前情提要那一格一行高（' + Math.round(land.h) + 'px、後面截掉），整排下緣 ' + Math.round(land.bottom) + ' 不超過畫面一半（' + land.vh / 2 + '）');
+  await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natEdit\"]'); }", '那一行'); assert((await H.ev("document.getElementById('natText').value.length")) === 300, '點一下打開看全部和改（300 字都在）');
+  await H.ev("document.getElementById('natText').value='晚上關了燈看星星'"); await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natSave\"]'); }", '寫好了');
   // 7. 直放：這一排排得下、不擠出畫面；截一張
   await pg.setViewportSize({ width: 360, height: 780 }); await pg.waitForTimeout(300); await H.ev("APP.goHouse(APP.me().serial)"); await pg.waitForTimeout(600);
   var fit = await H.ev("(function(){var b=document.getElementById('hhome').getBoundingClientRect();return {w:b.width,r:b.right,bottom:b.bottom,vw:window.innerWidth,vh:window.innerHeight,over:Array.from(document.querySelectorAll('#hhome .hnat, #hhome .hleft')).filter(function(e){return e.scrollWidth>e.clientWidth+1;}).length};})()");

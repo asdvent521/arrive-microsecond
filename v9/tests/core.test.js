@@ -1591,6 +1591,19 @@ ok('前情提要（續）：不算進對接過幾次、換點比例、對接條�
   store['arrive-v9'] = JSON.stringify(raw); var st = C.load(); assert.strictEqual(st.natures.length, 1, '存檔讀回來'); assert.strictEqual(st.natures[0].text, '也跟自然');
   raw.natures.push({ id: 'bad', serial: 'nobody', day: 1, text: 'x', points: 1, atUs: 1, vis: 'public' }); raw.natures.push({ id: 'dup', serial: J1, day: d2, text: '重複的', points: 1, atUs: 1, vis: 'public' }); store['arrive-v9'] = JSON.stringify(raw); st = C.load(); assert.strictEqual(st.natures.length, 1, '不存在的人、同一天第二段都丟掉');
   delete raw.natures; store['arrive-v9'] = JSON.stringify(raw); st = C.load(); assert.ok(Array.isArray(st.natures) && st.natures.length === 0, '舊存檔沒有前情提要也行'); delete global.localStorage;
+ok('整間只給鄰居看：陌生人拿不到前情提要、天數算 0（第 12 輪小修正）', function () {
+  var s = C.fresh(), T = C.nowUs(), dn = C.dayNum(T), A5 = '00000000005';
+  C.setHouse(s, J2, { visibility: 'neighbors' });
+  assert.ok(C.isNeighbor(s, J2, J3) && !C.isNeighbor(s, J2, A5), '示範：小樂是阿澄的鄰居、阿明不是');
+  assert.ok(C.natureOf(s, J2, dn) && C.natureOf(s, J2, dn).vis === 'public', '阿澄今天的前情提要是公開的');
+  assert.strictEqual(C.natureView(s, J2, A5, dn), null, '陌生人：整間看不到就拿不到那天的前情提要（跟 viewHouse 的 closed 同一個判斷）');
+  assert.strictEqual(C.natureDays(s, J2, A5, dn - 30, dn), 0, '陌生人：天數 0');
+  assert.strictEqual(C.natureView(s, J2, null, dn), null, '沒有看的人（家規系統）也一樣');
+  assert.ok(C.natureView(s, J2, J3, dn), '鄰居照常'); assert.strictEqual(C.natureDays(s, J2, J3, dn - 30, dn), 3, '鄰居算得到三天');
+  assert.ok(C.natureView(s, J2, J2, dn), '自己照常'); assert.strictEqual(C.natureDays(s, J2, J2, dn - 30, dn), 3);
+  assert.strictEqual(C.viewHouse(s, J2, A5, T).closed, true, '整間屋對陌生人是 closed');
+  C.setHouse(s, J2, { visibility: 'public' }); assert.ok(C.natureView(s, J2, A5, dn), '整間改回公開，陌生人又看得到公開的那天'); assert.strictEqual(C.natureDays(s, J2, A5, dn - 30, dn), 3);
+});
   assert.deepStrictEqual([C.freshTutorial().step, C.freshTutorial().seven], [1, true]); assert.strictEqual(C.cleanTutorial({ six: true, step: 2 }).step, 3, '六步存檔的第 2 步讀進來變第 3 步'); assert.strictEqual(C.cleanTutorial({ six: true, step: 1 }).step, 1); assert.strictEqual(C.cleanTutorial({ six: true, seven: true, step: 2 }).step, 2); assert.strictEqual(C.cleanTutorial({ step: 8 }).step, 7, '八步存檔的第 8 步變第 7 步');
 });
 ok('交換關係（補二十二）：固定約、已約、在一圈裡、以前換過；好幾種時最近要發生的那一種；換過幾次、最近一次、你給他、他給你；不含前情提要、教學、引路人', function () {

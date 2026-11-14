@@ -229,6 +229,7 @@ button.box{cursor:pointer}
 .hnat{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:var(--r-m);background:var(--hud);backdrop-filter:blur(6px);padding:8px 12px;font:inherit;color:var(--ink);cursor:pointer}
 .hnat .small{display:block;color:var(--muted)} .hnat .natext{display:block;font-size:1.02rem;line-height:1.45;max-height:4.4em;overflow:hidden}
 .hnat.empty{font-size:1.05rem;border-style:dashed}
+@media (orientation: landscape){.hnat:not(.edit){display:flex;align-items:baseline;gap:8px;white-space:nowrap;overflow:hidden;padding:6px 12px} .hnat:not(.edit) .small{display:inline;flex:none} .hnat:not(.edit) .natext{display:inline-block;flex:1;min-width:0;max-height:1.45em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom} .hnat.empty .small{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}}   /* 轉橫只顯示一行，點了才打開看全部和改 */
 .hnat.edit{cursor:default} .hnat.edit textarea{width:100%;box-sizing:border-box;font:inherit;font-size:1rem;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg);margin:4px 0;resize:vertical}
 .hnatrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px} .hnatrow input[type=number]{width:4.5em;min-height:32px;font:inherit;padding:2px 6px;border:1px solid var(--line);border-radius:var(--r-s)}
 .hleft{background:var(--hud);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:var(--r-m);padding:6px 12px;font-size:.95rem} .hleft b{font-size:1.15rem}
@@ -2115,9 +2116,11 @@ var CORE = (function () {
   function setNatureVis(state, serial, day, level) { var x = natureOf(state, serial, day); if (!x) bad('那天沒有前情提要'); x.vis = natVis(level); return x; }
   function canSeeNature(state, x, viewer) { if (viewer && viewer === x.serial) return true; return x.vis === 'public' || (x.vis === 'neighbors' && !!viewer && isNeighbor(state, x.serial, viewer)); }
   // 看的人看得到的那天的前情提要（或 null）
-  function natureView(state, serial, viewer, day) { var x = natureOf(state, serial, day); if (!x || !canSeeNature(state, x, viewer)) return null; return { id: x.id, day: x.day, text: x.text, points: x.points, vis: x.vis, mine: viewer === serial, atUs: x.atUs }; }
+  // 看的人看不到整間屋（只給鄰居看、他不是鄰居）就一律不給，跟 viewHouse 的 closed 同一個判斷（第 12 輪）
+  function natureHidden(state, serial, viewer) { if (viewer && viewer === serial) return false; var r = roleOf(state, serial); return !r || houseClosed(state, r, viewer); }
+  function natureView(state, serial, viewer, day) { if (natureHidden(state, serial, viewer)) return null; var x = natureOf(state, serial, day); if (!x || !canSeeNature(state, x, viewer)) return null; return { id: x.id, day: x.day, text: x.text, points: x.points, vis: x.vis, mine: viewer === serial, atUs: x.atUs }; }
   // 某一段日子寫了幾天（看的人看得到的）
-  function natureDays(state, serial, viewer, from, to) { var n = 0; naturesOf(state).forEach(function (x) { if (x.serial === serial && x.day >= from && x.day <= to && canSeeNature(state, x, viewer)) n++; }); return n; }
+  function natureDays(state, serial, viewer, from, to) { if (natureHidden(state, serial, viewer)) return 0; var n = 0; naturesOf(state).forEach(function (x) { if (x.serial === serial && x.day >= from && x.day <= to && canSeeNature(state, x, viewer)) n++; }); return n; }
   function cleanNature(state, x) {
     obj(x, '前情提要'); var out = { id: str(x.id, 60, '前情提要'), serial: str(x.serial, 11, '前情提要'), day: num(x.day, '前情提要'), text: str(x.text, NATURE_MAX * 4, '前情提要'), points: num(x.points, '前情提要'), atUs: num(x.atUs, '前情提要'), vis: VIS_LEVELS[x.vis] ? x.vis : 'hidden' };
     if (!roleOf(state, out.serial) || !(out.points >= 1) || !out.text.trim()) return null; return out;
@@ -3671,7 +3674,7 @@ var SHEETS = (function () {
       '<div class="lab">一個人一行</div><table class="mapt" id="mapTable">' + cols([26, 22, 16, 16, 8, 12]) + th([['對方'], ['現在的關係'], ['你給他', '', 'wide'], ['他給你', '', 'wide'], ['換過'], ['最近一次', '', 'wide']]) + '<tbody>' + (trs || '<tr><td colspan="6" class="dim">還沒有</td></tr>') + '</tbody></table>';
     return page('map', '交換關係', back() + '只有自己看得到自己的。固定約是亮的實線，已約、在一圈裡是虛線，以前換過的淡灰；換過越多次離你越近；同一圈同一個顏色', '', body, '<b>線上</b>寫最近要發生的關係，好幾種時加「等 N 項」。<b>點一個人</b>：下面一張小卡，你給他、他給你、換過幾次、最近一次，到他的資源表或你們的紀錄。只算跟人的對接；前情提要、教學的引路人不算。最多畫 12 個，其他在下面的表。', true);
   }
-  // 位置：畫面量好容器的寬，中間是你，每個人照順序繞一圈（橢圓），換過越多次半徑越小（最多縮到一半）。換過多的先放；跟已經放好的人撞到就沿著自己那條線往外推（直放時人不能出紙，貼到邊就往上下推），紙的高度跟著長。線畫在 SVG 上；線上的字（HTML）放在線的中間，疊到人或別的字就沿著線挪。以前換過的線不寫字（淡灰就是以前換過，表裡有）
+  // 位置：畫面量好容器的寬，中間是你，每個人照順序繞一圈（橢圓），換過越多次半徑越小（最多縮到一半）。換過多的先放；跟已經放好的人撞到就沿著自己那條線往外推（直放時人不能出紙，貼到邊就往上下推），紙的高度跟著長。線畫在 SVG 上；線上的字（HTML）放在線的中間，不能被任何名字框蓋住、也不能疊在別的字上：放不下就沿線換位置，再不行把那個人往外推（線變長），還是不行那條線就不寫字（表裡有）。以前換過的線不寫字（淡灰就是以前換過）
   function layoutMap() {
     var box = $('map'), svg = $('mapSvg'); if (!box || !svg) return;
     var nodes = [].slice.call(box.querySelectorAll('.mnode[data-i]')), n = nodes.length, W = box.clientWidth, meEl = $('mapMe'), more = box.querySelector('.mmore');
@@ -3680,29 +3683,43 @@ var SHEETS = (function () {
     var H0 = narrow ? 300 : Math.max(260, Math.min(W * 0.62, 440)), ry = Math.max(60, H0 / 2 - maxH / 2 - PAD), rx = Math.max(60, Math.min(W / 2 - maxW / 2 - PAD, ry * 1.7));
     var hit = function (a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; };
     var rect = function (x, y, s, g) { return { x: x - s.w / 2 - g, y: y - s.h / 2 - g, w: s.w + 2 * g, h: s.h + 2 * g }; };
-    var meS = { w: meEl.offsetWidth, h: meEl.offsetHeight }, placed = [rect(0, 0, meS, GAP)], pos = [], maxC = 1;
+    var meS = { w: meEl.offsetWidth, h: meEl.offsetHeight }, placed = [rect(0, 0, meS, GAP)], lrects = [], pos = [], info = [], maxC = 1;
     nodes.forEach(function (el) { maxC = Math.max(maxC, +el.dataset.count || 0); });
     var order = nodes.map(function (el, i) { return i; }).sort(function (a, b) { return (+nodes[b].dataset.count || 0) - (+nodes[a].dataset.count || 0) || a - b; });
-    order.forEach(function (i) {
-      var ang = -Math.PI / 2 + i * (2 * Math.PI / n), c = +nodes[i].dataset.count || 0, s = sizes[i], ux = Math.cos(ang) * rx, uy = Math.sin(ang) * ry;
-      var t = n === 1 ? 0.6 : 1 - 0.5 * (c / maxC), xmax = Math.max(0, W / 2 - s.w / 2 - PAD), x = 0, y = 0, k;
-      for (k = 0; k < 120; k++) {
-        x = ux * t; y = uy * t; var clamped = false;
-        if (x > xmax) { x = xmax; clamped = true; } else if (x < -xmax) { x = -xmax; clamped = true; }
-        if (clamped && Math.abs(uy) < 1e-6) y = (k % 2 ? -1 : 1) * Math.ceil(k / 2) * (s.h + GAP);   // 水平的線貼到邊：上下輪流找空位
-        var r = rect(x, y, s, GAP);
-        if (!placed.some(function (p) { return hit(p, r); })) break;
-        t += clamped ? 0.2 : 0.08;
+    var flat = function (f) { return Math.abs(f.uy) < 1e-6; };
+    // 從 (t, k) 起沿著自己那條線往外找第一個空位：不能撞到你、別人（skip 是自己原本那格）和已經放好的字；水平的線貼到邊就上下輪流（k）找
+    function seek(i, t, k, skip) {
+      var f = info[i], s = f.s, x = 0, y = 0, m, r;
+      for (m = 0; m < 120; m++) {
+        x = f.ux * t; y = f.uy * t; var clamped = false;
+        if (x > f.xmax) { x = f.xmax; clamped = true; } else if (x < -f.xmax) { x = -f.xmax; clamped = true; }
+        if (clamped && flat(f)) y = (k % 2 ? -1 : 1) * Math.ceil(k / 2) * (s.h + GAP);
+        r = rect(x, y, s, GAP);
+        if (!placed.some(function (q, qi) { return qi !== skip && hit(q, r); }) && !lrects.some(function (q) { return hit(q, r); })) return { x: x, y: y, t: t, k: k, r: r };
+        if (clamped && flat(f)) k++; else t += clamped ? 0.2 : 0.08;
       }
-      placed.push(rect(x, y, s, GAP)); pos[i] = { x: x, y: y };
+      return { x: x, y: y, t: t, k: k, r: r, forced: true };
+    }
+    order.forEach(function (i) {
+      var ang = -Math.PI / 2 + i * (2 * Math.PI / n), c = +nodes[i].dataset.count || 0, s = sizes[i];
+      info[i] = { ux: Math.cos(ang) * rx, uy: Math.sin(ang) * ry, s: s, xmax: Math.max(0, W / 2 - s.w / 2 - PAD), t: n === 1 ? 0.6 : 1 - 0.5 * (c / maxC), k: 0, pi: placed.length };
+      var got = seek(i, info[i].t, 0, -1); pos[i] = { x: got.x, y: got.y }; info[i].t = got.t; info[i].k = got.k; placed.push(got.r);
     });
-    var lrects = [], lbls = [], FR = [0.5, 0.62, 0.38, 0.74, 0.26, 0.86];
+    // 線上的字放不下：把這個人沿著他那條線再往外推一格空位（推不動回 false）
+    function pushOut(i) {
+      var f = info[i], t = f.t, k = f.k;
+      if (flat(f) && Math.abs(f.ux * t) >= f.xmax - 1e-6) k++; else t += 0.12;
+      var got = seek(i, t, k, f.pi); if (got.forced) return false;
+      pos[i] = { x: got.x, y: got.y }; f.t = got.t; f.k = got.k; placed[f.pi] = got.r; return true;
+    }
+    var lbls = [], FR = [0.5, 0.62, 0.38, 0.74, 0.26, 0.86];
+    var labelSpot = function (i, s) { var p = pos[i]; for (var j = 0; j < FR.length; j++) { var r = rect(p.x * FR[j], p.y * FR[j], s, 2); if (!placed.some(function (q) { return hit(q, r); }) && !lrects.some(function (q) { return hit(q, r); })) return { x: p.x * FR[j], y: p.y * FR[j], r: r }; } return null; };
     nodes.forEach(function (el, i) {
       var lbl = box.querySelector('.mlbl[data-i="' + i + '"]'); if (!lbl) return;
-      var s = { w: lbl.offsetWidth, h: lbl.offsetHeight }, p = pos[i], best = null;
-      for (var j = 0; j < FR.length && !best; j++) { var lx = p.x * FR[j], ly = p.y * FR[j], r = rect(lx, ly, s, 2); if (!placed.some(function (q) { return hit(q, r); }) && !lrects.some(function (q) { return hit(q, r); })) best = { x: lx, y: ly }; }
-      if (!best) best = { x: p.x * 0.5, y: p.y * 0.5 };
-      lrects.push(rect(best.x, best.y, s, 2)); lbls.push({ el: lbl, x: best.x, y: best.y, s: s });
+      var s = { w: lbl.offsetWidth, h: lbl.offsetHeight }, best = labelSpot(i, s), pushes = 0;
+      while (!best && pushes < 8 && pushOut(i)) { pushes++; best = labelSpot(i, s); }
+      if (!best) { lbl.parentNode.removeChild(lbl); return; }
+      lrects.push(best.r); lbls.push({ el: lbl, x: best.x, y: best.y, s: s });
     });
     var top = -H0 / 2, bottom = H0 / 2;
     placed.concat(lrects).forEach(function (r) { top = Math.min(top, r.y - PAD); bottom = Math.max(bottom, r.y + r.h + PAD); });
