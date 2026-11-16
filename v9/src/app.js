@@ -27,8 +27,16 @@ var APP = (function () {
   function changed() { save(); emit('change'); }
   if (typeof window !== 'undefined') { window.addEventListener('pagehide', function () { if (saveTimer) saveNow(); }); document.addEventListener('visibilitychange', function () { if (document.hidden && saveTimer) saveNow(); }); }
   var roleOf = function (serial) { return CORE.roleOf(state, serial); };
-  var ver = function (r) { return CORE.version(r, now()); };
+  var ver = function (r) { return CORE.version(r, now()); };   // 人的版本：每天的點
   var pend = function (r) { return CORE.pending(r, now()); };
+  // 角色的版本：生產背景、規則表、資源表。自己的是現在用的角色（第 13 輪：首頁切換），別人的沒指定就是他的第一個
+  function charFor(r, c) { return c || (r === me ? CORE.curChar(r) : CORE.firstChar(r)); }
+  var cver = function (r, c) { c = charFor(r, c); return c ? CORE.version(c, now()) : { bg: '', nature: false, rules: { uses: [], conditions: [], problem: '', village: '' }, resources: [] }; };
+  var cpend = function (r, c) { c = charFor(r, c); return c ? CORE.pending(c, now()) : null; };
+  // 換現在用的角色（首頁那一列、資源表的分頁、各處「換」）；開新角色（最多 5 個），開了就換過去
+  function useChar(id) { CORE.setCur(state, me.serial, id); changed(); emit('char'); }
+  function openChar(f) { var c = CORE.openChar(state, me.serial, f, now()); CORE.setCur(state, me.serial, c.id); changed(); emit('char'); return c; }
+  var fmt = CORE.fmtPoints;
 
   // 動作：規則函式擋下也可能已經改了資料，所以失敗也存檔、重畫
   function run(fn, okMsg) {
@@ -65,14 +73,14 @@ var APP = (function () {
   /* ---------- 今天：下一步和提醒 ---------- */
   function steps() {
     if (tutActive()) return tutSteps();
-    var m = me, t = now(), out = [], v = ver(m), p = pend(m);
-    out.push({ id: 'role', no: '①', name: '每天的點', ok: true, status: CORE.abbrev(m.serial) + ' ' + m.name + '，每天 ' + v.dailyPoints + ' 點' + (p && p.dailyPoints !== v.dailyPoints ? '（明天起 ' + p.dailyPoints + '）' : '') + '，今天還能給 ' + CORE.remainingToday(state, m, t), sheet: 'role' });
+    var m = me, t = now(), out = [], pv = ver(m), pp = pend(m), v = cver(m), p = cpend(m);
+    out.push({ id: 'role', no: '①', name: '每天的點', ok: true, status: CORE.abbrev(m.serial) + ' ' + m.name + '，每天 ' + fmt(pv.dailyPoints) + ' 點' + (pp && pp.dailyPoints !== pv.dailyPoints ? '（明天起 ' + fmt(pp.dailyPoints) + '）' : '') + '，今天還能給 ' + fmt(CORE.remainingToday(state, m, t)), sheet: 'role' });
     var ru = v.rules, hasRules = ru.uses.length > 0 || ru.conditions.length > 0 || !!ru.village;
-    out.push({ id: 'rules', no: '②', name: '寫規則表', ok: hasRules, status: hasRules ? ru.uses.length + ' 條用途、' + ru.conditions.length + ' 條條件' + (ru.bothMustPass ? '、要兩方都通' : '') + (ru.mustAcceptVillage ? '、要接受家規' : '') : '規則表是空的' + (p ? '；明天起的版本已經寫了' : ''), sheet: 'rules' });
+    out.push({ id: 'rules', no: '②', name: '寫規則表', ok: hasRules, status: hasRules ? ru.uses.length + ' 條用途、' + ru.conditions.length + ' 條條件' + (ru.village ? '、有家規' : '') + '；出問題怎麼辦：' + ru.problem : '規則表是空的（出問題怎麼辦：' + ru.problem + '）' + (p ? '；明天起的版本已經寫了' : ''), sheet: 'rules' });
     var avail = CORE.availTotal(m, t);
-    var empties = v.resources.filter(function (x) { return x.price === 0; }), emptyAvail = empties.reduce(function (n, x) { return n + CORE.stockOf(m, x.id).avail; }, 0);
+    var empties = v.resources.filter(CORE.isEmptyItem), emptyAvail = empties.reduce(function (n, x) { return n + CORE.stockOf(m, x.id).avail; }, 0);
     var emptyHint = !empties.length ? '想只收不給，要先建一個 0 點的空物件（例如「空的：什麼都不給」），可以一次補很多份' : emptyAvail === 0 ? '0 點的「' + empties[0].name + '」可換 0 份，先補貨，才能只收不給' : '';
-    out.push({ id: 'resources', no: '③', name: '資源表', ok: v.resources.length > 0 && avail > 0 && !emptyHint, status: (v.resources.length ? v.resources.map(function (x) { return x.name + ' ' + x.price + ' 點，可換 ' + CORE.stockOf(m, x.id).avail; }).join('、') : '沒有資源') + (emptyHint ? '；' + emptyHint : ''), sheet: 'resources', emptyHint: emptyHint });
+    out.push({ id: 'resources', no: '③', name: '資源表', ok: v.resources.length > 0 && avail > 0 && !emptyHint, status: (v.resources.length ? v.resources.map(function (x) { return x.name + ' ' + fmt(x.price) + ' 點，可換 ' + CORE.stockOf(m, x.id).avail; }).join('、') : '沒有資源') + (emptyHint ? '；' + emptyHint : ''), sheet: 'resources', emptyHint: emptyHint });
     var up = m.slots.filter(function (s) { return s.atUs > t; });
     out.push({ id: 'slots', no: '④', name: '開對接時段', ok: up.length > 0, status: up.length ? up.length + ' 個未來時段，最近 ' + CORE.fmtUs(up.sort(function (a, b) { return a.atUs - b.atUs; })[0].atUs) : '沒有開放的時段', sheet: 'myslots' });
     var booked = CORE.myBookings(state, m, t).filter(function (b) { return b.slot.atUs > t; });
@@ -85,27 +93,25 @@ var APP = (function () {
     return { rows: out, next: next, hint: hint };
   }
 
-  /* ---------- 新手教學（DESIGN 7-4）：六步，都在表格世界做；最後一步看自己的能量之家 ---------- */
+  /* ---------- 新手教學（DESIGN 7-4）：六步（補二十三：空的不用兌現，原本的第 6 步「兌現」拿掉）；最後一步看自己的能量之家 ---------- */
   var GUIDE = CORE.GUIDE, TUT_SLOT_US = 60e6;   // 引路人的時段：走到約他那一步才開，大約一分鐘後
   function tut() { return state.tutorial; }
   function tutActive() { return tut().step !== 'done'; }
   function guide() { return CORE.roleOf(state, GUIDE); }
-  function emptyOf(r, atUs) { var v = CORE.version(r, atUs || now()); return v.resources.find(function (x) { return x.price === 0; }) || null; }
+  function emptyOf(r, atUs) { return CORE.emptyOf(CORE.firstChar(r), atUs || now()); }   // 教學用：玩家只有一個角色   // 真的空物件（0 點、沒勾種類、沒寫交）
   function tutSlot() { var x = tut().slot ? CORE.slotOf(state, tut().slot) : null; return x ? x.slot : null; }
   function tutDocking() { var s = tutSlot(); if (!s) return null; return state.dockings.find(function (d) { return d.slot === s.id && d.traded && (d.a === me.serial || d.b === me.serial); }) || null; }
-  function tutHold(issuer, holder) { var d = tutDocking(); if (!d) return null; return state.holds.find(function (h) { return h.docking === d.id && h.issuer === issuer && h.holder === holder; }) || null; }
   // 每一步：名字、怎麼做、在哪一張紙、做完沒
   var TUT = [
-    { id: 't1', name: '創角色', how: '資源表那張紙已經寫好第一行「空的」，填名字和每天的點，按「建立」', sheet: 'res', done: function () { return !isBlank(); } },
+    { id: 't1', name: '創角色', how: '資源表那張紙已經寫好第一行「空的」，填名字、生產背景（最多 6 個字）和每天的點，按「建立」。出問題怎麼辦也先寫好一句，可以改', sheet: 'res', done: function () { return !isBlank(); } },
     { id: 't2', name: '寫前情提要', how: '能量之家首頁最上面已經幫你寫好一句前情提要，可以改；給了自然 1 點，按「寫好了」。亮＝今天跟自然交流過', sheet: 'house', done: function () { return !!CORE.natureOf(state, me.serial, CORE.dayNum(now())); } },
     { id: 't3', name: '找陌生人：骰子', how: '按最上面的骰子骰出一個序號，按「去」，看他的資源表（也可以按「看他的能量之家」）', sheet: 'res', done: function () { return !!tut().went; } },
-    { id: 't4', name: '約引路人、選他的「空的」', how: '到「公告欄」打「空的」找到引路人的公告，按「約他」；事件簿多一行（會到已經勾了），在那一行按「選他的東西」選他的「空的」。引路人一定會選你的「空的」', sheet: 'find',
-      done: function () { var s = tutSlot(); if (!s || s.bookings.indexOf(me.serial) < 0 || !CORE.isPresent(state, me.serial, s.id)) return false; var g = guide(); return CORE.wantsValid(state, s, me.serial, GUIDE).some(function (id) { var x = CORE.resourceOf(CORE.version(g, s.atUs), id); return x && x.price === 0; }); } },
-    { id: 't5', name: '那一微秒', how: '大約一分鐘後，白光一閃，跳出成交結果：「我給他：空的；我收到：引路人的空的」；那一行變成成交，對方簽名出現紅字「引路人」。不用守著', sheet: 'log', done: function () { return !!tutDocking(); } },
-    { id: 't6', name: '兌現', how: '在事件簿那一行按「兌現」', sheet: 'log', done: function () { var h = tutHold(GUIDE, me.serial); return !!h && h.status === 'redeemed'; } },
-    { id: 't7', name: '看自己的能量之家', how: '按「去我的能量之家」：你 0 歲，第一塊磚變彩色了。彩色＝今天跟人換過', sheet: 'house', done: function () { return !!tut().house; } }
+    { id: 't4', name: '約引路人、選他的「空的」', how: '到「公告欄」打「空的」找到引路人（教學）的公告，按「約他」；事件簿多一行（會到已經勾了），在那一行按「選他的東西」選他的「空的」。引路人一定會選你的「空的」。兩邊都是空的、一樣多：一樣多時，來約的人是主動方，主動那一格圈「我」，寫「照我的規則・他接受了」（引路人自動接受）', sheet: 'find',
+      done: function () { var s = tutSlot(); if (!s || s.bookings.indexOf(me.serial) < 0 || !CORE.isPresent(state, me.serial, s.id)) return false; var gc = CORE.slotChar(state, s, GUIDE); return !!gc && CORE.wantsValid(state, s, me.serial, GUIDE).some(function (id) { var x = CORE.resourceOf(CORE.version(gc, s.atUs), id); return x && CORE.isEmptyItem(x); }); } },
+    { id: 't5', name: '那一微秒', how: '你和引路人都選了空的，一樣多時，來約的人是主動方，所以主動那一格圈「我」、照你的規則。大約一分鐘後，白光一閃，跳出成交結果：「我給他：空的；我收到：引路人的空的；主動：我（生產背景）・照我的規則」；那一行變成成交，對方簽名出現紅字「引路人」，兌現那格寫「不用交」。跟人換到實體時，東西到手再按『兌現』；空的不用。不用守著', sheet: 'log', done: function () { return !!tutDocking(); } },
+    { id: 't6', name: '看自己的能量之家', how: '按「去我的能量之家」：你 0 歲，第一塊磚變彩色了。彩色＝今天跟人換過', sheet: 'house', done: function () { return !!tut().house; } }
   ];
-  var NO = ['①', '②', '③', '④', '⑤', '⑥', '⑦'];
+  var NO = ['①', '②', '③', '④', '⑤', '⑥'];
   function tutSteps() {
     var T = tut(), rows = TUT.map(function (x, i) { return { id: x.id, no: NO[i], name: x.name, ok: i + 1 < T.step, status: x.how, sheet: x.sheet, tut: true }; });
     var next = rows[T.step - 1] || null;
@@ -117,11 +123,11 @@ var APP = (function () {
     if (name === 'dice' && T.step === 3) T.dice = true;
     if (name === 'go' && T.step === 3 && T.dice && arg && arg !== me.serial) T.went = true;
     if (name === 'nature' && T.step === 2) { T.nature = true; tutTick(); emit('firstLit'); return; }
-    if (name === 'myHouse' && T.step === 7) { T.house = true; tutTick(); emit('firstBrick'); return; }
+    if (name === 'myHouse' && T.step === 6) { T.house = true; tutTick(); emit('firstBrick'); return; }
     tutTick();
   }
   function tutSkip() { var T = tut(); if (!tutActive() || isBlank()) return; T.step = 'done'; T.skipped = true; changed(); emit('tut', 'done'); }
-  // 每格：步驟做完就往下走；引路人的自動化（開時段、選玩家的「空的」、玩家兌現了他也兌現）
+  // 每格：步驟做完就往下走；引路人的自動化（開時段、選玩家的「空的」；空的不用兌現）
   function tutTick() {
     var T = tut(); if (!tutActive() || typeof T.step !== 'number' || isBlank()) return;
     var g = guide(); if (!g) { T.step = 'done'; return; }
@@ -133,7 +139,6 @@ var APP = (function () {
     }
     var guard = 0;
     while (typeof T.step === 'number' && T.step <= TUT.length && TUT[T.step - 1].done() && guard++ < 10) {
-      if (T.step === 6) { var h = tutHold(me.serial, GUIDE); if (h && h.status === 'held') { try { CORE.redeem(state, GUIDE, h.id, t); } catch (err) { /* 換不到就算了 */ } } }   // 玩家兌現了，引路人也兌現玩家的「空的」
       T.step++; dirty = true;
       if (T.step > TUT.length) T.step = 'done';
     }
@@ -164,7 +169,7 @@ var APP = (function () {
 
   return {
     goHouse: goHouse, goTable: goTable, view: function () { return view; }, saveNow: saveNow, loadIssue: function () { return CORE.io.loadIssue; },
-    state: function () { return state; }, me: function () { return me; }, now: now, esc: esc, opt: opt, ver: ver, pend: pend,
+    state: function () { return state; }, me: function () { return me; }, now: now, esc: esc, opt: opt, ver: ver, pend: pend, cver: cver, cpend: cpend, useChar: useChar, openChar: openChar,
     on: on, emit: emit, save: save, changed: changed, run: run, roleOf: roleOf,
     becomeMe: becomeMe, resetAll: resetAll, quit: quit, isBlank: isBlank, createPlayer: createPlayer, demo: demo,
     tut: tut, tutActive: tutActive, tutEvent: tutEvent, tutSkip: tutSkip, tutTick: tutTick, GUIDE: GUIDE,

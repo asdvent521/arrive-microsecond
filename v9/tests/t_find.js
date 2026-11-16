@@ -9,7 +9,8 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   var people = function () { return H.ev("Array.from(document.querySelectorAll('#tmain table:nth-of-type(2) tr[data-row]')).map(function(t){return t.textContent;})"); };
   var catBtns = function (bar) { return H.ev("Array.from(document.querySelectorAll('#" + bar + " button')).map(function(b){return b.textContent+(b.classList.contains('o')?'':'*');})"); };
   // 別人的資源表今天就有這些東西（直接放進今天的版本）；別人掛幾張公告
-  await H.ev("(function(){var S=APP.state(),t=APP.now();function put(serial,id,name,def,price,avail,cat){var r=CORE.roleOf(S,serial),v=CORE.version(r,t);v.resources.push({id:id,name:name,def:def,kind:'thing',cat:cat||CORE.classify(name,def),tags:[],price:price,keepDays:3});r.stock[id]={avail:avail,reserved:0};}" +
+  await H.ev("(function(){var S=APP.state();CORE.closeChar(S,'" + J2 + "','" + J2 + "-2',APP.now());APP.changed();})()");   // 這個檔看的是找和分類：示範的阿澄（廚房）也有便當，先收掉，下面照原本的三個人比（一個角色一行另外在 t_board、t_chars 測）
+  await H.ev("(function(){var S=APP.state(),t=APP.now();function put(serial,id,name,def,price,avail,cat){var r=CORE.firstChar(CORE.roleOf(S,serial)),v=CORE.version(r,t);v.resources.push({id:id,name:name,def:def,kind:'thing',deliver:'',cat:cat||CORE.classify(name,def),tags:[],price:CORE.pts(price),keepDays:3,needsDeliver:false});r.stock[id]={avail:avail,reserved:0};}" +
     "put('" + J2 + "','f2a','便當一個','今天做的',30,2);put('" + J3 + "','f3a','炒麵一盤','',25,1);put('" + J5 + "','f5a','水電修理','換燈泡、修水龍頭',80,3);put('" + J5 + "','f5b','蛋糕','',20,1,'bento');" +
     "CORE.postNotice(S,'" + J2 + "',{need:'想吃便當',give:['r2b'],cap:2},t);CORE.postNotice(S,'" + J3 + "',{need:'修水管',give:['r3a'],cap:2},t);APP.changed();})()");
   await H.nav('find');
@@ -73,12 +74,12 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   await H.nav('res');
   assert((await H.ev("document.querySelector('#tmain th:nth-child(4)').textContent")).indexOf('類別') >= 0 && (await H.ev("!!document.querySelector('#tmain [data-ed=\"resCat\"][data-id=\"r1a\"]')")), '資源表第 4 欄是類別，自己的每一行有下拉');
   await H.edit('#tmain [data-new="res"]', '手工餅乾');
-  var newId = await H.ev("(function(){var v=CORE.pending(APP.me(),APP.now());var x=v.resources.find(function(y){return y.name==='手工餅乾';});return x?x.id+':'+x.cat:null;})()");
+  var newId = await H.ev("(function(){var v=CORE.pending(CORE.firstChar(APP.me()),APP.now());var x=v.resources.find(function(y){return y.name==='手工餅乾';});return x?x.id+':'+x.cat:null;})()");
   assert(newId && newId.split(':')[1] === 'bake' && (await H.ev("document.querySelector('#tmain [data-ed=\"resCat\"][data-id=\"" + newId.split(':')[0] + "\"]').value")) === 'bake', '寫「手工餅乾」：自動掛食物／烘焙點心，下拉顯示出來');
   await H.edit('#tmain [data-ed="resCat"][data-id="' + newId.split(':')[0] + '"]', 'drink');
-  assert((await H.ev("CORE.pending(APP.me(),APP.now()).resources.find(function(y){return y.id==='" + newId.split(':')[0] + "';}).cat")) === 'drink' && (await H.msg()) === '改了，明天起算', '改成飲料（明天起算）');
+  assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).resources.find(function(y){return y.id==='" + newId.split(':')[0] + "';}).cat")) === 'drink' && (await H.msg()) === '改了，明天起算', '改成飲料（明天起算）');
   await H.edit('#tmain [data-ed="resTags"][data-id="' + newId.split(':')[0] + '"]', '素食, 早上');
-  assert((await H.ev("CORE.pending(APP.me(),APP.now()).resources.find(function(y){return y.id==='" + newId.split(':')[0] + "';}).tags.join()")) === '素食,早上', '標籤用逗點分也行');
+  assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).resources.find(function(y){return y.id==='" + newId.split(':')[0] + "';}).tags.join()")) === '素食,早上', '標籤用逗點分也行');
   await H.serial('J2'); assert((await pg.textContent('#tother')).indexOf('J2 阿澄') >= 0 && (await H.main()).indexOf('諮詢文書／履歷求職') >= 0 && (await H.ev("!document.querySelector('#tmain [data-ed=\"resCat\"]')")), '看他的資源表：改履歷掛在諮詢文書／履歷求職（看得到、不能改）'); await H.clickText('回我自己', '#tother');
   // 7. 直放：大類的鈕、小類、列表都排得下（不會橫向爆出紙外）；截一張
   await pg.setViewportSize({ width: 360, height: 780 }); await pg.waitForTimeout(200); await H.nav('find');

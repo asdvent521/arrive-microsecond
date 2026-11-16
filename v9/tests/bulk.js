@@ -3,8 +3,9 @@
 function bulk(C, state, days, now) {
   days = days || 1100; now = now || C.nowUs();
   var D = C.DAY_US, born = now - (days + 1) * D;
-  var mk = function (serial, name) { return C.createRole(state, { serial: serial, name: name, dailyPoints: 1000, rules: {}, resources: [{ id: 'e' + serial.slice(-2), name: name + '的空的', price: 0, keepDays: 1, avail: 99999 }] }, born); };
+  var mk = function (serial, name) { return C.createRole(state, { serial: serial, name: name, dailyPoints: C.pts(1000), rules: {}, resources: [{ id: 'e' + serial.slice(-2), name: name + '的空的', price: 0, keepDays: 1, avail: 99999 }] }, born); };
   var X = mk('00000000071', '三年甲'), Y = mk('00000000072', '三年乙'), Z = mk('00000000073', '三年丙');
+  [X, Y, Z].forEach(function (a) { [X, Y, Z].forEach(function (b) { if (a !== b) C.accept(state, a.serial, C.firstChar(b).id, born); }); });   // 第 12 輪：被動方要先接受主動方的規則
   var E = function (r) { return 'e' + r.serial.slice(-2); };
   for (var i = 0; i < days; i++) {
     var at = born + (i + 1) * D + 3600e6 * 12;

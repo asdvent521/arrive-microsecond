@@ -79,7 +79,7 @@ var FIND = "(function(){var v=HOUSE.data(),t=v.today;var s=WORLD.screenOf({day:t
   await becomeMe(J3); await H.ev("APP.goHouse('" + J1 + "')"); await pg.waitForTimeout(300);
   assert((await H.ev("HOUSE.data().sign")) === '歡迎來坐' && (await pg.textContent('#hwho')).indexOf('歡迎來坐') >= 0 && (await H.ev("WORLD.info().colored")) === 1, '換人看得到門牌「歡迎來坐」，今天那塊磚彩色');
   // 前情提要預設全藏（補二十二）：J1 寫了前情提要，阿明（鄰居）、阿澄都看不到那塊亮；改成只給鄰居看，阿明看得到、阿澄看不到
-  await becomeMe(J1); await H.ev("(function(){CORE.writeNature(APP.state(),'" + J1 + "',{text:'今天去山上走走',points:3},APP.now());APP.changed();})()");
+  await becomeMe(J1); await H.ev("(function(){CORE.writeNature(APP.state(),'" + J1 + "',{text:'今天去山上走走',points:'3'},APP.now());APP.changed();})()");
   var todayN = await H.ev("CORE.dayNum(APP.now())");
   assert((await H.ev("CORE.viewHouse(APP.state(),'" + J1 + "','" + J1 + "',APP.now()).bricks.find(function(b){return b.day===" + todayN + ";}).lit")) === true && (await H.ev("CORE.viewHouse(APP.state(),'" + J1 + "','" + J5 + "',APP.now()).bricks.find(function(b){return b.day===" + todayN + ";}).lit")) === false && (await H.ev("CORE.natureOf(APP.state(),'" + J1 + "'," + todayN + ").vis")) === 'hidden', '前情提要預設全藏：自己看亮的，鄰居阿明看是暗的');
   await H.ev("(function(){var S=APP.state(),t=APP.now();var inv=CORE.inviteNeighbor(S,'" + J1 + "','" + J5 + "',t);CORE.joinVillage(S,'" + J5 + "',CORE.villageOf(S,'" + J1 + "').id,inv.id,[1,0],0,t);CORE.setNatureVis(S,'" + J1 + "'," + todayN + ",'neighbors');APP.changed();})()");   // 阿明剛才搬走了，再邀回來當鄰居

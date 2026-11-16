@@ -10,7 +10,8 @@ var J1 = '00000000001', J2 = '00000000002';
   assert((await H.ev("APP.view().name")) === 'house' && (await pg.isVisible('#view-house')) && (await pg.isHidden('#view-table')), '一打開是自己的能量之家，不是事件簿');
   assert((await pg.isVisible('#hhome')) && (await pg.textContent('#hhome')).indexOf('寫今天的前情提要') >= 0 && (await pg.textContent('#hhome')).indexOf('今天還剩') >= 0 && (await pg.isVisible('#hhome [data-hact="toLog"]')) && (await pg.isVisible('#hhome [data-hact="toFind"]')), '最上面一排：一格「寫今天的前情提要」、今天還剩 N 點、事件簿、公告欄兩個大鈕');
   var left0 = await H.ev("CORE.remainingToday(APP.state(),APP.me(),APP.now())");
-  assert((await pg.textContent('#hLeft')) === String(left0) && (await H.ev("document.body.innerText.indexOf('達秒屋')")) < 0 && (await pg.textContent('#hwho')).indexOf('的能量之家') >= 0, '今天還剩 ' + left0 + ' 點；畫面沒有「達秒屋」三個字，叫能量之家');
+  var F = async function (n) { return H.ev('CORE.fmtPoints(' + n + ')'); };
+  assert((await pg.textContent('#hLeft')) === (await F(left0)) && (await H.ev("document.body.innerText.indexOf('達秒屋')")) < 0 && (await pg.textContent('#hwho')).indexOf('的能量之家') >= 0, '今天還剩 ' + (await F(left0)) + ' 點；畫面沒有「達秒屋」三個字，叫能量之家');
   var daily = await H.ev("CORE.dailyPoints(APP.me(),APP.now())"); assert(left0 === daily, '還沒給出去：還剩＝每天的點');
   if (OUT) await pg.screenshot({ path: OUT + '/v9_nature_1_home_landscape.png' });
   // 2. 寫前情提要：點那一格 → 打字、給自然 5 點、寫好了 → 首頁顯示那段字和給了自然 5 點、磚亮起來、今天還剩少 5
@@ -21,8 +22,8 @@ var J1 = '00000000001', J2 = '00000000002';
   await H.ev("document.getElementById('natText').value='今天一早去河堤走一圈，撿了一袋垃圾'; document.getElementById('natPts').value='5';");
   await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natSave\"]'); }", '寫好了');
   var nat = await H.ev("JSON.stringify((function(){var x=CORE.natureOf(APP.state(),'" + J1 + "',CORE.dayNum(APP.now()));return x?[x.text,x.points,x.vis]:null;})())");
-  assert(nat === JSON.stringify(['今天一早去河堤走一圈，撿了一袋垃圾', 5, 'hidden']) && (await pg.textContent('#hhome')).indexOf('今天一早去河堤走一圈') >= 0 && (await pg.textContent('#hhome')).indexOf('給了自然 5 點') >= 0, '寫好了：記下字和 5 點（預設全藏），首頁像讀小說那樣顯示那段字和「給了自然 5 點」');
-  assert((await pg.textContent('#hLeft')) === String(left0 - 5) && (await pg.textContent('#hhome')).indexOf('已還自然 5 點') >= 0, '今天還剩少 5 點，寫已還自然 5 點');
+  assert(nat === JSON.stringify(['今天一早去河堤走一圈，撿了一袋垃圾', 5000000, 'hidden']) && (await pg.textContent('#hhome')).indexOf('今天一早去河堤走一圈') >= 0 && (await pg.textContent('#hhome')).indexOf('給了自然 5 點') >= 0, '寫好了：記下字和 5 點（預設全藏），首頁像讀小說那樣顯示那段字和「給了自然 5 點」');
+  assert((await pg.textContent('#hLeft')) === (await F(left0 - 5000000)) && (await pg.textContent('#hhome')).indexOf('已還自然 5 點') >= 0, '今天還剩少 5 點，寫已還自然 5 點');
   var today = await H.ev("CORE.dayNum(APP.now())");
   assert((await H.ev("JSON.stringify((function(){var b=HOUSE.data().bricks.find(function(x){return x.day===" + today + ";});return [b.lit,b.level];})())")) === '[true,0]' && (await H.ev("WORLD.info().lit")) === 1 && (await H.ev("WORLD.info().colored")) === 0, '今天那塊磚亮起來（亮的灰白：有前情提要、沒跟人換）');
   if (OUT) await pg.screenshot({ path: OUT + '/v9_nature_2_written_landscape.png' });
@@ -30,16 +31,20 @@ var J1 = '00000000001', J2 = '00000000002';
   await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"toLog\"]'); }", '事件簿');
   assert((await H.sheetName()) === 'log' && (await pg.isVisible('#view-table')), '事件簿大鈕：到今天的事件簿');
   var rows = await H.ev("document.querySelectorAll('#tmain table:nth-of-type(1) tr[data-row]').length");
-  assert(rows === rows0 && (await pg.textContent('#energyText')) === String(left0 - 5) && (await H.main()).indexOf('已還自然 5 點') >= 0, '事件簿沒有多一行（只記跟人換的，還是 ' + rows0 + ' 行）；現在還能給 ' + (left0 - 5) + '，旁邊已還自然 5 點');
+  assert(rows === rows0 && (await pg.textContent('#energyText')) === (await F(left0 - 5000000)) && (await H.main()).indexOf('已還自然 5 點') >= 0, '事件簿沒有多一行（只記跟人換的，還是 ' + rows0 + ' 行）；現在還能給 ' + (await F(left0 - 5000000)) + '，旁邊已還自然 5 點');
   await H.finger("function(){ return document.querySelector('#tmain [data-act=\"natureGo\"]'); }", '前情提要');
   assert((await H.ev("APP.view().name")) === 'house' && (await pg.textContent('#hhome')).indexOf('今天一早去河堤') >= 0, '點了回首頁的前情提要');
   // 4. 改：點那段字 → 改點數 3 → 寫好了；撤掉：點全退、磚暗回去
   await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natEdit\"]'); }", '那段字（點了能改）');
   assert((await H.ev("document.getElementById('natText').value")) === '今天一早去河堤走一圈，撿了一袋垃圾' && (await H.ev("document.getElementById('natPts').value")) === '5', '打開就是原本的字和點數');
   await H.ev("document.getElementById('natPts').value='3'"); await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natSave\"]'); }", '寫好了');
-  assert((await pg.textContent('#hhome')).indexOf('給了自然 3 點') >= 0 && (await pg.textContent('#hLeft')) === String(left0 - 3), '改成 3 點：退回 2 點');
+  assert((await pg.textContent('#hhome')).indexOf('給了自然 3 點') >= 0 && (await pg.textContent('#hLeft')) === (await F(left0 - 3000000)), '改成 3 點：退回 2 點');
+  await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natEdit\"]'); }", '那段字'); await H.ev("document.getElementById('natPts').value='2.5'"); await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natSave\"]'); }", '寫好了');
+  assert((await pg.textContent('#hhome')).indexOf('給了自然 2.5 點') >= 0 && (await pg.textContent('#hLeft')) === (await F(left0 - 2500000)), '給自然可以到小數：2.5 點');
+  await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natEdit\"]'); }", '那段字'); await H.ev("document.getElementById('natPts').value='1.0000001'"); await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natSave\"]'); }", '寫好了');
+  assert((await pg.textContent('#hmsg')).indexOf('最多到小數點後 6 位') >= 0 && (await pg.textContent('#hhome')).indexOf('給了自然 2.5 點') < 0, '7 位小數擋下來：最多到小數點後 6 位'); await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natCancel\"]'); }", '不改了');
   await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natEdit\"]'); }", '那段字'); await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natDrop\"]'); }", '整段撤掉'); await H.popOk('撤掉');
-  assert((await H.ev("!CORE.natureOf(APP.state(),'" + J1 + "',CORE.dayNum(APP.now()))")) && (await pg.textContent('#hhome')).indexOf('寫今天的前情提要') >= 0 && (await pg.textContent('#hLeft')) === String(left0) && (await H.ev("WORLD.info().lit")) === 0, '撤掉：整段拿掉、點全退、磚暗回去');
+  assert((await H.ev("!CORE.natureOf(APP.state(),'" + J1 + "',CORE.dayNum(APP.now()))")) && (await pg.textContent('#hhome')).indexOf('寫今天的前情提要') >= 0 && (await pg.textContent('#hLeft')) === (await F(left0)) && (await H.ev("WORLD.info().lit")) === 0, '撤掉：整段拿掉、點全退、磚暗回去');
   await H.ev("document.getElementById('natText')"); await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natEdit\"]'); }", '再寫'); await H.ev("document.getElementById('natText').value='晚上關了燈看星星'; document.getElementById('natPts').value='2';"); await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natSave\"]'); }", '寫好了');
   // 5. 日曆紙：今天那格亮的、合計多寫「寫了前情提要 1 天」；那天的明細最上面是前情提要，可以改給誰看
   await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"toLog\"]'); }", '事件簿'); await H.nav('cal');
@@ -55,6 +60,12 @@ var J1 = '00000000001', J2 = '00000000002';
   assert((await N.pg.isVisible('#hcal')) && (await N.pg.isVisible('#hhome')) && (await N.pg.textContent('#hhome')).indexOf('寫今天的前情提要') >= 0, '3D 用不了：顯示日曆紙，上面一樣有前情提要那一排');
   await N.finger("function(){ return document.querySelector('#hhome [data-hact=\"toFind\"]'); }", '公告欄'); assert((await N.sheetName()) === 'find', '公告欄大鈕點得到：到公告欄');
   assert(N.errs.length === 0, '3D 用不了也沒有頁面錯誤'); await N.close();
+  // 6b. 轉橫（780×360）寫 300 字：前情提要那一格只一行高、後面截掉，整排的下緣不超過畫面一半；點一下打開看全部和改（第 12 輪小修正）
+  await H.ev("(function(){CORE.writeNature(APP.state(),'" + J1 + "',{text:'山'.repeat(300),points:'2'},APP.now());APP.changed();})()"); await H.ev("APP.goHouse(APP.me().serial)"); await pg.waitForTimeout(500);
+  var land = await H.ev("(function(){var b=document.querySelector('#hhome .hnat').getBoundingClientRect(),h=document.getElementById('hhome').getBoundingClientRect(),t=document.querySelector('#hhome .natext');return {h:b.height,bottom:h.bottom,vh:window.innerHeight,clipped:t.scrollWidth>t.clientWidth+1};})()");
+  assert(land.h < 48 && land.bottom <= land.vh / 2 && land.clipped, '轉橫寫 300 字：前情提要那一格一行高（' + Math.round(land.h) + 'px、後面截掉），整排下緣 ' + Math.round(land.bottom) + ' 不超過畫面一半（' + land.vh / 2 + '）');
+  await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natEdit\"]'); }", '那一行'); assert((await H.ev("document.getElementById('natText').value.length")) === 300, '點一下打開看全部和改（300 字都在）');
+  await H.ev("document.getElementById('natText').value='晚上關了燈看星星'"); await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"natSave\"]'); }", '寫好了');
   // 7. 直放：這一排排得下、不擠出畫面；截一張
   await pg.setViewportSize({ width: 360, height: 780 }); await pg.waitForTimeout(300); await H.ev("APP.goHouse(APP.me().serial)"); await pg.waitForTimeout(600);
   var fit = await H.ev("(function(){var b=document.getElementById('hhome').getBoundingClientRect();return {w:b.width,r:b.right,bottom:b.bottom,vw:window.innerWidth,vh:window.innerHeight,over:Array.from(document.querySelectorAll('#hhome .hnat, #hhome .hleft')).filter(function(e){return e.scrollWidth>e.clientWidth+1;}).length};})()");

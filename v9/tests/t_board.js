@@ -28,7 +28,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   assert((await nrows()) === 7, '全部的公告：七張（引路人、我、阿澄、小樂，加示範那條鏈的三張）');
   var row3 = await H.ev("Array.from(document.querySelectorAll('#tmain tr[data-row]')).find(function(t){return t.textContent.indexOf('搬書')>=0;}).textContent");
   var e3 = await H.ev("CORE.eligible(APP.state(),CORE.roleOf(APP.state(),'" + J3 + "'),APP.me(),APP.now())");
-  assert(!e3.ok && row3.indexOf('不通：' + e3.reason) >= 0 && row3.indexOf('家規') >= 0, '小樂的公告標「不通」，原因跟約的判斷一樣：' + e3.reason);
+  assert(e3.ok && row3.indexOf('通') >= 0 && row3.indexOf('不通') < 0 && row3.indexOf('J3-1') >= 0 && row3.indexOf('小樂（書）') >= 0, '小樂的公告標「通」（預約一方通：小樂沒條件；他的家規是那一微秒才看接受沒）；序號欄寫角色編號 J3-1、名字後面是生產背景');
   var row2 = await H.ev("Array.from(document.querySelectorAll('#tmain tr[data-row]')).find(function(t){return t.textContent.indexOf('學跑步')>=0;}).textContent");
   assert(row2.indexOf('通') >= 0 && row2.indexOf('不通') < 0 && row2.indexOf('約他') >= 0 && row2.indexOf('接上去') >= 0, '阿澄的公告標「通」、有「約他」和「接上去」（第 6 輪）');
   // 2. 找：公告和別人的資源表一起找；「我在找」比別人可以給的，「我能給」比別人的需要
@@ -39,9 +39,9 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   await H.setIn('kwIn', '修理'); await H.clickText('找', '#tmain'); assert((await nrows()) === 1 && (await H.main()).indexOf('修腳踏車') >= 0, '找標籤「修理」');
   await H.setIn('kwIn', '借'); await H.clickText('找', '#tmain');
   assert((await nrows()) === 1 && (await prow()) === 1 && (await H.main()).indexOf('誰的資源表裡有「借」') >= 0 && (await H.main()).indexOf('借一本書') >= 0 && (await H.main()).indexOf('公告 1 張・資源表 1 人') >= 0, '找「借」：小樂的公告（可以給借一本書）、下半張小樂的資源表裡有借一本書；寫公告 1 張・資源表 1 人');
-  await H.clickText('清掉', '#tmain'); assert((await H.ev("document.getElementById('kwIn').value")) === '' && (await prow()) === 3 && (await H.main()).indexOf('還有') < 0 && (await H.main()).indexOf('誰的資源表裡有東西') >= 0, '清掉：下半張列全部的人（公告多的時候列三個、寫還有 1 人）');
+  await H.clickText('清掉', '#tmain'); assert((await H.ev("document.getElementById('kwIn').value")) === '' && (await prow()) === 5 && (await H.main()).indexOf('還有') < 0 && (await H.main()).indexOf('資源表 3 人') >= 0 && (await H.main()).indexOf('誰的資源表裡有東西') >= 0, '清掉：下半張列全部的人，一個角色一行（阿澄、小樂各兩個角色共 5 行），旁邊照人算寫資源表 3 人（第 13 輪）');
   var people = await H.ev("Array.from(document.querySelectorAll('#tmain table:nth-of-type(2) tr[data-row]')).map(function(t){return t.textContent;})");
-  assert(people.some(function (t) { return t.indexOf('阿澄') >= 0 && t.indexOf('改履歷・100') >= 0 && t.indexOf('通') >= 0; }) && people.some(function (t) { return t.indexOf('小樂') >= 0 && t.indexOf('不通') >= 0; }), '每個人：他有什麼（東西・價錢）、下一個時段、約他、通不通');
+  assert(people.some(function (t) { return t.indexOf('阿澄') >= 0 && t.indexOf('改履歷・100') >= 0 && t.indexOf('通') >= 0; }) && people.some(function (t) { return t.indexOf('小樂（書）') >= 0 && t.indexOf('J3-1') >= 0 && t.indexOf('不通') < 0; }), '每個人：他有什麼（東西・價錢）、下一個時段、約他、通不通（一個角色一行：角色編號、生產背景）');
   // 3. 點序號到他的那張紙（引路人）
   await H.setIn('kwIn', '空的'); await H.clickText('找', '#tmain');
   await H.finger("function(){ return document.querySelector('#tmain tr[data-row] button.lk[data-id=\"" + J4 + "\"]'); }", '引路人的序號');
@@ -76,7 +76,8 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   // 7. 食物的供需（補二十一）：找的框上面一行；點「需要」切到我能給並篩食物、點「可以給」切到我在找並篩食物；缺的時候紅字；名字後面有括弧
   await H.nav('find');
   var fl = await H.ev("document.getElementById('foodLine').textContent");
-  assert(fl.indexOf('食物：') === 0 && fl.indexOf('需要 0 張') >= 0 && fl.indexOf('可以給 1 人') >= 0 && !(await H.ev("document.getElementById('foodLine').classList.contains('warn')")), '找的框上面一行「食物：需要 0 張・可以給 1 人」（我的早餐一頓算食物），不缺不紅：' + fl);
+  assert(fl.indexOf('食物：') === 0 && fl.indexOf('需要 0 張') >= 0 && fl.indexOf('可以給 2 人') >= 0 && !(await H.ev("document.getElementById('foodLine').classList.contains('warn')")), '找的框上面一行「食物：需要 0 張・可以給 2 人」（我的早餐一頓、阿澄（廚房）的便當算食物，照人算），不缺不紅：' + fl);
+  await H.ev("(function(){CORE.charOf(APP.state(),'" + J2 + "-2').char.stock.r2k.avail=0;APP.changed();})()");   // 阿澄（廚房）的便當換光了：下面照原本只有我能給
   await H.ev("(function(){var S=APP.state(),t=APP.now();CORE.postNotice(S,'" + J2 + "',{need:'想吃便當',give:['r2b'],cap:2},t);CORE.postNotice(S,'" + J3 + "',{need:'想要一袋水果',give:['r3a'],cap:2},t);APP.changed();})()"); await H.nav('find');
   fl = await H.ev("document.getElementById('foodLine').textContent"); assert(fl.indexOf('需要 2 張') >= 0 && fl.indexOf('可以給 1 人') >= 0 && (await H.ev("document.getElementById('foodLine').classList.contains('warn')")), '兩張食物的公告：需要 2 張・可以給 1 人，需要比可以給多 → 紅字');
   await H.finger("function(){ return document.querySelector('#foodLine [data-act=\"foodNeed\"]'); }", '需要');

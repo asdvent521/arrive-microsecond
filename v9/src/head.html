@@ -138,6 +138,22 @@ button.box{cursor:pointer}
 .page .cats .mini{min-height:32px;font-size:max(calc(var(--mm)*2.9),13px);padding:4px 6px;line-height:1.2}
 .page .fields .foodline{width:100%;font-size:calc(var(--mm)*3.4);gap:calc(var(--mm)*.8)} .page .fields .foodline.warn{color:var(--stamp)} .page .fields .foodline.warn .mini{border-color:var(--stamp);color:var(--stamp)}
 .page .fields .tagset{font-size:calc(var(--mm)*3);color:var(--muted)} .page .fields .tagset b{color:var(--pen);font-family:var(--hand);font-size:calc(var(--mm)*3.8)} .page .fields .tagset select.cs{font-size:calc(var(--mm)*3)}
+/* 第 12 輪：主動那一格（圈主動的那個）、紅字的小鈕、出問題怎麼辦的格子、生產背景旁的「自然」小字、價錢格（長的小數不撐寬） */
+.page .lead{font-family:var(--serif);color:var(--ink);font-size:calc(var(--mm)*3.4);white-space:nowrap} .page .lead b{display:inline-block;font-weight:400;min-width:calc(var(--mm)*5.2);line-height:calc(var(--mm)*5.2);text-align:center;border:calc(var(--mm)*.35) solid transparent;border-radius:50%} .page .lead b.on{border-color:var(--stamp);color:var(--stamp);font-weight:700}
+.mini.warn{border-color:var(--stamp);color:var(--stamp);background:transparent} .page td small .warn{color:var(--stamp)} .page td small span.warn{display:block}
+.page td textarea.prob{min-height:calc(var(--mm)*8);font-size:calc(var(--mm)*3.3)} .page tr.prob td.k{font-size:calc(var(--mm)*3.4)} .page tr.prob td.k small{display:block;font-size:calc(var(--mm)*2.6);color:#666}
+.page .ctabs{display:flex;flex-wrap:wrap;gap:calc(var(--mm)*1.2);align-items:center;margin:0 0 calc(var(--mm)*2)}
+.page .ctab{font-family:var(--serif);font-size:calc(var(--mm)*3.2);border:calc(var(--mm)*.3) solid var(--line);border-bottom-width:calc(var(--mm)*.8);background:transparent;color:var(--ink);border-radius:calc(var(--mm)*1.2) calc(var(--mm)*1.2) 0 0;padding:calc(var(--mm)*.8) calc(var(--mm)*2.4);cursor:pointer;white-space:nowrap}
+.page .ctab.on{border-color:var(--teal);background:var(--teal);color:#fff;font-weight:700}
+.page .ctab small.nat,.page td .nat,.page .lab .nat{display:inline-block;font-size:calc(var(--mm)*2.4);margin-left:calc(var(--mm)*1);border:calc(var(--mm)*.25) solid currentColor;border-radius:999px;padding:0 calc(var(--mm)*1)}
+.page small.use{display:block;color:var(--teal);font-weight:600}
+.page .lab small.use{display:inline;margin-left:calc(var(--mm)*3);font-size:calc(var(--mm)*2.9)}
+#tother .mini{margin-left:4px}
+.hroles{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--hud);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:var(--r-m);padding:4px 8px;font-size:.9rem} .hroles .btn{min-height:34px;padding:4px 12px} .hroles .btn.on{background:var(--teal);color:#fff;border-color:var(--teal);font-weight:700}
+.page .fields .nat{display:inline-block;font-size:calc(var(--mm)*2.8);color:#3F7A4A;border:calc(var(--mm)*.25) solid #3F7A4A;border-radius:999px;padding:0 calc(var(--mm)*1.2);margin-left:calc(var(--mm)*1);vertical-align:middle;font-family:var(--serif)}
+.page td input.pr,.page td .pr{width:100%;min-width:0;padding:0 1px;text-align:right;font-size:calc(var(--mm)*3);letter-spacing:-.03em;font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}
+.page td input.pr::-webkit-outer-spin-button,.page td input.pr::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}   /* 小數點後 6 位要放得下：不畫上下箭頭 */
+.page td small.dl{display:flex;align-items:baseline;gap:calc(var(--mm)*.5);font-family:var(--serif)} .page td small.dl input{flex:1;min-width:0;font-family:var(--hand);font-size:calc(var(--mm)*3.3);color:var(--pen)}
 /* 整條鏈：分支樹（補二十） */
 /* 交換關係圖（補二十二）：這一頁用 px，直放時紙縮到螢幕寬 */
 .stage.fit{min-width:0}
@@ -228,6 +244,7 @@ button.box{cursor:pointer}
 .hnat{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:var(--r-m);background:var(--hud);backdrop-filter:blur(6px);padding:8px 12px;font:inherit;color:var(--ink);cursor:pointer}
 .hnat .small{display:block;color:var(--muted)} .hnat .natext{display:block;font-size:1.02rem;line-height:1.45;max-height:4.4em;overflow:hidden}
 .hnat.empty{font-size:1.05rem;border-style:dashed}
+@media (orientation: landscape){.hnat:not(.edit){display:flex;align-items:baseline;gap:8px;white-space:nowrap;overflow:hidden;padding:6px 12px} .hnat:not(.edit) .small{display:inline;flex:none} .hnat:not(.edit) .natext{display:inline-block;flex:1;min-width:0;max-height:1.45em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom} .hnat.empty .small{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}}   /* 轉橫只顯示一行，點了才打開看全部和改 */
 .hnat.edit{cursor:default} .hnat.edit textarea{width:100%;box-sizing:border-box;font:inherit;font-size:1rem;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg);margin:4px 0;resize:vertical}
 .hnatrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px} .hnatrow input[type=number]{width:4.5em;min-height:32px;font:inherit;padding:2px 6px;border:1px solid var(--line);border-radius:var(--r-s)}
 .hleft{background:var(--hud);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:var(--r-m);padding:6px 12px;font-size:.95rem} .hleft b{font-size:1.15rem}

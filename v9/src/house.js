@@ -30,7 +30,7 @@ var HOUSE = (function () {
     if (!r) return;
     var v = data(), own = mine(), vv = WORLD.available ? village() : null, inVillage = vv && vv.houses.length > 1;
     if (!own || !WORLD.available) st.building = false;
-    $('hwho').innerHTML = '<b>' + esc(CORE.abbrev(r.serial) + ' ' + CORE.nameWith(APP.state(), r.serial, APP.now())) + '</b> 的能量之家' + (v.closed ? ' <span class="tag off">只給鄰居看</span>' : '<span class="small muted"> ' + esc(v.age.text + (v.sign ? '・「' + v.sign + '」' : '')) + '</span>') + (inVillage ? ' <span class="tag">村子 ' + vv.houses.length + ' 間</span>' : '');
+    $('hwho').innerHTML = '<b>' + esc(CORE.abbrev(r.serial) + ' ' + r.name) + '</b> 的能量之家' + (v.closed ? ' <span class="tag off">只給鄰居看</span>' : '<span class="small muted"> ' + esc(v.age.text + (v.sign ? '・「' + v.sign + '」' : '')) + '</span>') + (inVillage ? ' <span class="tag">村子 ' + vv.houses.length + ' 間</span>' : '');
     $('hVillage').hidden = !inVillage || !!st.pick;
     $('hpick').hidden = !st.pick;
     if (st.pick) {
@@ -65,13 +65,17 @@ var HOUSE = (function () {
     var S = APP.state(), m = me(), t = APP.now(), dn = CORE.dayNum(t), nat = CORE.natureOf(S, m.serial, dn), tutNat = APP.tutActive() && APP.tut().step === 2;
     var html;
     if (st.natEdit || (tutNat && !nat)) {
-      var text = nat ? nat.text : (tutNat ? '今天喝了一杯水，帶著好心情開始今天的旅程' : ''), pts = nat ? nat.points : 1;
-      html = '<div class="hnat edit"><label class="small">今天的前情提要（跟自然的交流，最多 ' + CORE.NATURE_MAX + ' 字）</label><textarea id="natText" rows="2" maxlength="' + CORE.NATURE_MAX + '" placeholder="例如：今天一早去後山撿柴，順手清了一袋垃圾，帶著開心的心情開始今天的旅程">' + esc(text) + '</textarea><div class="hnatrow"><label class="small">今天給了自然 <input type="number" id="natPts" value="' + pts + '" min="1" aria-label="給了自然幾點"> 點</label><button type="button" class="btn sm pri" data-hact="natSave">寫好了</button>' + (nat ? '<button type="button" class="btn sm warn" data-hact="natDrop">整段撤掉</button>' : '') + '<button type="button" class="btn sm" data-hact="natCancel">' + (nat ? '不改了' : '先不寫') + '</button></div></div>';
-    } else if (nat) html = '<button type="button" class="hnat" data-hact="natEdit" title="點了能改"><span class="small">前情提要・給了自然 ' + nat.points + ' 點</span><span class="natext">' + esc(nat.text) + '</span></button>';
+      var text = nat ? nat.text : (tutNat ? '今天喝了一杯水，帶著好心情開始今天的旅程' : ''), pts = nat ? CORE.fmtPoints(nat.points) : '1';
+      html = '<div class="hnat edit"><label class="small">今天的前情提要（跟自然的交流，最多 ' + CORE.NATURE_MAX + ' 字）</label><textarea id="natText" rows="2" maxlength="' + CORE.NATURE_MAX + '" placeholder="例如：今天一早去後山撿柴，順手清了一袋垃圾，帶著開心的心情開始今天的旅程">' + esc(text) + '</textarea><div class="hnatrow"><label class="small">今天給了自然 <input type="number" id="natPts" value="' + pts + '" min="0" step="any" inputmode="decimal" aria-label="給了自然幾點"> 點</label><button type="button" class="btn sm pri" data-hact="natSave">寫好了</button>' + (nat ? '<button type="button" class="btn sm warn" data-hact="natDrop">整段撤掉</button>' : '') + '<button type="button" class="btn sm" data-hact="natCancel">' + (nat ? '不改了' : '先不寫') + '</button></div></div>';
+    } else if (nat) html = '<button type="button" class="hnat" data-hact="natEdit" title="點了能改"><span class="small">前情提要・給了自然 ' + CORE.fmtPoints(nat.points) + ' 點</span><span class="natext">' + esc(nat.text) + '</span></button>';
     else html = '<button type="button" class="hnat empty" data-hact="natEdit">寫今天的前情提要<span class="small">今天跟自然的交流，和給了自然幾點</span></button>';
-    html += '<div class="hrow"><div class="hleft">今天還剩 <b id="hLeft">' + CORE.remainingToday(S, m, t) + '</b> 點可以跟人換' + (nat ? '<span class="small">・已還自然 ' + nat.points + ' 點</span>' : '') + '</div>';
+    // 現在用的角色（第 13 輪）：有兩個以上角色時，首頁這一列點一個就換；約人、開時段、掛公告、設密鑰都用它
+    var cs = CORE.charsOf(m), cur = CORE.curChar(m);
+    var roles = cs.length < 2 ? '' : '<div class="hroles" id="hRoles"><span class="small">現在用</span>' + cs.map(function (c) { var bg = CORE.version(c, t).bg; return '<button type="button" class="btn sm' + (c === cur ? ' on' : '') + '" data-hact="useChar" data-id="' + c.id + '"' + (c === cur ? ' aria-current="true"' : '') + '>' + esc(CORE.abbrevChar(c.id) + (bg ? ' ' + bg : '')) + '</button>'; }).join('') + '</div>';
+    html += '<div class="hrow">' + roles + '<div class="hleft">今天還剩 <b id="hLeft">' + CORE.fmtPoints(CORE.remainingToday(S, m, t)) + '</b> 點可以跟人換' + (nat ? '<span class="small">・已還自然 ' + CORE.fmtPoints(nat.points) + ' 點</span>' : '') + '</div>';
     html += '<div class="hbig"><button type="button" class="btn big pri" data-hact="toLog">事件簿</button><button type="button" class="btn big pri" data-hact="toFind">公告欄</button><button type="button" class="btn sm" data-hact="toMap">交換關係</button></div></div>';   // 橫放時還剩和大鈕同一列，直放自動換行
     box.innerHTML = html;
+    var np = $('natPts'); if (np) KIT.fitInputs(np.parentNode);   // 給了自然幾點：長的小數也看得到全部
     var hb = document.querySelector('.hbar').getBoundingClientRect(), vb = $('view-house').getBoundingClientRect(); box.style.top = (hb.bottom - vb.top + 4) + 'px';
   }
   function natSave() {
@@ -84,7 +88,7 @@ var HOUSE = (function () {
   function tutBar() {
     var on = APP.tutActive() && !APP.isBlank(), stp = on ? APP.steps() : null;
     $('htut').hidden = !on;
-    if (on) $('htut').innerHTML = '<span class="small">' + esc(stp.hint) + '</span>' + (APP.tut().step === 7 ? '<button type="button" class="btn sm pri" data-hact="myHouse">去我的能量之家</button>' : '') + '<button type="button" class="btn sm warn" data-hact="tutSkip">跳過教學</button>';
+    if (on) $('htut').innerHTML = '<span class="small">' + esc(stp.hint) + '</span>' + (APP.tut().step === 6 ? '<button type="button" class="btn sm pri" data-hact="myHouse">去我的能量之家</button>' : '') + '<button type="button" class="btn sm warn" data-hact="tutSkip">跳過教學</button>';
   }
   function onTap(hit) {
     if (!hit) return;
@@ -181,6 +185,7 @@ var HOUSE = (function () {
     else if (a === 'toLog') APP.goTable(null, 'log');
     else if (a === 'toFind') APP.goTable(null, 'find');
     else if (a === 'toMap') APP.goTable(null, 'map');
+    else if (a === 'useChar') { APP.useChar(b.dataset.id); var c = CORE.curChar(me()); msg('現在用 ' + CORE.abbrevChar(c.id) + ' ' + (CORE.version(c, APP.now()).bg || '')); render(); }
     else if (a === 'natEdit') { st.natEdit = true; render(); var ta = $('natText'); if (ta) ta.focus(); }
     else if (a === 'natCancel') { st.natEdit = false; render(); }
     else if (a === 'natSave') natSave();
@@ -205,7 +210,7 @@ var HOUSE = (function () {
   APP.on('calGrow', function () { if (st.shown) render(); });
   // 教學第 2 步：寫了前情提要，今天那塊磚亮起來
   APP.on('firstLit', function () { peekBrick('亮＝今天跟自然交流過', '今天那塊磚亮起來了（就是上面框起來的那一塊）：寫了前情提要就亮。接下來跟人換：按「事件簿」，按最上面的骰子找個陌生人看看。'); });
-  // 教學第 7 步：鏡頭靠近第一塊日曆上今天那塊磚，框起來
+  // 教學第 6 步：鏡頭靠近第一塊日曆上今天那塊磚，框起來
   APP.on('firstBrick', function () { peekBrick('你 0 歲，第一塊磚變彩色了', '就是上面日曆方塊上框起來的那一塊。彩色＝今天跟人換過，成交越多顏色越深；亮＝今天跟自然交流過。房子可以按「蓋」自己蓋。教學完成！'); });
   // 說明磚的時候先把首頁那一排收起來、鏡頭靠近今天那塊磚；說明關了再放回來
   function peekBrick(title, body) {
@@ -215,6 +220,6 @@ var HOUSE = (function () {
   }
   // 成交那一刻正好開著：白光一閃，今天那塊磚亮起來（重畫就亮）
   APP.on('dock', function (res) { if (!st.shown) return; var hit = res.some(function (x) { return x.docking && x.docking.traded && (x.docking.a === st.serial || x.docking.b === st.serial); }); render(); if (hit) KIT.flash(); });
-  if (APP.view().name === 'house') APP.goHouse(APP.view().serial);   // 一打開是自己的能量之家（補二十二）；放在所有事件都掛好之後，教學第 7 步的存檔一打開就會跳出第一塊磚的說明
+  if (APP.view().name === 'house') APP.goHouse(APP.view().serial);   // 一打開是自己的能量之家（補二十二）；放在所有事件都掛好之後，教學第 6 步的存檔一打開就會跳出第一塊磚的說明
   return { st: st, render: render, data: data, village: village };
 })();

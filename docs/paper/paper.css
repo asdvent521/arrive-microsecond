@@ -1,0 +1,55 @@
+@font-face { font-family: 'P'; font-weight: 400; src: url(FONTDIR/r400.ttf); }
+@font-face { font-family: 'P'; font-weight: 700; src: url(FONTDIR/r700.ttf); }
+@page { size: A4 landscape; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #fff; }
+body { font-family: 'P', serif; color: #222; font-size: 10.5pt; }
+.page { width: 297mm; height: 210mm; padding: 10mm 12mm 8mm; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; }
+.page:last-child { page-break-after: auto; }
+.hd { display: flex; align-items: flex-end; border-bottom: 1.6pt solid #222; padding-bottom: 2mm; margin-bottom: 3mm; }
+.hd h1 { margin: 0; font-size: 24pt; letter-spacing: 6pt; font-weight: 700; flex: 1; }
+.hd .note { font-size: 9pt; color: #555; margin-right: 4mm; }
+.hd .tag { font-size: 9pt; color: #b3261e; border: 1pt solid #b3261e; padding: 0.5mm 2mm; }
+.row { display: flex; align-items: flex-end; flex-wrap: wrap; margin: 0 0 2.2mm; font-size: 10.5pt; }
+.row .small, .small { font-size: 7.5pt; color: #666; }
+.gap { display: inline-block; width: 7mm; }
+.ln { display: inline-block; border-bottom: 0.7pt solid #444; height: 5.5mm; margin: 0 1mm; padding: 0 1mm; }
+.w { color: #1f4fa8; font-weight: 400; }
+.muted { color: #999; font-size: 8pt; }
+.bx { display: inline-block; width: 3.2mm; height: 3.2mm; border: 0.7pt solid #333; vertical-align: -0.5mm; margin: 0 0.6mm 0 0; position: relative; }
+.bx.on::after { content: '✓'; position: absolute; left: -0.2mm; top: -1.6mm; color: #1f4fa8; font-size: 9pt; font-weight: 700; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th { background: #eef1f6; font-size: 9pt; font-weight: 700; text-align: left; padding: 1mm 1.4mm; border: 0.6pt solid #888; vertical-align: bottom; line-height: 1.25; }
+th small { display: block; font-weight: 400; font-size: 6.5pt; color: #666; }
+td { border: 0.6pt solid #999; padding: 0.8mm 1.4mm; vertical-align: middle; line-height: 1.3; overflow: hidden; }
+td.c { text-align: center; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.cats { display: grid; grid-template-columns: repeat(6, auto); gap: 0 1mm; font-size: 6.4pt; line-height: 1.5; }
+.cats .bx { width: 2.4mm; height: 2.4mm; margin-right: 0.3mm; }
+.cats .bx.on::after { font-size: 7pt; top: -1.4mm; }
+.sub { font-size: 6.8pt; color: #555; border-bottom: 0.5pt dotted #999; margin-top: 0.4mm; }
+.kinds { font-size: 8.5pt; white-space: nowrap; }
+.dl { font-size: 7.5pt; color: #555; border-top: 0.5pt dotted #999; margin-top: 0.6mm; padding-top: 0.3mm; }
+.res tbody tr { height: 13.6mm; }
+.grid .cell { display: inline-block; width: 3.6mm; height: 3.6mm; border: 0.7pt solid #333; margin: 0.3mm; position: relative; }
+.grid .cell.x::after { content: ''; position: absolute; left: -0.5mm; right: -0.5mm; top: 50%; border-top: 1pt solid #1f4fa8; transform: rotate(-35deg); }
+.prob { border: 1.2pt solid #222; margin-top: 2mm; padding: 1.2mm 2mm; min-height: 15mm; }
+.prob .pbody { margin-top: 0.8mm; border-bottom: 0.6pt dotted #999; min-height: 6mm; }
+.foot { font-size: 7.2pt; color: #444; line-height: 1.45; margin-top: auto; padding-top: 1.5mm; }
+.log tbody tr { height: 13.4mm; }
+.log .sm, .sm { font-size: 7pt; color: #666; margin-top: 0.4mm; }
+.blank { display: inline-block; min-width: 9mm; }
+.lead { font-size: 10pt; }
+.lead b { font-weight: 400; display: inline-block; width: 5.2mm; height: 5.2mm; line-height: 5mm; text-align: center; border-radius: 50%; }
+.lead b.on { border: 1.2pt solid #b3261e; color: #b3261e; font-weight: 700; }
+.story .ln { flex: 1; }
+.lab { font-weight: 700; font-size: 10pt; margin: 2.4mm 0 1mm; }
+.cash tbody tr { height: 8.6mm; }
+.cal tr:first-child th { height: 7mm; vertical-align: middle; }
+.cal th { text-align: center; }
+.cal td { vertical-align: top; position: relative; height: 25.5mm; padding: 1mm 1.4mm; }
+.cal .dn { display: inline-block; font-weight: 700; font-size: 10pt; min-width: 6mm; text-align: center; }
+.cal .dn.ring { border: 1pt solid #1f4fa8; border-radius: 50%; color: #1f4fa8; }
+.cal .corner { position: absolute; right: 0; top: 0; width: 0; height: 0; border-top: 6mm solid #6f8fc8; border-left: 6mm solid transparent; }
+.cal .ev { font-size: 7.6pt; color: #1f4fa8; line-height: 1.3; }
+.board tbody tr { height: 13.6mm; }
