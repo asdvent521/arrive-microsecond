@@ -21,7 +21,8 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   var ratios = {};
   for (var k of ['log', 'cal', 'res', 'find', 'more']) {
     await H.nav(k); var a = await H.ev(ASPECT); ratios[k] = a;
-    assert(a && a.fits && Math.abs(a.r - 297 / 210) < 0.06, '「' + H.NAME[k] + '」是一張 A4 橫式（' + a.w + '×' + a.h + '，比例 ' + a.r.toFixed(3) + '），780 寬整張放得下');
+    if (k === 'find') assert(a && a.fits && a.r <= 297 / 210 + 0.06, '「公告欄」至少一張 A4 橫式、照補十九往下長（第 13 輪一個角色一行，示範資料多了阿澄（廚房）、小樂（後山）兩行）（' + a.w + '×' + a.h + '，比例 ' + a.r.toFixed(3) + '），780 寬放得下');
+    else assert(a && a.fits && Math.abs(a.r - 297 / 210) < 0.06, '「' + H.NAME[k] + '」是一張 A4 橫式（' + a.w + '×' + a.h + '，比例 ' + a.r.toFixed(3) + '），780 寬整張放得下');
     await pg.screenshot({ path: OUT + '/v9_sheet_' + k + '.png', fullPage: true });
   }
   for (var m of ['rules', 'together', 'greet', 'slots', 'house', 'village', 'role', 'help']) { await H.nav(m); var a2 = await H.ev(ASPECT); assert(a2 && a2.fits && a2.r <= 297 / 210 + 0.06, '更多 →「' + H.NAME[m] + '」也是一張紙（' + a2.w + '×' + a2.h + '）'); }

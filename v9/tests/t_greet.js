@@ -9,7 +9,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
   await H.fresh();
   // 1. 設密鑰：到阿澄的那張紙，按「跟他設打招呼密鑰」
   await H.serial('J2'); await H.clickText('跟他設打招呼密鑰', '#tmain');
-  assert((await H.popOpen()) && (await H.popTitle()).indexOf('跟 阿澄 設打招呼密鑰') >= 0, '跳出設密鑰：密鑰、平常我給他、平常我拿他的');
+  assert((await H.popOpen()) && (await H.popTitle()).indexOf('跟 阿澄（聊天傾聽） 設打招呼密鑰') >= 0, '跳出設密鑰（他的名字後面是我在看的那個角色的生產背景）：密鑰、平常我給他、平常我拿他的');
   await H.setIn('gKey', 'J5'); await H.popOk('送出'); assert((await H.popTitle()) === '設不了' && (await H.popBody()).indexOf('序號') >= 0, '密鑰不能長得像序號'); await H.popOk();
   await H.clickText('跟他設打招呼密鑰', '#tmain'); await H.setIn('gKey', '早安'); await H.edit('#gGive', 'r1b'); await H.edit('#gGet', 'r2b'); await H.popOk('送出');
   var g = await H.ev("(function(){var g=CORE.greetsOf(APP.state())[0];return g?{status:g.status,key:g.pending?g.pending.key:null,by:g.pending?g.pending.by:null}:null;})()");

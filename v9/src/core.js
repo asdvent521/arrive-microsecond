@@ -276,6 +276,8 @@ var CORE = (function () {
   function expandChar(code) { var m = /^(.+)-(\d+)$/.exec(String(code == null ? '' : code).trim().toUpperCase()); if (!m) return null; var s = /^\d{11}$/.test(m[1]) ? m[1] : expand(m[1]); return s ? s + '-' + parseInt(m[2], 10) : null; }
   function charsOf(r) { return (r && r.chars || []).filter(function (c) { return !c.closed; }); }
   function firstChar(r) { return charsOf(r)[0] || null; }
+  // 現在用的角色（第 13 輪：在首頁切換，約人、開時段、掛公告、設密鑰都用它）：記在人身上（cur），收掉了或沒設就是第一個
+  function curChar(r) { var cs = charsOf(r); return cs.find(function (c) { return c.id === r.cur; }) || cs[0] || null; }
   function charOf(state, id) { if (!isCharId(id)) return null; var r = roleOf(state, serialOfChar(id)); if (!r) return null; var c = (r.chars || []).find(function (x) { return x.id === id; }); return c && !c.closed ? { person: r, char: c } : null; }
   function needChar(state, id) { var x = charOf(state, id); if (!x) bad('沒有這個角色：' + (abbrevChar(id) || id)); return x; }
   function personOf(state, c) { return roleOf(state, serialOfChar(c.id)); }
@@ -296,6 +298,7 @@ var CORE = (function () {
     return r.name + (bg ? '（' + bg + '）' : '');
   }
   // 改生產背景、自然的勾：明天起（跟規則表、資源表一起跟版本走）
+  function setCur(state, serial, roleId) { var r = need(state, serial), c = pickChar(state, serial, roleId); r.cur = c.id; return c; }
   function setBg(state, roleId, f, atUs) { var v = tomorrowChar(state, roleId, atUs); f = f || {}; if (f.bg !== undefined) v.bg = cleanBg(f.bg, true); if (f.nature !== undefined) v.nature = !!f.nature; return v; }
 
   /* ---------- 東西一定是實體（補二十三，第 3 節）：物質本身就是實體；行為和訊息一定要綁一樣實體（交：…）。0 點、沒勾種類、也沒寫交的是空物件 ---------- */
@@ -463,7 +466,7 @@ var CORE = (function () {
     if (!abbrev(serial) || roleOf(state, serial)) bad('序號不對或已存在');
     if (!f.name || !String(f.name).trim()) bad('角色要有名字');
     var daily = f.dailyPoints == null || f.dailyPoints === '' ? DEFAULT_DAILY : parsePoints(f.dailyPoints, '每天的點'); if (!(daily >= 1)) bad('每天的點要大於 0'); if (daily > MAX_POINTS) bad('每天的點最多 10 億點');
-    var r = { serial: serial, name: String(f.name).trim(), contact: String(f.contact || ''), slots: [], chars: [], nextChar: 1, world: f.world || defaultWorld(serial), born: dayNum(atUs), house: cleanHouse(f.house && f.house.template ? Object.assign({}, f.house, { blocks: template(f.house.template, f.house.wall, f.house.roof).concat(f.house.extra || []), cal: { dir: f.house.calDir || 'up', blocks: [] } }) : (f.house || {}), plotOf(0), false, dayNum(atUs), dayNum(atUs)),
+    var r = { serial: serial, name: String(f.name).trim(), contact: String(f.contact || ''), slots: [], chars: [], nextChar: 1, cur: null, world: f.world || defaultWorld(serial), born: dayNum(atUs), house: cleanHouse(f.house && f.house.template ? Object.assign({}, f.house, { blocks: template(f.house.template, f.house.wall, f.house.roof).concat(f.house.extra || []), cal: { dir: f.house.calDir || 'up', blocks: [] } }) : (f.house || {}), plotOf(0), false, dayNum(atUs), dayNum(atUs)),
               versions: [{ id: newId('v'), fromDay: dayNum(atUs), dailyPoints: daily }] };
     newChar(state, r, { bg: f.bg, requireBg: !!f.requireBg, nature: f.nature, rules: f.rules, resources: f.resources || [], loose: !!f.loose }, atUs);   // 擋下來（沒寫生產背景、東西沒綁實體）就什麼都不發：序號留給下一次
     r.house.calRemoved = 0;   // 新角色：第一塊日曆本來就在牆上，不算拆
@@ -1243,7 +1246,7 @@ var CORE = (function () {
   // 我約不約得到他：跟預約用同一個判斷（他那個角色是主人、我用我的角色去約）
   function canBook(state, owner, me, atUs, ownerRole, myRole) {
     if (!me || owner.serial === me.serial) return { ok: false, self: true, reason: '自己' };
-    var oc = ownerRole ? (charOf(state, ownerRole) || {}).char : firstChar(owner), mc = myRole ? (charOf(state, myRole) || {}).char : firstChar(me);
+    var oc = ownerRole ? (charOf(state, ownerRole) || {}).char : firstChar(owner), mc = myRole ? (charOf(state, myRole) || {}).char : curChar(me);
     if (!oc || !mc) return { ok: false, reason: '沒有角色' };
     return eligible(state, oc, mc, atUs);
   }
@@ -2196,7 +2199,10 @@ var CORE = (function () {
     createRole(st, { serial: GUIDE, name: '引路人', bg: '教學', dailyPoints: pts(2000), house: { template: 'round', wall: 'cream', roof: 'pine', sign: '空的換空的', calDir: 'left', extra: [[-4, 0, 4, 'flower', 0], [3, 0, 4, 'flower', 0], [-6, 0, -6, 'tree', 0], [5, 0, -6, 'tree', 180]] },
       rules: { uses: ['引路人的點只用來教學'], conditions: [], problem: '教學用，沒有東西要交', village: '' },
       resources: [{ id: 'r4e', name: '空的', def: '什麼都不給；教學用', price: 0, keepDays: null, avail: 99999 }], contact: '' }, ago(800));
+    // 兩個角色的示範人物（第 13 輪）：阿澄多一個「廚房」、小樂多一個「後山」（勾自然）
+    Object.keys(DEMO2).forEach(function (sr) { openChar(st, sr, JSON.parse(JSON.stringify(DEMO2[sr])), ago(DEMO2[sr].ago)); });
     accept(st, '00000000002', charId('00000000003', 1), now - 229 * DAY_US); accept(st, '00000000003', charId('00000000002', 1), now - 229 * DAY_US);   // 阿澄和小樂一開始就接受了對方的規則（第 12 輪）
+    accept(st, '00000000002', charId('00000000003', 2), now - 29 * DAY_US); accept(st, '00000000003', charId('00000000002', 2), now - 29 * DAY_US);
     if (hist) demoHistory(st, now);
     // 示範的前情提要（補二十二）：阿澄最近三天公開、小樂一天公開一天只給鄰居看；引路人沒有。不帶過去紀錄的示範（測試用）不寫，今天的點才不會被扣
     if (hist) {
@@ -2208,6 +2214,7 @@ var CORE = (function () {
     // 阿澄開兩個對接時段：3 分鐘後、10 分鐘後，各 2 個名額
     addSlot(st, '00000000002', now + 180e6, 2, null, now);
     addSlot(st, '00000000002', now + 600e6, 2, null, now);
+    addSlot(st, '00000000003', now + 420e6, 2, null, now, false, charId('00000000003', 2));   // 小樂（後山）7 分鐘後一個時段：選柴他主動、選松果你主動
     guideNotice(st, now);
     // 示範村子：阿澄邀小樂當鄰居、小樂同意挑了右邊那塊地（照規則做出來）；引路人、阿明自己一間不在村子
     var inv = inviteNeighbor(st, '00000000002', '00000000003', ago(200)); joinVillage(st, '00000000003', villageOf(st, '00000000002').id, inv.id, [1, 0], 0, ago(199));
@@ -2309,6 +2316,17 @@ var CORE = (function () {
   }
   // 舊存檔裡的示範角色（序號和名字都對得上的）：照新的示範資料補上生產背景、出問題怎麼辦、每樣東西的種類和交（第 12 輪）。
   // 阿澄原本 0 點的「試聽 5 分鐘」變成綁了實體的試用品，另外補一行真的「空的」（接成一圈時給的人要選它）。這裡的字要跟 fresh() 裡的示範資料一樣（core 測試會比）
+  // 兩個角色的示範人物（第 13 輪）的第二個角色：fresh() 開出來；舊存檔裡的阿澄、小樂（還沒開過第二個角色的）讀檔時補上
+  var DEMO2 = {
+    '00000000002': { ago: 30, bg: '廚房', nature: false, rules: { uses: ['80 阿澄點 = 一個便當'], conditions: [], problem: '便當當面交；壞了或少了，隔天補一個', village: '' },
+      resources: [{ id: 'r2k', name: '便當一個', def: '當天中午做的，十二點前拿', kind: 'thing', price: pts(80), keepDays: 1, avail: 4 }, { id: 'r2z', name: '空的', def: '什麼都不給', price: 0, keepDays: null, avail: 10 }] },
+    '00000000003': { ago: 20, bg: '後山', nature: true, rules: { uses: ['40 小樂點 = 一捆柴'], conditions: [], problem: '柴放在後山步道口，自己來拿；淋濕了下次多給一捆', village: '後山家規：撿柴要留一半給下一個人。' },
+      resources: [{ id: 'r3k', name: '一捆柴', def: '後山撿的乾柴，一手抱得起', kind: 'thing', price: pts(40), keepDays: 7, avail: 6 }, { id: 'r3m', name: '一袋松果', def: '生火用', kind: 'thing', price: pts(5), keepDays: 7, avail: 10 }, { id: 'r3z', name: '空的', def: '什麼都不給', price: 0, keepDays: null, avail: 10 }] }
+  };
+  function demoSecond(serial, n, atUs) {
+    var d = DEMO2[serial], stock = {}; d.resources.forEach(function (x) { stock[x.id] = { avail: x.avail, reserved: 0 }; });
+    return { id: charId(serial, n), n: n, closed: false, closedAt: null, stock: stock, versions: [cleanCharVersion({ id: 'v13demo' + serial.slice(-2), fromDay: dayNum(atUs), bg: d.bg, nature: d.nature, rules: d.rules, resources: d.resources.map(function (x) { var y = Object.assign({}, x); delete y.avail; return y; }) }, 1)] };
+  }
   var DEMO_FIX = {
     '00000000002': { name: '阿澄', bg: '聊天傾聽', problem: '改好的那一份用 LINE 傳過去；傳不到或檔案壞了，隔天重傳一次', res: { r2a: ['info', '改好的那一份列印稿'], r2b: ['act', '一張手寫重點卡'], r2c: ['act', '一張試聽卡'] }, empty: { id: 'r2e', name: '空的', def: '什麼都不給', price: 0, keepDays: null, avail: 10 } },
     '00000000003': { name: '小樂', bg: '書', problem: '書當面交；弄丟或弄壞了，照原價賠一本一樣的', res: { r3a: ['thing', ''], r3b: ['act', '一張搬完的簽收紙'] } },
@@ -2333,11 +2351,12 @@ var CORE = (function () {
         return cleanCharVersion({ id: v.id, fromDay: v.fromDay, bg: fx ? fx.bg : legacyBg(v, stock), nature: false, rules: rules, resources: res }, scale);
       }) }];
     } else chars = list(r.chars, 50, '角色').map(function (c) { return cleanChar(c, r.serial, scale); });
+    if (demoFixOf(r) && DEMO2[r.serial] && !chars.some(function (c) { return c.n >= 2; }) && !(r.nextChar > 2)) chars.push(demoSecond(r.serial, 2, nowUs()));   // 舊存檔的阿澄、小樂：補第二個角色（第 13 輪；開過、收掉過的不補）
     var maxN = chars.reduce(function (m, c) { return Math.max(m, c.n); }, 0), nextChar = Math.max(maxN + 1, r.nextChar == null ? 1 : num(r.nextChar, '角色'));
     var roleIdOk = function (id, fallback) { return isCharId(id) && serialOfChar(id) === r.serial ? id : fallback; };
     var out = {
       serial: r.serial, name: str(r.name, LIMITS.name, '名字'), contact: str(r.contact || '', LIMITS.text, '聯絡方式'),
-      versions: list(r.versions, LIMITS.versions, '版本').map(function (v) { return cleanPersonVersion(v, scale); }), chars: chars, nextChar: nextChar, born: r.born == null ? null : num(r.born, '生日'), house: null,
+      versions: list(r.versions, LIMITS.versions, '版本').map(function (v) { return cleanPersonVersion(v, scale); }), chars: chars, nextChar: nextChar, cur: (function () { var id = roleIdOk(r.cur, null); return id && chars.some(function (c) { return c.id === id && !c.closed; }) ? id : null; })(), born: r.born == null ? null : num(r.born, '生日'), house: null,
       slots: list(r.slots || [], LIMITS.slots, '時段').map(function (s) { obj(s, '時段'); var wants = {}; Object.keys(s.wants || {}).forEach(function (a) { wants[str(a, 11, '選')] = {}; Object.keys(s.wants[a]).forEach(function (b) { wants[a][str(b, 11, '選')] = list(s.wants[a][b], 200, '選').map(function (id) { return ident(id, '選'); }); }); }); var mg = {}; Object.keys(s.maxGive || {}).forEach(function (a) { mg[str(a, 11, '最多給')] = scaled(num(s.maxGive[a], '最多給'), scale); });
         var ba = {}; Object.keys(s.bookedAt || {}).forEach(function (k) { ba[str(k, 11, '預約時間')] = num(s.bookedAt[k], '預約時間'); });
         var bookings = list(s.bookings || [], LIMITS.booked, '預約').map(ser('預約')), roles = {}; obj(s.roles || {}, '角色'); bookings.forEach(function (b) { var rid = (s.roles || {})[b]; roles[b] = isCharId(rid) && serialOfChar(rid) === b ? rid : charId(b, 1); });
@@ -2542,7 +2561,7 @@ var CORE = (function () {
     VILLAGE_CELL: VILLAGE_CELL, villagesOf: villagesOf, villageOf: villageOf, neighborsOf: neighborsOf, freeSpots: freeSpots, suggestedSpot: suggestedSpot, spotProblem: spotProblem, inviteNeighbor: inviteNeighbor, applyVillage: applyVillage, approveVillage: approveVillage, rejectVillage: rejectVillage, joinVillage: joinVillage, moveHouse: moveHouse, leaveVillage: leaveVillage, askLeave: askLeave, villageInfo: villageInfo, myInvites: myInvites, viewVillage: viewVillage, cleanVillages: cleanVillages, connected: connected,
     freshTutorial: freshTutorial, cleanTutorial: cleanTutorial, NATURE_MAX: NATURE_MAX, naturesOf: naturesOf, natureOf: natureOf, natureToday: natureToday, writeNature: writeNature, removeNature: removeNature, setNatureVis: setNatureVis, natureView: natureView, natureDays: natureDays, cleanNatures: cleanNatures, relations: relations,
     foodAvail: foodAvail, foodSupply: foodSupply, FOOD_FAIL: FOOD_FAIL, nameWith: nameWith, nameOf: nameOf,
-    P: P, MAX_POINTS: MAX_POINTS, parsePoints: parsePoints, fmtPoints: fmtPoints, pts: pts, CHAR_MAX: CHAR_MAX, BG_MAX: BG_MAX, charId: charId, isCharId: isCharId, serialOfChar: serialOfChar, abbrevChar: abbrevChar, expandChar: expandChar, charsOf: charsOf, firstChar: firstChar, charOf: charOf, pickChar: pickChar, cleanBg: cleanBg, bgOf: bgOf, setBg: setBg, openChar: openChar, closeChar: closeChar, charBlockers: charBlockers, isEmptyItem: isEmptyItem, deliverText: deliverText, emptyOf: emptyOf, DELIVER_MAX: DELIVER_MAX, PROBLEM_MAX: PROBLEM_MAX, PROBLEM_DEFAULT: PROBLEM_DEFAULT, noticeChar: noticeChar, findChar: findChar,
+    P: P, MAX_POINTS: MAX_POINTS, parsePoints: parsePoints, fmtPoints: fmtPoints, pts: pts, CHAR_MAX: CHAR_MAX, BG_MAX: BG_MAX, charId: charId, isCharId: isCharId, serialOfChar: serialOfChar, abbrevChar: abbrevChar, expandChar: expandChar, charsOf: charsOf, firstChar: firstChar, curChar: curChar, setCur: setCur, charOf: charOf, pickChar: pickChar, cleanBg: cleanBg, bgOf: bgOf, setBg: setBg, openChar: openChar, closeChar: closeChar, charBlockers: charBlockers, isEmptyItem: isEmptyItem, deliverText: deliverText, emptyOf: emptyOf, DELIVER_MAX: DELIVER_MAX, PROBLEM_MAX: PROBLEM_MAX, PROBLEM_DEFAULT: PROBLEM_DEFAULT, noticeChar: noticeChar, findChar: findChar,
     CATS: CATS, SUBS: SUBS, BIGS: BIGS, VERBS: VERBS, TAG_MAX: TAG_MAX, NOTICE_DAYS: NOTICE_DAYS, NOTICE_MAX: NOTICE_MAX, renewNotice: renewNotice, expiringNotices: expiringNotices, inActiveCircle: inActiveCircle, chainTree: chainTree, NODE_STATUS: NODE_STATUS, catOf: catOf, classify: classify, cleanTags: cleanTags, normText: normText, matchText: matchText, matchItem: matchItem, setNotice: setNotice, VACATED_MAX: VACATED_MAX,
     circlesOf: circlesOf, noticeOf: noticeOf, edgesOf: edgesOf, linkNotice: linkNotice, chooseCircle: chooseCircle, openCircleSlot: openCircleSlot, bookCircle: bookCircle, presetCircle: presetCircle, giftChain: giftChain, linksUnder: linksUnder, chainOf: chainOf, myCircles: myCircles, doneByOf: doneByOf, ackDoneBy: ackDoneBy, dropNotice: dropNotice,
     defaultWorld: defaultWorld, fresh: fresh, load: load, save: save, findRole: findRole, roleOf: roleOf, GUIDE: GUIDE, isGuide: isGuide, createPlayer: createPlayer, demoMe: demoMe, blankRole: blankRole

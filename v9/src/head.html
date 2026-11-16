@@ -142,6 +142,14 @@ button.box{cursor:pointer}
 .page .lead{font-family:var(--serif);color:var(--ink);font-size:calc(var(--mm)*3.4);white-space:nowrap} .page .lead b{display:inline-block;font-weight:400;min-width:calc(var(--mm)*5.2);line-height:calc(var(--mm)*5.2);text-align:center;border:calc(var(--mm)*.35) solid transparent;border-radius:50%} .page .lead b.on{border-color:var(--stamp);color:var(--stamp);font-weight:700}
 .mini.warn{border-color:var(--stamp);color:var(--stamp);background:transparent} .page td small .warn{color:var(--stamp)} .page td small span.warn{display:block}
 .page td textarea.prob{min-height:calc(var(--mm)*8);font-size:calc(var(--mm)*3.3)} .page tr.prob td.k{font-size:calc(var(--mm)*3.4)} .page tr.prob td.k small{display:block;font-size:calc(var(--mm)*2.6);color:#666}
+.page .ctabs{display:flex;flex-wrap:wrap;gap:calc(var(--mm)*1.2);align-items:center;margin:0 0 calc(var(--mm)*2)}
+.page .ctab{font-family:var(--serif);font-size:calc(var(--mm)*3.2);border:calc(var(--mm)*.3) solid var(--line);border-bottom-width:calc(var(--mm)*.8);background:transparent;color:var(--ink);border-radius:calc(var(--mm)*1.2) calc(var(--mm)*1.2) 0 0;padding:calc(var(--mm)*.8) calc(var(--mm)*2.4);cursor:pointer;white-space:nowrap}
+.page .ctab.on{border-color:var(--teal);background:var(--teal);color:#fff;font-weight:700}
+.page .ctab small.nat,.page td .nat,.page .lab .nat{display:inline-block;font-size:calc(var(--mm)*2.4);margin-left:calc(var(--mm)*1);border:calc(var(--mm)*.25) solid currentColor;border-radius:999px;padding:0 calc(var(--mm)*1)}
+.page small.use{display:block;color:var(--teal);font-weight:600}
+.page .lab small.use{display:inline;margin-left:calc(var(--mm)*3);font-size:calc(var(--mm)*2.9)}
+#tother .mini{margin-left:4px}
+.hroles{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--hud);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:var(--r-m);padding:4px 8px;font-size:.9rem} .hroles .btn{min-height:34px;padding:4px 12px} .hroles .btn.on{background:var(--teal);color:#fff;border-color:var(--teal);font-weight:700}
 .page .fields .nat{display:inline-block;font-size:calc(var(--mm)*2.8);color:#3F7A4A;border:calc(var(--mm)*.25) solid #3F7A4A;border-radius:999px;padding:0 calc(var(--mm)*1.2);margin-left:calc(var(--mm)*1);vertical-align:middle;font-family:var(--serif)}
 .page td input.pr,.page td .pr{width:100%;min-width:0;padding:0 1px;text-align:right;font-size:calc(var(--mm)*3);letter-spacing:-.03em;font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}
 .page td input.pr::-webkit-outer-spin-button,.page td input.pr::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}   /* 小數點後 6 位要放得下：不畫上下箭頭 */

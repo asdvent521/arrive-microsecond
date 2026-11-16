@@ -69,7 +69,10 @@ var HOUSE = (function () {
       html = '<div class="hnat edit"><label class="small">今天的前情提要（跟自然的交流，最多 ' + CORE.NATURE_MAX + ' 字）</label><textarea id="natText" rows="2" maxlength="' + CORE.NATURE_MAX + '" placeholder="例如：今天一早去後山撿柴，順手清了一袋垃圾，帶著開心的心情開始今天的旅程">' + esc(text) + '</textarea><div class="hnatrow"><label class="small">今天給了自然 <input type="number" id="natPts" value="' + pts + '" min="0" step="any" inputmode="decimal" aria-label="給了自然幾點"> 點</label><button type="button" class="btn sm pri" data-hact="natSave">寫好了</button>' + (nat ? '<button type="button" class="btn sm warn" data-hact="natDrop">整段撤掉</button>' : '') + '<button type="button" class="btn sm" data-hact="natCancel">' + (nat ? '不改了' : '先不寫') + '</button></div></div>';
     } else if (nat) html = '<button type="button" class="hnat" data-hact="natEdit" title="點了能改"><span class="small">前情提要・給了自然 ' + CORE.fmtPoints(nat.points) + ' 點</span><span class="natext">' + esc(nat.text) + '</span></button>';
     else html = '<button type="button" class="hnat empty" data-hact="natEdit">寫今天的前情提要<span class="small">今天跟自然的交流，和給了自然幾點</span></button>';
-    html += '<div class="hrow"><div class="hleft">今天還剩 <b id="hLeft">' + CORE.fmtPoints(CORE.remainingToday(S, m, t)) + '</b> 點可以跟人換' + (nat ? '<span class="small">・已還自然 ' + CORE.fmtPoints(nat.points) + ' 點</span>' : '') + '</div>';
+    // 現在用的角色（第 13 輪）：有兩個以上角色時，首頁這一列點一個就換；約人、開時段、掛公告、設密鑰都用它
+    var cs = CORE.charsOf(m), cur = CORE.curChar(m);
+    var roles = cs.length < 2 ? '' : '<div class="hroles" id="hRoles"><span class="small">現在用</span>' + cs.map(function (c) { var bg = CORE.version(c, t).bg; return '<button type="button" class="btn sm' + (c === cur ? ' on' : '') + '" data-hact="useChar" data-id="' + c.id + '"' + (c === cur ? ' aria-current="true"' : '') + '>' + esc(CORE.abbrevChar(c.id) + (bg ? ' ' + bg : '')) + '</button>'; }).join('') + '</div>';
+    html += '<div class="hrow">' + roles + '<div class="hleft">今天還剩 <b id="hLeft">' + CORE.fmtPoints(CORE.remainingToday(S, m, t)) + '</b> 點可以跟人換' + (nat ? '<span class="small">・已還自然 ' + CORE.fmtPoints(nat.points) + ' 點</span>' : '') + '</div>';
     html += '<div class="hbig"><button type="button" class="btn big pri" data-hact="toLog">事件簿</button><button type="button" class="btn big pri" data-hact="toFind">公告欄</button><button type="button" class="btn sm" data-hact="toMap">交換關係</button></div></div>';   // 橫放時還剩和大鈕同一列，直放自動換行
     box.innerHTML = html;
     var np = $('natPts'); if (np) KIT.fitInputs(np.parentNode);   // 給了自然幾點：長的小數也看得到全部
@@ -182,6 +185,7 @@ var HOUSE = (function () {
     else if (a === 'toLog') APP.goTable(null, 'log');
     else if (a === 'toFind') APP.goTable(null, 'find');
     else if (a === 'toMap') APP.goTable(null, 'map');
+    else if (a === 'useChar') { APP.useChar(b.dataset.id); var c = CORE.curChar(me()); msg('現在用 ' + CORE.abbrevChar(c.id) + ' ' + (CORE.version(c, APP.now()).bg || '')); render(); }
     else if (a === 'natEdit') { st.natEdit = true; render(); var ta = $('natText'); if (ta) ta.focus(); }
     else if (a === 'natCancel') { st.natEdit = false; render(); }
     else if (a === 'natSave') natSave();

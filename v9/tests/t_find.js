@@ -9,6 +9,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   var people = function () { return H.ev("Array.from(document.querySelectorAll('#tmain table:nth-of-type(2) tr[data-row]')).map(function(t){return t.textContent;})"); };
   var catBtns = function (bar) { return H.ev("Array.from(document.querySelectorAll('#" + bar + " button')).map(function(b){return b.textContent+(b.classList.contains('o')?'':'*');})"); };
   // 別人的資源表今天就有這些東西（直接放進今天的版本）；別人掛幾張公告
+  await H.ev("(function(){var S=APP.state();CORE.closeChar(S,'" + J2 + "','" + J2 + "-2',APP.now());APP.changed();})()");   // 這個檔看的是找和分類：示範的阿澄（廚房）也有便當，先收掉，下面照原本的三個人比（一個角色一行另外在 t_board、t_chars 測）
   await H.ev("(function(){var S=APP.state(),t=APP.now();function put(serial,id,name,def,price,avail,cat){var r=CORE.firstChar(CORE.roleOf(S,serial)),v=CORE.version(r,t);v.resources.push({id:id,name:name,def:def,kind:'thing',deliver:'',cat:cat||CORE.classify(name,def),tags:[],price:CORE.pts(price),keepDays:3,needsDeliver:false});r.stock[id]={avail:avail,reserved:0};}" +
     "put('" + J2 + "','f2a','便當一個','今天做的',30,2);put('" + J3 + "','f3a','炒麵一盤','',25,1);put('" + J5 + "','f5a','水電修理','換燈泡、修水龍頭',80,3);put('" + J5 + "','f5b','蛋糕','',20,1,'bento');" +
     "CORE.postNotice(S,'" + J2 + "',{need:'想吃便當',give:['r2b'],cap:2},t);CORE.postNotice(S,'" + J3 + "',{need:'修水管',give:['r3a'],cap:2},t);APP.changed();})()");

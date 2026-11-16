@@ -4,7 +4,7 @@ var path = require('path');
 var fails = 0;
 function assert(c, m) { if (!c) { console.error('FAIL: ' + m); fails++; process.exitCode = 1; } else console.log('ok: ' + m); }
 var TABS = { log: '事件簿', cal: '日曆', res: '資源表', find: '公告欄', more: '更多' };
-var NAME = { log: '事件簿', cal: '日曆', res: '資源表', find: '公告欄', more: '更多', rules: '規則表', accepted: '我接受過的規則', together: '一起成交', greet: '打招呼密鑰', slots: '我開的時段', house: '我的能量之家', village: '鄰居和村子', map: '交換關係', role: '聯絡方式和不玩了', help: '說明', orules: '他的規則' };
+var NAME = { chars: '我的角色', log: '事件簿', cal: '日曆', res: '資源表', find: '公告欄', more: '更多', rules: '規則表', accepted: '我接受過的規則', together: '一起成交', greet: '打招呼密鑰', slots: '我開的時段', house: '我的能量之家', village: '鄰居和村子', map: '交換關係', role: '聯絡方式和不玩了', help: '說明', orules: '他的規則' };
 async function open(pagePath, opts) {
   opts = opts || {};
   var browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });

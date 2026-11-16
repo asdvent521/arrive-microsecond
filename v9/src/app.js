@@ -29,8 +29,13 @@ var APP = (function () {
   var roleOf = function (serial) { return CORE.roleOf(state, serial); };
   var ver = function (r) { return CORE.version(r, now()); };   // 人的版本：每天的點
   var pend = function (r) { return CORE.pending(r, now()); };
-  var cver = function (r) { var c = CORE.firstChar(r); return c ? CORE.version(c, now()) : { bg: '', nature: false, rules: { uses: [], conditions: [], problem: '', village: '' }, resources: [] }; };   // 第一個角色的版本：生產背景、規則表、資源表
-  var cpend = function (r) { var c = CORE.firstChar(r); return c ? CORE.pending(c, now()) : null; };
+  // 角色的版本：生產背景、規則表、資源表。自己的是現在用的角色（第 13 輪：首頁切換），別人的沒指定就是他的第一個
+  function charFor(r, c) { return c || (r === me ? CORE.curChar(r) : CORE.firstChar(r)); }
+  var cver = function (r, c) { c = charFor(r, c); return c ? CORE.version(c, now()) : { bg: '', nature: false, rules: { uses: [], conditions: [], problem: '', village: '' }, resources: [] }; };
+  var cpend = function (r, c) { c = charFor(r, c); return c ? CORE.pending(c, now()) : null; };
+  // 換現在用的角色（首頁那一列、資源表的分頁、各處「換」）；開新角色（最多 5 個），開了就換過去
+  function useChar(id) { CORE.setCur(state, me.serial, id); changed(); emit('char'); }
+  function openChar(f) { var c = CORE.openChar(state, me.serial, f, now()); CORE.setCur(state, me.serial, c.id); changed(); emit('char'); return c; }
   var fmt = CORE.fmtPoints;
 
   // 動作：規則函式擋下也可能已經改了資料，所以失敗也存檔、重畫
@@ -93,7 +98,7 @@ var APP = (function () {
   function tut() { return state.tutorial; }
   function tutActive() { return tut().step !== 'done'; }
   function guide() { return CORE.roleOf(state, GUIDE); }
-  function emptyOf(r, atUs) { return CORE.emptyOf(CORE.firstChar(r), atUs || now()); }   // 真的空物件（0 點、沒勾種類、沒寫交）
+  function emptyOf(r, atUs) { return CORE.emptyOf(CORE.firstChar(r), atUs || now()); }   // 教學用：玩家只有一個角色   // 真的空物件（0 點、沒勾種類、沒寫交）
   function tutSlot() { var x = tut().slot ? CORE.slotOf(state, tut().slot) : null; return x ? x.slot : null; }
   function tutDocking() { var s = tutSlot(); if (!s) return null; return state.dockings.find(function (d) { return d.slot === s.id && d.traded && (d.a === me.serial || d.b === me.serial); }) || null; }
   // 每一步：名字、怎麼做、在哪一張紙、做完沒
@@ -164,7 +169,7 @@ var APP = (function () {
 
   return {
     goHouse: goHouse, goTable: goTable, view: function () { return view; }, saveNow: saveNow, loadIssue: function () { return CORE.io.loadIssue; },
-    state: function () { return state; }, me: function () { return me; }, now: now, esc: esc, opt: opt, ver: ver, pend: pend, cver: cver, cpend: cpend,
+    state: function () { return state; }, me: function () { return me; }, now: now, esc: esc, opt: opt, ver: ver, pend: pend, cver: cver, cpend: cpend, useChar: useChar, openChar: openChar,
     on: on, emit: emit, save: save, changed: changed, run: run, roleOf: roleOf,
     becomeMe: becomeMe, resetAll: resetAll, quit: quit, isBlank: isBlank, createPlayer: createPlayer, demo: demo,
     tut: tut, tutActive: tutActive, tutEvent: tutEvent, tutSkip: tutSkip, tutTick: tutTick, GUIDE: GUIDE,
