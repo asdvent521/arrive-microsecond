@@ -16,7 +16,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
   assert(g && g.status !== 'active' && g.key === '早安' && (await H.msg()).indexOf('等 阿澄 同意') >= 0, '送出了，等阿澄同意');
   // 2. 阿澄：事件簿最上面一行提醒 → 更多 → 打招呼密鑰 → 同意
   await H.becomeMe(J2); await H.nav('log');
-  assert((await H.ev("(function(){var r=document.querySelector('#tmain .remind');return r?r.textContent:'';})()")).indexOf('我 要跟你配打招呼密鑰「早安」') >= 0, '阿澄的事件簿最上面：J1 要跟你配打招呼密鑰「早安」');
+  assert((await H.ev("(function(){var r=document.querySelector('#tmain .remind');return r?r.textContent:'';})()")).indexOf('要跟你配打招呼密鑰「早安」') >= 0, '阿澄的事件簿最上面：J1 要跟你配打招呼密鑰「早安」');
   await H.finger("function(){ return document.querySelector('#tmain .remind [data-act=\"open\"][data-s=\"greet\"]'); }", '去看');
   assert((await H.sheetName()) === 'greet' && (await H.main()).indexOf('提議「早安」') >= 0 && (await H.main()).indexOf('我給 一小時諮詢，我拿 早餐一頓') >= 0, '打招呼密鑰那張紙：提議的密鑰、我給、我拿');
   await H.clickText('同意', '#tmain');
@@ -37,7 +37,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
   await H.serial('早安'); await pg.waitForTimeout(300);
   var d = await H.ev("(function(){var d=APP.state().dockings.filter(function(x){return x.greet;})[0];return d?{t:d.traded,ga:d.gaveA,gb:d.gaveB,a:d.a,n:APP.state().holds.length}:null;})()");
   assert(d && d.t && (await H.popOpen()) && (await H.popTitle()) === '到達那微秒' && (await H.popBody()).indexOf('密鑰') >= 0 && (await H.ev("window.__flashed")), '阿澄也輸入：當場換一次，白光、跳出成交結果：' + (await H.popBody()));
-  assert(d.n === 2 && (await H.ev("JSON.stringify([CORE.remainingToday(APP.state(),APP.roleOf('" + J1 + "'),APP.now()),CORE.remainingToday(APP.state(),APP.me(),APP.now())])")) === JSON.stringify(JSON.parse(before).map(function (x, i) { return x - (i === 0 ? 100 : 90); })), '照配好的換：J1 給早餐 100、阿澄給諮詢 90，兩筆保留');
+  assert(d.n === 2 && (await H.ev("JSON.stringify([CORE.remainingToday(APP.state(),APP.roleOf('" + J1 + "'),APP.now()),CORE.remainingToday(APP.state(),APP.me(),APP.now())])")) === JSON.stringify(JSON.parse(before).map(function (x, i) { return x - (i === 0 ? 100 : 90) * 1000000; })) && d.a === J1 && (await H.ev("APP.state().dockings.filter(function(x){return x.greet;})[0].leadWhy")) === '給得多', '照配好的換：J1 給早餐 100、阿澄給諮詢 90，兩筆保留；J1 給得多是主動方');
   await H.popOk();
   assert((await H.sheetName()) === 'log' && (await H.ev("Array.from(document.querySelectorAll('#tmain tr[data-row]')).some(function(t){return t.textContent.indexOf('密鑰')>=0&&t.textContent.indexOf('成交')>=0&&t.querySelector('.sig')&&t.querySelector('.sig').textContent==='我';})")), '事件簿多一行：標「密鑰」、成交、紅字簽名');
   assert((await H.ev("CORE.dockCount(APP.state(),'" + J1 + "')")) === 1, '算進對接過幾次（1 次）');

@@ -6,8 +6,8 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '0000000000
 (async function () {
   var H = await lib.open(process.argv[2]), pg = H.pg;
   await H.fresh();
-  // 我也要有一樣 0 點的「空的」（給的人選對方的空的）；小樂要兩方都通、接受家規：我和阿明先接受
-  await H.ev("(function(){var S=APP.state(),t=APP.now(),r=APP.me(),c=CORE.addResource(S,'" + J1 + "',{name:'空的',price:0,kind:''},t);CORE.restock(S,'" + J1 + "',c.id,5);r.versions.forEach(function(v){if(v.fromDay>CORE.dayNum(t))v.fromDay=CORE.dayNum(t);});CORE.accept(S,'" + J1 + "','" + J3 + "',t);CORE.accept(S,'" + J5 + "','" + J3 + "',t);APP.changed();})()");
+  // 我也要有一樣 0 點的「空的」（給的人選對方的空的）。接成一圈以後，拿的人要先接受給的人的規則：示範的我跟大家互相接受過，阿澄接受阿明的、阿明接受小樂的在第 4 段用手指按
+  await H.ev("(function(){var S=APP.state(),t=APP.now(),r=APP.me(),c=CORE.addResource(S,'" + J1 + "',{name:'空的',price:0,kind:''},t);CORE.restock(S,'" + J1 + "',c.id,5);CORE.firstChar(r).versions.forEach(function(v){if(v.fromDay>CORE.dayNum(t))v.fromDay=CORE.dayNum(t);});APP.changed();})()");
   var rowOf = function (id) { return "document.querySelector('#tmain tr[data-id=\"" + id + "\"]')"; };
   var root = await H.ev("APP.state().notices.find(function(n){return n.owner==='" + J2 + "'&&n.need==='想學手機拍照';}).id"), lk5 = await H.ev("APP.state().notices.find(function(n){return n.owner==='" + J5 + "'&&n.parent;}).id"), lk3 = await H.ev("APP.state().notices.find(function(n){return n.owner==='" + J3 + "'&&n.parent;}).id");
   // 1. 示範的鏈：阿澄 ← 阿明 ← 小樂 縮排列在那張公告下面；整條鏈
@@ -42,11 +42,21 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J5 = '0000000000
   for (var who of [J2, J3, J5]) {
     await H.becomeMe(who); await H.nav('log');
     assert((await H.ev("document.querySelector('#tmain .remind').textContent")).indexOf('圈主 我 開了') >= 0, CORE_NAME(who) + '：事件簿最上面提醒圈主開了時段');
+    var rt = await H.ev("document.querySelector('#tmain .remind').textContent");
+    assert(who === J3 ? rt.indexOf('給你東西') < 0 : rt.indexOf('這一圈 ' + (who === J2 ? '阿明（攝影）' : '小樂（書）') + ' 給你東西（給得多的是主動方）：先接受他的規則') >= 0, CORE_NAME(who) + (who === J3 ? '：拿的是我的早餐，早就接受過我的規則，不用提醒' : '：還沒約就提醒先接受給他東西那個人的規則'));
     await H.finger("function(){ return document.querySelector('#tmain .remind [data-act=\"open\"][data-s=\"find\"]'); }", '去公告欄'); await H.click('#tmain [data-act="circleBook"]');
     assert((await H.sheetName()) === 'log' && (await H.ev("CORE.isPresent(APP.state(),'" + who + "','" + sid + "')")), CORE_NAME(who) + ' 約好了，會到也勾了');
   }
   var wants = await H.ev("(function(){var s=CORE.slotOf(APP.state(),'" + sid + "').slot,W=function(a,b){return CORE.wantsOf(s,a,b).map(function(id){return CORE.resourceName(APP.roleOf(b),id);}).join();};return [W('" + J2 + "','" + J5 + "'),W('" + J5 + "','" + J2 + "'),W('" + J5 + "','" + J3 + "'),W('" + J3 + "','" + J5 + "'),W('" + J3 + "','" + J1 + "'),W('" + J1 + "','" + J3 + "'),W('" + J1 + "','" + J2 + "'),W('" + J2 + "','" + J1 + "')].join('|');})()");
-  assert(wants === '手機拍照教學|試聽 5 分鐘|幫忙搬東西一小時|空的|早餐一頓|空的|一小時諮詢|空的', '平台先選好：拿的人選那樣東西，給的人選對方 0 點的東西（阿澄的是試聽 5 分鐘）（' + wants + '）');
+  assert(wants === '手機拍照教學|空的|幫忙搬東西一小時|空的|早餐一頓|空的|一小時諮詢|空的', '平台先選好：拿的人選那樣東西，給的人選對方真的空物件（不是試聽 5 分鐘那種 0 點的試用品）（' + wants + '）');
+  // 給東西的那一方給得多，是那一對的主動方：拿的人要先接受給他東西那個人的規則（示範的我跟大家互相接受過；阿澄還沒接受阿明的、阿明還沒接受小樂的）
+  for (var pr of [[J2, J5, '阿明（攝影）'], [J5, J3, '小樂（書）']]) {
+    await H.becomeMe(pr[0]); await H.nav('log');
+    var rowA = "(function(){var tr=" + H.entryRow(sid, pr[1]) + ";return tr?tr.textContent:'';})()";
+    assert((await H.ev("document.querySelector('#tmain .remind').textContent")).indexOf('有一筆要你先接受 ' + pr[2] + ' 的規則') >= 0 && (await H.ev(rowA)).indexOf('看規則・接受') >= 0, CORE_NAME(pr[0]) + '：事件簿最上面提醒先接受 ' + pr[2] + ' 的規則，那一行紅字「看規則・接受」');
+    await H.finger("function(){ var tr=" + H.entryRow(sid, pr[1]) + "; return tr.querySelector('[data-act=\"seeRules\"]'); }", '看規則・接受'); await H.popOk('接受');
+    assert((await H.ev(rowA)).indexOf('照他的規則・已接受') >= 0 && (await H.ev("CORE.acceptState(APP.state(),'" + pr[0] + "','" + pr[1] + "',APP.now())")) === 'current', CORE_NAME(pr[0]) + ' 接受了：那一行寫「照他的規則・已接受」');
+  }
   await H.ev("window.__flashed=false;new MutationObserver(function(){if(document.getElementById('flash').classList.contains('go'))window.__flashed=true;}).observe(document.getElementById('flash'),{attributes:true})");
   await H.soon(sid, 3); await pg.waitForFunction("CORE.slotOf(APP.state(),'" + sid + "').slot.judged", null, { timeout: 15000 }); await pg.waitForTimeout(400);
   var done = await H.ev("(function(){var S=APP.state(),c=CORE.circlesOf(S)[0];return {status:c.status,traded:S.dockings.filter(function(d){return d.slot==='" + sid + "'&&d.traded;}).length,root:!!CORE.noticeOf(S,'" + root + "'),lk5:!!CORE.noticeOf(S,'" + lk5 + "'),br3:CORE.noticeOf(S,'" + br3 + "'),mine:S.notices.filter(function(n){return n.owner==='" + J1 + "';}).length};})()");

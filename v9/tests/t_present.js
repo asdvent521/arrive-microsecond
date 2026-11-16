@@ -30,7 +30,7 @@ var WANTS = function (id) { return "(function(){var S=APP.state();CORE.setWants(
   assert((await present(s2)) === true, '約的時候會到預設確認');
   await pg.goto('about:blank'); await pg.waitForTimeout(7000);
   await pg.goto(H.file); await pg.waitForTimeout(900);
-  assert((await H.popOpen()) && (await H.popTitle()) === '你不在的時候' && (await H.popBody()).indexOf('我給他：早餐一頓（100 點）；我收到：阿澄的一小時諮詢') >= 0, '再打開跳出「你不在的時候」，寫成交：' + (await H.popBody()));
+  assert((await H.popOpen()) && (await H.popTitle()) === '你不在的時候' && (await H.popBody()).indexOf('我給他：早餐一頓（交：本身）（100 點）；我收到：阿澄的一小時諮詢（交：一張手寫重點卡）') >= 0 && (await H.popBody()).indexOf('主動：我（便當熟食）・照我的規則') >= 0, '再打開跳出「你不在的時候」，寫成交和主動方：' + (await H.popBody()));
   var dk = await H.ev("(function(){var d=APP.state().dockings.find(function(x){return x.slot==='" + s2 + "';});return d&&d.traded&&d.atUs===CORE.slotOf(APP.state(),'" + s2 + "').slot.atUs;})()");
   assert(dk, '補判照那個時段的那一微秒成交');
   await H.popOk(); await H.nav('log');

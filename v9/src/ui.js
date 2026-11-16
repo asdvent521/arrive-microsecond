@@ -71,7 +71,7 @@ var KIT = (function () {
     return page('cal', '日曆', sub, fields, body, foot);
   }
   /* ---------- 那天的明細：點一格或點一塊磚 ---------- */
-  function itemsText(items) { return items.length ? items.map(function (it) { return it.name + '（' + it.price + ' 點）' + (it.state ? '［' + it.state + '］' : ''); }).join('、') : '（沒有）'; }
+  function itemsText(items) { return items.length ? items.map(function (it) { return it.name + '（' + CORE.fmtPoints(it.price) + ' 點・' + (it.deliver === '不用交' || it.deliver === '' && it.price === 0 ? '不用交' : '交：' + (it.deliver || '（舊的，沒寫）')) + '）' + (it.state ? '［' + it.state + '］' : ''); }).join('、') : '（沒有）'; }
   function dayPop(ownerSerial, day, onChange) {
     var me = APP.me().serial, viewer = APP.isBlank() ? null : me, d = CORE.dayDetail(APP.state(), ownerSerial, viewer, day, APP.now());
     var owner = APP.roleOf(ownerSerial);
@@ -79,7 +79,8 @@ var KIT = (function () {
     var mine = ownerSerial === me, who = mine ? '我' : d.owner.name;   // 看別人的屋：寫屋主的名字，不寫「我」
     var rows = d.entries.map(function (e) {
       var head = '<div class="ent-h"><b class="num">' + esc(e.time) + '</b> 跟 <button type="button" class="lk" data-goserial="' + esc(e.other.serial) + '"' + (e.other.gone ? ' disabled' : '') + '>' + esc(CORE.abbrev(e.other.serial)) + '</button> ' + esc(e.other.name) + (e.other.gone ? '（不玩了）' : '') + ' ' + tagFor(e) + (e.tutorial ? ' <span class="tag off">教學</span>' : '') + (e.together ? ' <span class="tag wait">一起成交</span>' : '') + '</div>';
-      var body = e.status === 'booked' ? '<div class="small">還沒到那一微秒</div>' : e.status === 'traded' ? '<div class="small">' + esc(who) + '給了：' + esc(itemsText(e.gave)) + '</div><div class="small">' + esc(who) + '拿到：' + esc(itemsText(e.got)) + '</div>' : '<div class="small">' + esc(e.reason || '') + '</div>';
+      var leadLine = e.lead ? '<div class="small">主動：' + esc(e.lead.name) + '・照' + (e.lead.mine ? esc(who) : '他') + '的規則' + (e.lead.why ? '（' + esc(e.lead.why) + '）' : '') + '</div>' : '';
+      var body = e.status === 'booked' ? '<div class="small">還沒到那一微秒</div>' : e.status === 'traded' ? '<div class="small">' + esc(who) + '給了：' + esc(itemsText(e.gave)) + '</div><div class="small">' + esc(who) + '拿到：' + esc(itemsText(e.got)) + '</div>' + leadLine : '<div class="small">' + esc(e.reason || '') + '</div>' + leadLine;
       var vis = '';
       if (mine && e.vis) {
         if (e.locked) vis = '<div class="small muted">引路人的教學紀錄固定全藏</div>';
@@ -89,9 +90,9 @@ var KIT = (function () {
     }).join('');
     var covered = d.covered ? '<div class="small muted ent">還有 ' + d.covered + ' 筆蓋著</div>' : '';
     // 最上面是那天的前情提要（看的人看得到才顯示）；自己的可以改給誰看
-    var nat = d.nature ? '<div class="ent nature"><div class="ent-h"><b>前情提要</b> <span class="tag">給了自然 ' + d.nature.points + ' 點</span></div><div class="small natext">' + esc(d.nature.text) + '</div>' + (d.nature.mine ? '<div class="vis"><label class="small">給誰看：<select data-natvis="' + d.nature.day + '" aria-label="前情提要給誰看">' + Object.keys(VIS).map(function (k) { return '<option value="' + k + '"' + (k === d.nature.vis ? ' selected' : '') + '>' + VIS[k] + '</option>'; }).join('') + '</select></label></div>' : '') + '</div>' : '';
+    var nat = d.nature ? '<div class="ent nature"><div class="ent-h"><b>前情提要</b> <span class="tag">給了自然 ' + CORE.fmtPoints(d.nature.points) + ' 點</span></div><div class="small natext">' + esc(d.nature.text) + '</div>' + (d.nature.mine ? '<div class="vis"><label class="small">給誰看：<select data-natvis="' + d.nature.day + '" aria-label="前情提要給誰看">' + Object.keys(VIS).map(function (k) { return '<option value="' + k + '"' + (k === d.nature.vis ? ' selected' : '') + '>' + VIS[k] + '</option>'; }).join('') + '</select></label></div>' : '') + '</div>' : '';
     rows = nat + rows;
-    var rules = '<details class="small"><summary>那天生效的規則表和資源表</summary><div>用途：' + esc(d.rules.uses.join('；') || '（沒寫）') + '</div><div>對接條件：' + esc(d.rules.conditions.join('；') || '沒有條件') + '</div><div>家規：' + esc(d.rules.village || '（沒有）') + '</div><div>資源：' + esc(d.resources.map(function (x) { return x.name + ' ' + x.price + ' 點'; }).join('、') || '（沒有）') + '</div></details>';
+    var rules = '<details class="small"><summary>那天生效的規則表和資源表</summary><div>用途：' + esc(d.rules.uses.join('；') || '（沒寫）') + '</div><div>對接條件：' + esc(d.rules.conditions.join('；') || '沒有條件') + '</div><div>出問題怎麼辦：' + esc(d.rules.problem || '（沒寫）') + '</div><div>家規：' + esc(d.rules.village || '（沒有）') + '</div><div>資源：' + esc(d.resources.map(function (x) { return x.name + ' ' + CORE.fmtPoints(x.price) + ' 點（' + (x.deliver === '不用交' ? '不用交' : '交：' + x.deliver) + '）'; }).join('、') || '（沒有）') + '</div></details>';
     pop((owner ? owner.name + ' ' : '') + d.label, { html: (rows || (d.covered ? '' : '<div class="small muted">這一天沒有紀錄。</div>')) + covered + rules }, [{ label: '好', pri: true }]);
     $('popBody').querySelectorAll('[data-natvis]').forEach(function (sel) { sel.onchange = function () { var r = APP.run(function () { CORE.setNatureVis(APP.state(), me, +sel.dataset.natvis, sel.value); }); if (!r.ok) alertMsg(r.msg); dayPop(ownerSerial, day, onChange); if (onChange) onChange(); }; });
     $('popBody').querySelectorAll('[data-vis]').forEach(function (sel) { sel.onchange = function () { var r = APP.run(function () { CORE.setVis(APP.state(), me, sel.dataset.vis, sel.value); }); if (!r.ok) alertMsg(r.msg); dayPop(ownerSerial, day, onChange); if (onChange) onChange(); }; });
@@ -104,7 +105,7 @@ var KIT = (function () {
   function textWidth(t, font) { if (!ctx) ctx = document.createElement('canvas').getContext('2d'); ctx.font = font; return ctx.measureText(t).width; }
   function fitInputs(root) {
     (root || document).querySelectorAll('input[type=text], input[type=number], input[type=search], input[type=url]').forEach(function (el) {
-      var cs = getComputedStyle(el); if (cs.display === 'none') return;
+      var cs = getComputedStyle(el); if (cs.display === 'none' || el.classList.contains('pr')) return;   // 價錢那一格照格子寬，長的數字縮字不撐寬
       var font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
       var pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth) + (el.type === 'number' ? 22 : 6);
       var need = Math.ceil(Math.max(textWidth(el.value || '', font), textWidth(el.placeholder || '', font)) + pad);

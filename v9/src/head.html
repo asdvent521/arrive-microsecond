@@ -138,6 +138,14 @@ button.box{cursor:pointer}
 .page .cats .mini{min-height:32px;font-size:max(calc(var(--mm)*2.9),13px);padding:4px 6px;line-height:1.2}
 .page .fields .foodline{width:100%;font-size:calc(var(--mm)*3.4);gap:calc(var(--mm)*.8)} .page .fields .foodline.warn{color:var(--stamp)} .page .fields .foodline.warn .mini{border-color:var(--stamp);color:var(--stamp)}
 .page .fields .tagset{font-size:calc(var(--mm)*3);color:var(--muted)} .page .fields .tagset b{color:var(--pen);font-family:var(--hand);font-size:calc(var(--mm)*3.8)} .page .fields .tagset select.cs{font-size:calc(var(--mm)*3)}
+/* 第 12 輪：主動那一格（圈主動的那個）、紅字的小鈕、出問題怎麼辦的格子、生產背景旁的「自然」小字、價錢格（長的小數不撐寬） */
+.page .lead{font-family:var(--serif);color:var(--ink);font-size:calc(var(--mm)*3.4);white-space:nowrap} .page .lead b{display:inline-block;font-weight:400;min-width:calc(var(--mm)*5.2);line-height:calc(var(--mm)*5.2);text-align:center;border:calc(var(--mm)*.35) solid transparent;border-radius:50%} .page .lead b.on{border-color:var(--stamp);color:var(--stamp);font-weight:700}
+.mini.warn{border-color:var(--stamp);color:var(--stamp);background:transparent} .page td small .warn{color:var(--stamp)} .page td small span.warn{display:block}
+.page td textarea.prob{min-height:calc(var(--mm)*8);font-size:calc(var(--mm)*3.3)} .page tr.prob td.k{font-size:calc(var(--mm)*3.4)} .page tr.prob td.k small{display:block;font-size:calc(var(--mm)*2.6);color:#666}
+.page .fields .nat{display:inline-block;font-size:calc(var(--mm)*2.8);color:#3F7A4A;border:calc(var(--mm)*.25) solid #3F7A4A;border-radius:999px;padding:0 calc(var(--mm)*1.2);margin-left:calc(var(--mm)*1);vertical-align:middle;font-family:var(--serif)}
+.page td input.pr,.page td .pr{width:100%;min-width:0;padding:0 1px;text-align:right;font-size:calc(var(--mm)*3);letter-spacing:-.03em;font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}
+.page td input.pr::-webkit-outer-spin-button,.page td input.pr::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}   /* 小數點後 6 位要放得下：不畫上下箭頭 */
+.page td small.dl{display:flex;align-items:baseline;gap:calc(var(--mm)*.5);font-family:var(--serif)} .page td small.dl input{flex:1;min-width:0;font-family:var(--hand);font-size:calc(var(--mm)*3.3);color:var(--pen)}
 /* 整條鏈：分支樹（補二十） */
 /* 交換關係圖（補二十二）：這一頁用 px，直放時紙縮到螢幕寬 */
 .stage.fit{min-width:0}

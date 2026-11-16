@@ -28,7 +28,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   assert((await nrows()) === 7, '全部的公告：七張（引路人、我、阿澄、小樂，加示範那條鏈的三張）');
   var row3 = await H.ev("Array.from(document.querySelectorAll('#tmain tr[data-row]')).find(function(t){return t.textContent.indexOf('搬書')>=0;}).textContent");
   var e3 = await H.ev("CORE.eligible(APP.state(),CORE.roleOf(APP.state(),'" + J3 + "'),APP.me(),APP.now())");
-  assert(!e3.ok && row3.indexOf('不通：' + e3.reason) >= 0 && row3.indexOf('家規') >= 0, '小樂的公告標「不通」，原因跟約的判斷一樣：' + e3.reason);
+  assert(e3.ok && row3.indexOf('通') >= 0 && row3.indexOf('不通') < 0 && row3.indexOf('J3-1') >= 0 && row3.indexOf('小樂（書）') >= 0, '小樂的公告標「通」（預約一方通：小樂沒條件；他的家規是那一微秒才看接受沒）；序號欄寫角色編號 J3-1、名字後面是生產背景');
   var row2 = await H.ev("Array.from(document.querySelectorAll('#tmain tr[data-row]')).find(function(t){return t.textContent.indexOf('學跑步')>=0;}).textContent");
   assert(row2.indexOf('通') >= 0 && row2.indexOf('不通') < 0 && row2.indexOf('約他') >= 0 && row2.indexOf('接上去') >= 0, '阿澄的公告標「通」、有「約他」和「接上去」（第 6 輪）');
   // 2. 找：公告和別人的資源表一起找；「我在找」比別人可以給的，「我能給」比別人的需要
@@ -41,7 +41,7 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003', J4 = '0000000000
   assert((await nrows()) === 1 && (await prow()) === 1 && (await H.main()).indexOf('誰的資源表裡有「借」') >= 0 && (await H.main()).indexOf('借一本書') >= 0 && (await H.main()).indexOf('公告 1 張・資源表 1 人') >= 0, '找「借」：小樂的公告（可以給借一本書）、下半張小樂的資源表裡有借一本書；寫公告 1 張・資源表 1 人');
   await H.clickText('清掉', '#tmain'); assert((await H.ev("document.getElementById('kwIn').value")) === '' && (await prow()) === 3 && (await H.main()).indexOf('還有') < 0 && (await H.main()).indexOf('誰的資源表裡有東西') >= 0, '清掉：下半張列全部的人（公告多的時候列三個、寫還有 1 人）');
   var people = await H.ev("Array.from(document.querySelectorAll('#tmain table:nth-of-type(2) tr[data-row]')).map(function(t){return t.textContent;})");
-  assert(people.some(function (t) { return t.indexOf('阿澄') >= 0 && t.indexOf('改履歷・100') >= 0 && t.indexOf('通') >= 0; }) && people.some(function (t) { return t.indexOf('小樂') >= 0 && t.indexOf('不通') >= 0; }), '每個人：他有什麼（東西・價錢）、下一個時段、約他、通不通');
+  assert(people.some(function (t) { return t.indexOf('阿澄') >= 0 && t.indexOf('改履歷・100') >= 0 && t.indexOf('通') >= 0; }) && people.some(function (t) { return t.indexOf('小樂（書）') >= 0 && t.indexOf('J3-1') >= 0 && t.indexOf('不通') < 0; }), '每個人：他有什麼（東西・價錢）、下一個時段、約他、通不通（一個角色一行：角色編號、生產背景）');
   // 3. 點序號到他的那張紙（引路人）
   await H.setIn('kwIn', '空的'); await H.clickText('找', '#tmain');
   await H.finger("function(){ return document.querySelector('#tmain tr[data-row] button.lk[data-id=\"" + J4 + "\"]'); }", '引路人的序號');

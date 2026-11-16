@@ -17,7 +17,7 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   await H.finger("function(){ return document.querySelector('#hhome [data-hact=\"toLog\"]'); }", '事件簿'); await pg.waitForTimeout(300);
   assert((await H.sheetName()) === 'log' && (await H.ev("SHEETS.ui.day")) === null && (await H.main()).indexOf('事件簿') >= 0 && (await pg.isVisible('#view-table')), '按「事件簿」到今天的事件簿');
   // 1. 五張紙都是 A4 橫式，780×360 整張放得下
-  await H.nav('log'); assert((await H.ev("Array.from(document.querySelectorAll('#tmain thead th')).map(function(t){return t.firstChild.textContent;}).join(',')")) === '時間,跟誰,我給他,我收到,結果,今天還剩,對方簽名,兌現,哪天收到的,誰的,什麼東西,兌現・對方簽名', '事件簿的欄位跟紙本一樣（主表八欄、下面那張四欄）');
+  await H.nav('log'); assert((await H.ev("Array.from(document.querySelectorAll('#tmain thead th')).map(function(t){return t.firstChild.textContent;}).join(',')")) === '時間,跟誰,我給他,我收到,主動,結果,今天還剩,對方簽名,兌現,哪天收到的,誰的,什麼東西,主動,兌現・對方簽名,出問題', '事件簿的欄位跟紙本一樣（主表九欄：多了「主動」；下面那張六欄：多了主動、出問題）');
   var ratios = {};
   for (var k of ['log', 'cal', 'res', 'find', 'more']) {
     await H.nav(k); var a = await H.ev(ASPECT); ratios[k] = a;
@@ -83,7 +83,7 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   eid = await H.ev("CORE.entriesOf(APP.state()).find(function(e){return e.slot==='" + sid + "'&&e.status==='booked';}).id"); row = "document.querySelector('#tmain tr[data-id=\"" + eid + "\"]')";
   assert((await H.sheetName()) === 'log' && (await H.ev(row + " !== null")), '從他的那張紙再約：事件簿多一行');
   await H.finger("function(){ return " + row + ".querySelector('[data-act=\"pick\"]'); }", '選他的東西');
-  assert((await H.popOpen()) && (await H.popTitle()).indexOf('選 阿澄 的東西') >= 0, '跳出選阿澄的東西');
+  assert((await H.popOpen()) && (await H.popTitle()).indexOf('選 阿澄（聊天傾聽） 的東西') >= 0, '跳出選阿澄（聊天傾聽）的東西');
   await H.click('#popBody [data-add="r2a"]'); await H.popOk('選好了');
   assert((await H.ev("CORE.wantsOf(CORE.slotOf(APP.state(),'" + sid + "').slot,'" + J1 + "','" + J2 + "').join()")) === 'r2a' && (await H.ev(row + ".textContent")).indexOf('改履歷') >= 0, '選了阿澄的改履歷，寫在我收到那格');
   await H.ev("(function(){var S=APP.state();CORE.setWants(S,'" + sid + "','" + J2 + "','" + J1 + "',['r1b']);APP.changed();})()");
@@ -93,16 +93,18 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   await H.ev("window.__flashed=false;new MutationObserver(function(){if(document.getElementById('flash').classList.contains('go'))window.__flashed=true;}).observe(document.getElementById('flash'),{attributes:true})");
   await H.soon(sid, 3);
   await pg.waitForFunction("!document.getElementById('pop').hidden", null, { timeout: 15000 });
-  assert((await H.popTitle()) === '到達那微秒' && (await H.popBody()).indexOf('我給他：早餐一頓（100 點）') >= 0 && (await H.popBody()).indexOf('我收到：阿澄的改履歷') >= 0 && (await H.popBody()).indexOf('系統已經替兩邊簽名') >= 0, '那一微秒跳出成交結果（我給他、我收到、系統簽名）：' + (await H.popBody()));
+  assert((await H.popTitle()) === '到達那微秒' && (await H.popBody()).indexOf('我給他：早餐一頓（交：本身）（100 點）') >= 0 && (await H.popBody()).indexOf('我收到：阿澄的改履歷（交：改好的那一份列印稿）') >= 0 && (await H.popBody()).indexOf('主動：我（便當熟食）・照我的規則（') >= 0 && (await H.popBody()).indexOf('東西交到你手上，再在那一行按『兌現』') >= 0 && (await H.popBody()).indexOf('系統已經替兩邊簽名') >= 0, '那一微秒跳出成交結果（我給他、我收到、交什麼、主動方、系統簽名）：' + (await H.popBody()));
   assert((await H.ev("window.__flashed")), '成交那一刻整個畫面白光一閃');
   assert((await H.ev("!!document.querySelector('#popBody [data-daily]')")), '成交結果裡可以勾「以後每天這個時間自動約」');
   await pg.screenshot({ path: OUT + '/v9_sheet_docked.png' }); await H.popOk();
   var cells = await H.ev("Array.from(" + row + ".querySelectorAll('td')).map(function(td){return td.textContent.trim();})");
-  assert(cells[4] === '成交' && cells[5] === String(before - 100) && (await H.ev(row + ".querySelector('td:nth-child(7) .sig').textContent")) === '阿澄' && (await H.ev("getComputedStyle(" + row + ".querySelector('.sig')).color")) === 'rgb(162, 57, 43)', '那一行變成交、今天還剩 ' + (before - 100) + '、對方簽名紅字「阿澄」');
-  assert((await H.ev("CORE.remainingToday(APP.state(),APP.me(),APP.now())")) === before - 100 && (await pg.textContent('#energyText')) === String(before - 100), '現在還能給往下降 100');
+  var leftText = await H.ev('CORE.fmtPoints(' + (before - 100 * 1000000) + ')');
+  assert(cells[5] === '成交' && cells[6] === leftText && (await H.ev(row + ".querySelector('td:nth-child(8) .sig').textContent")) === '阿澄' && (await H.ev("getComputedStyle(" + row + ".querySelector('.sig')).color")) === 'rgb(162, 57, 43)', '那一行變成交、今天還剩 ' + leftText + '、對方簽名紅字「阿澄」');
+  assert(cells[4].indexOf('我／他') >= 0 && (await H.ev(row + ".querySelector('.lead b.on').textContent")) === '我' && cells[4].indexOf('照我的規則') >= 0, '主動那一格：我給 100、他給 100 一樣多，來約的我是主動方：圈「我」、照我的規則');
+  assert((await H.ev("CORE.remainingToday(APP.state(),APP.me(),APP.now())")) === before - 100 * 1000000 && (await pg.textContent('#energyText')) === leftText, '現在還能給往下降 100');
   // 8. 兌現：在那一行按；以前收到的在下面那張小表
   await H.finger("function(){ return " + row + ".querySelector('[data-act=\"redeem\"]'); }", '兌現'); await H.popOk('換到了');
-  assert((await H.ev("APP.state().holds.find(function(h){return h.holder==='" + J1 + "';}).status")) === 'redeemed' && (await H.ev(row + ".querySelector('td:nth-child(8) .sig').textContent")) === '阿澄' && (await H.msg()) === '換到了', '在那一行兌現：換到了，兌現格有紅字簽名');
+  assert((await H.ev("APP.state().holds.find(function(h){return h.holder==='" + J1 + "';}).status")) === 'redeemed' && (await H.ev(row + ".querySelector('td:nth-child(9) .sig').textContent")) === '阿澄' && (await H.msg()) === '換到了', '在那一行兌現：換到了，兌現格有紅字簽名');
   await H.ev("(function(){var S=APP.state(),t=APP.now(),s=CORE.addSlot(S,'" + J2 + "',t+1.5e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);CORE.setWants(S,s.id,'" + J1 + "','" + J2 + "',['r2b']);CORE.setWants(S,s.id,'" + J2 + "','" + J1 + "',['r1a']);APP.changed();})()");
   await pg.waitForFunction("APP.state().holds.filter(function(h){return h.holder==='" + J1 + "'&&h.status==='held';}).length===1", null, { timeout: 15000 }); await pg.waitForTimeout(300); await H.popOk();
   await H.ev("(function(){var h=APP.state().holds.find(function(h){return h.holder==='" + J1 + "'&&h.status==='held';});h.atUs-=86400e6;APP.changed();})()");   // 當作是昨天收到的
@@ -123,46 +125,66 @@ var ASPECT = "(function(){var p=document.querySelector('#tmain section.page');if
   await H.finger("function(){ return document.querySelector('#tmain table.calp td.today'); }", '他的日曆今天那一格'); assert((await H.popOpen()) && (await H.popTitle()).indexOf('阿澄') >= 0, '點他的一格：看那天的明細'); await H.popOk();
   await H.clickText('回我自己', '#tother');
   // 9. 資源表：空白行加一樣、勾種類、價錢明天起、補／減、下架
-  await H.nav('res'); var n0 = await H.ev("CORE.version(APP.me(),APP.now()).resources.length");
+  await H.nav('res'); var n0 = await H.ev("CORE.version(CORE.firstChar(APP.me()),APP.now()).resources.length");
   await H.edit('#tmain input[data-new="res"]', '修水管');
-  var nr = await H.ev("(function(){var p=CORE.pending(APP.me(),APP.now());var x=p.resources.find(function(y){return y.name==='修水管';});return x?{id:x.id,kind:x.kind,price:x.price,n:p.resources.length}:null;})()");
+  var nr = await H.ev("(function(){var p=CORE.pending(CORE.firstChar(APP.me()),APP.now());var x=p.resources.find(function(y){return y.name==='修水管';});return x?{id:x.id,kind:x.kind,price:x.price,n:p.resources.length}:null;})()");
   assert(nr && nr.n === n0 + 1 && nr.price === 0 && (await H.msg()).indexOf('加了一樣') >= 0 && (await H.main()).indexOf('明天起新增') >= 0, '空白行寫名字就是加一樣（明天起新增）');
+  await H.finger("function(){ return document.querySelector('#tmain [data-act=\"kind\"][data-id=\"" + nr.id + "\"][data-k=\"act\"]'); }", '種類「行為」（還沒寫交什麼）');
+  assert((await H.msg()).indexOf('要綁一樣實體') >= 0 && (await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).resources.find(function(y){return y.id==='" + nr.id + "';}).kind")) === '', '還沒寫交什麼就勾行為：擋下來，說要綁一樣實體');
+  await H.edit('#tmain input[data-ed="resDeliver"][data-id="' + nr.id + '"]', '一張簽收紙');
+  assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).resources.find(function(y){return y.id==='" + nr.id + "';}).deliver")) === '一張簽收紙' && (await H.msg()) === '改了，明天起算', '「交：」寫一張簽收紙（明天起）');
   await H.finger("function(){ return document.querySelector('#tmain [data-act=\"kind\"][data-id=\"" + nr.id + "\"][data-k=\"act\"]'); }", '種類「行為」');
-  assert((await H.ev("CORE.pending(APP.me(),APP.now()).resources.find(function(y){return y.id==='" + nr.id + "';}).kind")) === 'act' && (await H.ev("document.querySelector('#tmain [data-act=\"kind\"][data-id=\"" + nr.id + "\"][data-k=\"act\"]').className")).indexOf('on') >= 0, '勾了種類「行為」，格子打勾');
+  assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).resources.find(function(y){return y.id==='" + nr.id + "';}).kind")) === 'act' && (await H.ev("document.querySelector('#tmain [data-act=\"kind\"][data-id=\"" + nr.id + "\"][data-k=\"act\"]').className")).indexOf('on') >= 0, '勾了種類「行為」，格子打勾');
   await H.edit('#tmain input[data-ed="resPrice"][data-id="r1a"]', 80);
-  assert((await H.ev("CORE.pending(APP.me(),APP.now()).resources.find(function(y){return y.id==='r1a';}).price")) === 80 && (await H.ev("CORE.version(APP.me(),APP.now()).resources.find(function(y){return y.id==='r1a';}).price")) === 60 && (await H.ev("document.querySelector('#tmain tr[data-id=\"" + J1 + ":r1a\"]').textContent")).indexOf('明天起 80 點（今天 60）') >= 0, '改價錢：明天起 80，今天還是 60，旁邊寫出來');
+  assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).resources.find(function(y){return y.id==='r1a';}).price")) === 80000000 && (await H.ev("CORE.version(CORE.firstChar(APP.me()),APP.now()).resources.find(function(y){return y.id==='r1a';}).price")) === 60000000 && (await H.ev("document.querySelector('#tmain tr[data-id=\"" + J1 + ":r1a\"]').textContent")).indexOf('明天起 80 點（今天 60）') >= 0, '改價錢：明天起 80，今天還是 60，旁邊寫出來');
   var av = await H.ev("CORE.stockOf(APP.me(),'r1b').avail");
   await H.finger("function(){ return document.querySelector('#tmain [data-act=\"stock\"][data-id=\"r1b\"][data-n=\"1\"]'); }", '補'); assert((await H.ev("CORE.stockOf(APP.me(),'r1b').avail")) === av + 1, '補：多一格');
   await H.finger("function(){ return document.querySelector('#tmain [data-act=\"stock\"][data-id=\"r1b\"][data-n=\"-1\"]'); }", '減'); assert((await H.ev("CORE.stockOf(APP.me(),'r1b').avail")) === av && (await H.ev("document.querySelectorAll('#tmain tr[data-id=\"" + J1 + ":r1b\"] .box').length")) >= av, '減：少一格；格子數跟份數一樣');
   await H.finger("function(){ return document.querySelector('#tmain [data-act=\"resMore\"][data-id=\"r1a\"]'); }", '…'); await H.popOk('下架');
-  assert((await H.ev("!CORE.pending(APP.me(),APP.now()).resources.some(function(y){return y.id==='r1a';})")) && (await H.ev("CORE.version(APP.me(),APP.now()).resources.some(function(y){return y.id==='r1a';})")), '下架：明天起沒有，今天還在');
+  assert((await H.ev("!CORE.pending(CORE.firstChar(APP.me()),APP.now()).resources.some(function(y){return y.id==='r1a';})")) && (await H.ev("CORE.version(CORE.firstChar(APP.me()),APP.now()).resources.some(function(y){return y.id==='r1a';})")), '下架：明天起沒有，今天還在');
+  // 9b. 資源表最下面「出問題怎麼辦」：跟規則表同一段，在這裡也能改（明天起）；種類那格空的寫「（空的不用勾、不用綁）」、交那行寫「空的・不用交」
+  assert((await H.ev("document.querySelector('#tmain tr.prob textarea[data-ed=problem]').value")) === (await H.ev("CORE.version(CORE.firstChar(APP.me()),APP.now()).rules.problem")) && (await H.main()).indexOf('出問題怎麼辦') >= 0, '資源表最下面一格是出問題怎麼辦（跟規則表同一段）');
+  await H.edit('#tmain tr.prob textarea[data-ed=problem]', '東西放在管理室，壞了隔天補');
+  assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).rules.problem")) === '東西放在管理室，壞了隔天補' && (await H.msg()) === '改了，明天起算' && (await H.main()).indexOf('明天起；今天「') >= 0, '改了出問題怎麼辦：明天起，寫今天是哪一句');
+  await H.edit('#tmain tr.prob textarea[data-ed=problem]', ''); assert((await H.msg()).indexOf('出問題怎麼辦要寫一句') >= 0, '清空擋下來');
+  await H.edit('#tmain tr.prob textarea[data-ed=problem]', '東西放在管理室，壞了隔天補');
+  await H.edit('#tmain input[data-new="res"]', '空空'); var e2 = await H.ev("(function(){var p=CORE.pending(CORE.firstChar(APP.me()),APP.now());var x=p.resources.find(function(y){return y.name==='空空';});return document.querySelector('#tmain tr[data-id=\"' + APP.me().serial + ':' + x.id + '\"]').textContent;})()");
+  assert(e2.indexOf('（空的不用勾、不用綁）') >= 0 && e2.indexOf('空的・不用交') >= 0, '0 點沒勾種類的那一行：種類寫（空的不用勾、不用綁）、交那行寫空的・不用交');
   assert((await H.ev("Array.from(document.querySelectorAll('#tmain thead th')).map(function(t){return t.firstChild.textContent;}).join(',')")) === '#,東西,種類,類別,怎樣算給到了,價錢,保留幾天,有幾份', '資源表的欄位跟紙本一樣（補十九多了類別）');
   // 10. 更多 → 規則表：每人最多給的預設
   await H.nav('rules'); await H.edit('#tmain [data-ed="maxGiveDefault"]', 500);
-  assert((await H.ev("CORE.pending(APP.me(),APP.now()).rules.maxGiveDefault")) === 500 && (await H.msg()) === '改了，明天起算', '規則表：每人最多給的預設 500，明天起');
+  assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).rules.maxGiveDefault")) === 500000000 && (await H.msg()) === '改了，明天起算', '規則表：每人最多給的預設 500，明天起');
+  assert((await H.ev("document.querySelectorAll('#tmain [data-ed=switch]').length")) === 0 && (await H.main()).indexOf('兩方都通') < 0 && (await H.main()).indexOf('一定要接受我的家規') < 0 && (await H.ev("document.querySelector('#tmain textarea[data-ed=problem]').value")) === '東西放在管理室，壞了隔天補', '規則表：兩個開關不見了；出問題怎麼辦是資源表改的那一句');
+  await H.edit('#tmain [data-ed="maxGiveDefault"]', '1.2345678'); assert((await H.msg()).indexOf('最多到小數點後 6 位') >= 0, '每人最多給的預設打 7 位小數擋下來');
+  await H.edit('#tmain [data-ed="maxGiveDefault"]', '0.5'); assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).rules.maxGiveDefault")) === 500000, '0.5 點存成 500000');
   // 10b. 規則表加「對方可換的食物」這一條（補二十一）；看他的規則看得到
   await H.edit('#addCondField', 'food'); await H.edit('#addCondValue', 1); await H.finger("function(){ return document.querySelector('#tmain [data-act=\"addCond\"]'); }", '加一條');
-  var fc = await H.ev("JSON.stringify(CORE.pending(APP.me(),APP.now()).rules.conditions.filter(function(c){return c.field==='food';}))");
+  var fc = await H.ev("JSON.stringify(CORE.pending(CORE.firstChar(APP.me()),APP.now()).rules.conditions.filter(function(c){return c.field==='food';}))");
   assert(fc === JSON.stringify([{ field: 'food', op: '>=', value: 1 }]) && (await H.main()).indexOf('對方可換的食物') >= 0, '規則表加了「對方可換的食物 至少 1 份」（明天起）');
-  await H.ev("(function(){var S=APP.state(),r=APP.me();r.versions.forEach(function(v){if(v.fromDay>CORE.dayNum(APP.now()))v.fromDay=CORE.dayNum(APP.now());});APP.changed();})()");
+  await H.ev("(function(){var S=APP.state(),r=APP.me();CORE.firstChar(r).versions.forEach(function(v){if(v.fromDay>CORE.dayNum(APP.now()))v.fromDay=CORE.dayNum(APP.now());});APP.changed();})()");
   await H.becomeMe(J2); await H.serial('J1'); await H.clickText('看他的規則', '#tmain');
-  assert((await H.main()).indexOf('對方可換的食物') >= 0, '看他的規則看得到這一條'); await H.clickText('回我自己', '#tother'); await H.becomeMe(J1);
-  // 10c. 名字後面的括弧（補二十一）：資源表設自動／挑一樣／不顯示、小類或名字；公告欄、事件簿、他的那張紙最上面都看得到
-  var wid = await H.ev("(function(){var S=APP.state(),t=APP.now();var c=CORE.addResource(S,'" + J1 + "',{name:'陪散步',def:'',price:10,keepDays:1},t);CORE.restock(S,'" + J1 + "',c.id,3);CORE.restock(S,'" + J1 + "','r1b',5);APP.changed();return c.id;})()");   // 前面把陪跑下架了：加一樣「陪散步」（明天起）來挑
+  assert((await H.main()).indexOf('對方可換的食物') >= 0 && (await H.main()).indexOf('東西放在管理室，壞了隔天補') >= 0 && (await H.main()).indexOf('他改了，要重新接受') >= 0 && (await H.main()).indexOf('兩方都通') < 0, '看他的規則看得到這一條和出問題怎麼辦；出問題怎麼辦改了，阿澄要重新接受；沒有兩個開關');
+  await H.clickText('接受', '#tmain'); assert((await H.main()).indexOf('已接受這一版') >= 0 && (await H.ev("CORE.acceptState(APP.state(),'" + J2 + "','" + J1 + "-1',APP.now())")) === 'current', '按「接受」：已接受這一版');
+  await H.nav('accepted'); var acc = await H.main(); assert(acc.indexOf('我接受過的規則') >= 0 && acc.indexOf('我（便當熟食）') >= 0 && acc.indexOf('J1-1') >= 0 && acc.indexOf('東西放在管理室，壞了隔天補') >= 0 && acc.indexOf('現在這一版') >= 0, '更多 → 我接受過的規則：誰的哪一版、哪天接受的');
+  await H.becomeMe(J1);
+  // 10c. 名字後面的括弧是生產背景（第 12 輪）：資源表最上面打字就改（明天起）、自然的勾；補（二十一）那一套拿掉；公告欄、事件簿、他的那張紙最上面都看得到
   await H.nav('res');
-  assert((await H.ev("document.querySelector('.tagset').textContent")).indexOf('別人看到') >= 0 && (await H.ev("document.getElementById('tagPreview').textContent")) === '我（便當熟食）', '資源表名字旁邊「別人看到：我（便當熟食）」（自動：早餐一頓可換最多）');
-  await H.edit('#tmain [data-ed="tagMode"]', 'pick'); assert((await H.msg()) === '改了，明天起算' && (await H.ev("!!document.querySelector('#tmain [data-ed=\"tagItem\"]')")), '選「挑一樣」：多一個挑東西的下拉');
-  await H.edit('#tmain [data-ed="tagItem"]', wid); assert((await H.ev("document.getElementById('tagPreview').textContent")) === '我（散步）' && (await H.ev("JSON.stringify(CORE.pending(APP.me(),APP.now()).tag)")) === JSON.stringify({ mode: 'pick', item: wid, show: 'cat' }), '挑陪散步：別人看到「我（散步）」（明天起）');
-  await H.edit('#tmain [data-ed="tagShow"]', 'name'); assert((await H.ev("document.getElementById('tagPreview').textContent")) === '我（陪散步）', '顯示名字：我（陪散步）');
-  await H.edit('#tmain [data-ed="tagMode"]', 'off'); assert((await H.ev("document.getElementById('tagPreview').textContent")) === '我', '不顯示：只剩名字');
-  await H.edit('#tmain [data-ed="tagMode"]', 'auto');
+  assert((await H.ev("document.querySelector('#tmain [data-ed=bg]').value")) === '便當熟食' && (await H.main()).indexOf('角色編號 J1-1') >= 0 && (await H.ev("!document.querySelector('.tagset') && !document.querySelector('[data-ed=tagMode]')")), '資源表最上面：生產背景「便當熟食」、角色編號 J1-1；舊的括弧設定沒有了');
+  await H.edit('#tmain [data-ed="bg"]', '一二三四五六七'); assert((await H.msg()).indexOf('最多 6 個字') >= 0, '生產背景 7 個字擋下來');
+  await H.edit('#tmain [data-ed="bg"]', ''); assert((await H.msg()).indexOf('寫一下你的生產背景') >= 0, '生產背景空的擋下來');
+  await H.edit('#tmain [data-ed="bg"]', '散步'); assert((await H.msg()) === '改了，明天起算' && (await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).bg")) === '散步' && (await H.ev("CORE.nameWith(APP.state(),'" + J1 + "',APP.now())")) === '我（便當熟食）' && (await H.main()).indexOf('明天起（今天「便當熟食」）') >= 0, '改成「散步」：明天起，今天還是便當熟食');
+  await H.check('#tmain input[data-ed="nature"]', true); assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).nature")) === true, '勾「自然」（明天起）');
+  await H.ev("(function(){var S=APP.state(),r=APP.me();CORE.firstChar(r).versions.forEach(function(v){if(v.fromDay>CORE.dayNum(APP.now()))v.fromDay=CORE.dayNum(APP.now());});APP.changed();})()");
+  assert((await H.ev("CORE.nameWith(APP.state(),'" + J1 + "',APP.now())")) === '我（散步）', '隔天：名字後面的括弧變成散步');
+  await H.becomeMe(J2); await H.serial('J1'); assert((await pg.textContent('#tother')).indexOf('J1 我（散步） 的那張紙') >= 0 && (await H.main()).indexOf('自然') >= 0, '阿澄看 J1 的那張紙：名字（生產背景）、小字「自然」'); await H.clickText('回我自己', '#tother'); await H.becomeMe(J1); await H.nav('res');
+  await H.edit('#tmain [data-ed="bg"]', '便當熟食'); await H.ev("(function(){var S=APP.state(),r=APP.me();CORE.firstChar(r).versions.forEach(function(v){if(v.fromDay>CORE.dayNum(APP.now()))v.fromDay=CORE.dayNum(APP.now());});APP.changed();})()");
   await H.nav('find'); assert((await H.main()).indexOf('阿澄（聊天傾聽）') >= 0 && (await H.main()).indexOf('小樂（書）') >= 0, '公告欄的名字後面有括弧');
-  await H.serial('J5'); assert((await pg.textContent('#tother')).indexOf('J5 阿明（攝影）') >= 0 && (await H.main()).indexOf('阿明（攝影）') >= 0, '他的那張紙最上面和名字欄有括弧'); await H.clickText('回我自己', '#tother');
+  await H.serial('J5'); assert((await pg.textContent('#tother')).indexOf('J5 阿明（攝影）') >= 0 && (await H.main()).indexOf('阿明（攝影）') >= 0 && (await H.main()).indexOf('J5-1') >= 0, '他的那張紙最上面和名字欄有括弧（生產背景）、角色編號 J5-1'); await H.clickText('回我自己', '#tother');
   await H.ev("(function(){var S=APP.state(),t=APP.now();var s=CORE.addSlot(S,'" + J2 + "',t+600e6,1,null,t);CORE.book(S,'" + J1 + "',s.id,t);APP.changed();})()"); await H.nav('log');
   assert((await H.ev("Array.from(document.querySelectorAll('#tmain tr[data-row] td:nth-child(2)')).some(function(t){return t.textContent.indexOf('阿澄（聊天傾聽）')>=0;})")), '事件簿「跟誰」有括弧');
   await H.ev("(function(){var S=APP.state();var sl=CORE.roleOf(S,'" + J2 + "').slots.slice(-1)[0];CORE.cancelBooking(S,'" + J1 + "',sl.id);APP.changed();})()");
   await H.nav('slots'); assert((await H.rows('slots')) >= 1, '更多 → 我開的時段列出時段');
-  await H.nav('role'); assert((await H.main()).indexOf('換人（測試用）') >= 0 && (await H.main()).indexOf('不玩了') >= 0, '角色設定：聯絡方式、不玩了、最下面換人');
+  await H.nav('role'); assert((await H.main()).indexOf('聯絡方式和不玩了') >= 0 && (await H.main()).indexOf('換人（測試用）') >= 0 && (await H.main()).indexOf('不玩了') >= 0, '聯絡方式和不玩了（原本的角色設定）：聯絡方式、不玩了、最下面換人');
   // 11. 讀得到 v8 的存檔就搬過來，讀不了從創角色開始
   await H.ev("(function(){var st=CORE.fresh();CORE.demoMe(st,APP.now());st.v=8;delete st.notices;st.tutorial={step:'done'};st.roles[0].name='舊的我';localStorage.clear();localStorage.setItem('arrive-v8',JSON.stringify(st));})()");
   await pg.reload(); await pg.waitForTimeout(500);
