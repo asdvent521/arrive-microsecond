@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
-/* v9 表格世界：五張紙（A4 橫式等比例縮放）；最上面序號或密鑰框、去、骰子、首頁、五張紙的分頁、現在是誰 */
+/* v9 表格世界：五張紙（A4 橫式等比例縮放）；最上面序號或密鑰框、去、骰子、返回首頁、五張紙的分頁、現在是誰 */
 :root{
   --bg:#E6ECF1; --panel:#F7F9FB; --panel2:#EEF2F6; --ink:#16212D; --muted:#586676; --line:#C7D1DB; --grid:#D5DDE5;
   --brass:#A2731F; --brass-soft:#F1E4C8; --teal:#1C7A73; --teal-soft:#D5ECE9; --rose:#9C4450; --rose-soft:#F3DDE0; --blue:#2D5A86; --blue-soft:#DCE7F2;
@@ -47,8 +47,8 @@ button,input,select,textarea{font:inherit;color:inherit}
    欄位、格線、底下的說明跟印出來的一樣；寫進去的是藍墨、簽名是紅字（系統簽）。紙永遠是淺的，桌面跟著深淺模式 ===== */
 :root{--paper:#FDFCF8;--pen:#1F4A8A;--stamp:#A2392B;--gold:#9A6A12;--gold-ink:#FFFAF0;--hi:#FBF0D9;--rule:#999;--head:#EFECE4;--hand:"LXGW WenKai TC","Kaiti TC","DFKai-SB",serif}
 #view-table{background:var(--bg);min-height:100vh;padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
-.tbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line)}
-.tbar input[type=text]{width:7.5em;min-height:36px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
+.tbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 6px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line)}
+.tbar input[type=text]{width:6.5em;min-height:36px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg)}
 .tbar .btn{min-height:36px}
 .tbar .who .nw{white-space:nowrap}
 .tbar .who{flex:1 1 5em;min-width:min-content;font-size:.9rem;display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
@@ -288,7 +288,7 @@ body.in-house #view-table{display:none}
 </style>
 
 <main id="view-table">
-  <div class="tbar"><input type="text" id="serialIn" placeholder="序號或密鑰" aria-label="序號或密鑰" autocomplete="off" autocapitalize="off" inputmode="text"><button type="button" class="btn sm pri" data-act="serialGo" id="serialGo">去</button><button type="button" class="btn sm dice" data-act="dice" id="diceBtn" aria-label="隨機骰一個序號" title="隨機骰一個序號"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="16" cy="8" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="8" cy="16" r="1.8" fill="currentColor"/><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg></button><button type="button" class="btn sm" data-act="myHouse" id="homeBtn" title="回能量之家首頁">首頁</button><nav class="ttabs" id="ttabs" aria-label="五張紙"></nav><span class="who" id="tother"></span></div>
+  <div class="tbar"><input type="text" id="serialIn" placeholder="序號或密鑰" aria-label="序號或密鑰" autocomplete="off" autocapitalize="off" inputmode="text"><button type="button" class="btn sm pri" data-act="serialGo" id="serialGo">去</button><button type="button" class="btn sm dice" data-act="dice" id="diceBtn" aria-label="隨機骰一個序號" title="隨機骰一個序號"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/><circle cx="16" cy="8" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="8" cy="16" r="1.8" fill="currentColor"/><circle cx="16" cy="16" r="1.8" fill="currentColor"/></svg></button><button type="button" class="btn sm" data-act="myHouse" id="homeBtn" title="回能量之家首頁">返回首頁</button><nav class="ttabs" id="ttabs" aria-label="五張紙"></nav><span class="who" id="tother"></span></div>
   <div id="rotHint">轉橫看整張紙</div>
   <div class="tutbar" id="tutbar" hidden></div>
   <div class="scroll"><div class="stage" id="tmain"></div></div>
@@ -3696,7 +3696,7 @@ var WORLD = (function () {
 
 /* ===== v9 表格世界：五張紙（DESIGN 7-1、補十五、補十六） =====
  * 每一頁就是紙本那張 A4 橫式（297×210），整張照畫面寬等比例縮放；欄位、格線、底下的說明跟印出來的一樣，格子裡多了按鈕。
- * 最上面一列：「序號或密鑰」框、去、骰子、首頁（回自己的能量之家）、五張紙的分頁（事件簿、日曆、資源表、公告欄、更多）、現在是誰。一打開是今天的事件簿。
+ * 最上面一列：「序號或密鑰」框、去、骰子、返回首頁（回自己的能量之家）、五張紙的分頁（事件簿、日曆、資源表、公告欄、更多）、現在是誰。一打開是今天的事件簿。
  * 寫進去的是藍字、簽名是紅字（系統簽）。只呼叫 APP、CORE 和共用的 KIT；要去能量之家就叫 APP.goHouse。
  */
 var SHEETS = (function () {

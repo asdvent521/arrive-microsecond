@@ -20,8 +20,8 @@ var J1 = '00000000001', J2 = '00000000002', J3 = '00000000003';
   assert(!(await H.ev("!!document.getElementById('charTabs')")) && (await H.ev("!!document.querySelector('#tmain .sub [data-act=\"newChar\"]')")), '一個角色：資源表沒有分頁，上面只有一顆「＋開新角色」');
   assert((await H.ev("document.getElementById('tother').textContent")).indexOf('用（') < 0, '一個角色：最上面一列不寫用哪個角色');
 
-  // 1b. 紙上面那一列有「首頁」：按了回自己的能量之家（從事件簿、資源表都一樣）
-  for (var sh of ['log', 'res']) { await H.nav(sh); await H.click('#homeBtn'); await pg.waitForTimeout(400); assert((await H.ev("APP.view().name === 'house' && APP.view().serial === APP.me().serial")), '「首頁」鈕：從' + H.NAME[sh] + '回到自己的能量之家'); }
+  // 1b. 紙上面那一列有「返回首頁」：按了回自己的能量之家（從事件簿、資源表都一樣）
+  for (var sh of ['log', 'res']) { await H.nav(sh); await H.click('#homeBtn'); await pg.waitForTimeout(400); assert((await H.ev("APP.view().name === 'house' && APP.view().serial === APP.me().serial")), '「返回首頁」鈕：從' + H.NAME[sh] + '回到自己的能量之家'); }
   await H.nav('res');
 
   // 2. ＋開新角色：沒寫生產背景擋下來；寫「廚房」開好就換過去，資源表一行「空的」、出問題怎麼辦先寫好
