@@ -1,6 +1,6 @@
 /* ===== v9 表格世界：五張紙（DESIGN 7-1、補十五、補十六） =====
  * 每一頁就是紙本那張 A4 橫式（297×210），整張照畫面寬等比例縮放；欄位、格線、底下的說明跟印出來的一樣，格子裡多了按鈕。
- * 最上面一列：「序號或密鑰」框、去、骰子、五張紙的分頁（事件簿、日曆、資源表、公告欄、更多）、現在是誰。一打開是今天的事件簿。
+ * 最上面一列：「序號或密鑰」框、去、骰子、首頁（回自己的能量之家）、五張紙的分頁（事件簿、日曆、資源表、公告欄、更多）、現在是誰。一打開是今天的事件簿。
  * 寫進去的是藍字、簽名是紅字（系統簽）。只呼叫 APP、CORE 和共用的 KIT；要去能量之家就叫 APP.goHouse。
  */
 var SHEETS = (function () {
@@ -643,7 +643,7 @@ var SHEETS = (function () {
   function render() {
     var m = me(), o = UI.other ? roleOf(UI.other) : null;
     if (UI.other && !o) UI.other = null;
-    $('tother').innerHTML = o ? '<b>' + esc(CORE.abbrev(o.serial) + ' ' + nameW(o.serial)) + '</b> 的' + (UI.osheet === 'cal' ? '日曆 ' : '那張紙 ') + btn('home', '回我自己', '', 'o') : '<span class="small muted">' + (APP.isBlank() ? '還沒創角色' : '我是 <b>' + esc(CORE.abbrev(m.serial) + ' ' + m.name) + '</b>' + (multi() ? '・用（<b id="curChar">' + esc(bgNow(myChar()) || CORE.abbrevChar(myChar().id)) + '</b>）' + btn('pickChar', '換', '', 'o') : '')) + '</span>';
+    $('tother').innerHTML = o ? '<b>' + esc(CORE.abbrev(o.serial) + ' ' + nameW(o.serial)) + '</b> 的' + (UI.osheet === 'cal' ? '日曆 ' : '那張紙 ') + btn('home', '回我自己', '', 'o') : '<span class="small muted">' + (APP.isBlank() ? '還沒創角色' : '<span class="nw">我是 <b>' + esc(CORE.abbrev(m.serial) + ' ' + m.name) + '</b></span>' + (multi() ? '<span class="nw">・用（<b id="curChar">' + esc(bgNow(myChar()) || CORE.abbrevChar(myChar().id)) + '</b>）</span>' + btn('pickChar', '換', '', 'o') : '')) + '</span>';
     var st = APP.tutActive() && !APP.isBlank() ? APP.steps() : null;
     $('tutbar').hidden = !APP.tutActive();
     if (APP.tutActive()) $('tutbar').innerHTML = '<span class="small">' + esc(APP.isBlank() ? '新手教學 ① 創角色：資源表那張紙已經寫好「空的」，填名字、生產背景和每天的點，按「建立」' : st.hint) + '</span>' + (APP.tut().step === 6 ? btn('myHouse', '去我的能量之家', '', 'go') : '') + (APP.isBlank() ? '' : btn('tutSkip', '跳過教學', '', 'o'));
