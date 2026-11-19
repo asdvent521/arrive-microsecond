@@ -10,7 +10,7 @@ var HOUSE = (function () {
   var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], cal: null, shown: false, ready: false, travel: false, pick: null, rot: 0, natEdit: false, peek: false };   // natEdit：首頁的前情提要正在改；peek：教學說明磚的時候先把首頁那一排收起來，磚才看得到   // cal：3D 用不了時日曆紙翻到哪個月；pick：挑地（{ village, pending }）；rot：挑地選的朝向
   function me() { return APP.me(); }
   function viewer() { return APP.isBlank() ? null : me().serial; }
-  function data() { return CORE.viewHouse(APP.state(), st.serial, viewer(), APP.now()); }
+  function data() { if (APP.isBlank()) return CORE.viewEmptyPlot(APP.now()); return CORE.viewHouse(APP.state(), st.serial, viewer(), APP.now()); }
   function mine() { return !APP.isBlank() && st.serial === me().serial; }
   function village() { return CORE.viewVillage(APP.state(), st.serial, viewer(), APP.now()); }
   function spots() { if (!st.pick) return null; try { return CORE.freeSpots(APP.state(), st.pick.village, st.pick.pending ? null : me().serial); } catch (e) { return null; } }
@@ -26,6 +26,7 @@ var HOUSE = (function () {
   }
   function render(opts) {
     if (!st.shown) return;
+    if (APP.isBlank()) { renderEmpty(opts); return; }
     var r = APP.roleOf(st.serial); if (!r) { st.serial = me().serial; r = APP.roleOf(st.serial); }
     if (!r) return;
     var v = data(), own = mine(), vv = WORLD.available ? village() : null, inVillage = vv && vv.houses.length > 1;
@@ -57,6 +58,19 @@ var HOUSE = (function () {
     if (WORLD.available) { WORLD.show(v, { building: st.building, resetCamera: opts && opts.resetCamera, village: vv, travel: st.travel, spots: spots(), selSpot: st.pick ? st.pick.sel : null }); st.travel = false; }
     if (own && v.calRemoved && !KIT.isOpen()) { var n = CORE.ackCalRemoved(APP.state(), me().serial); APP.changed(); KIT.pop('日曆長到這裡，拆了 ' + n + ' 塊', '日曆每個月長一塊，長到的地方和它正面前面的方塊會拆掉。在「蓋」裡可以改下一塊往哪長。'); }
     if (!WORLD.available) { if (!st.cal) { var ym = KIT.ymOf(CORE.dayNum(APP.now())); st.cal = { y: ym.y, m: ym.m }; } $('hcal').innerHTML = '<div class="scroll"><div class="stage">' + KIT.calSheet(st.serial, viewer(), st.cal.y, st.cal.m) + '</div></div>'; $('hcal').style.paddingTop = ($('hhome').hidden ? 110 : $('hhome').getBoundingClientRect().bottom - $('view-house').getBoundingClientRect().top + 10) + 'px'; }
+  }
+  // 還沒創角色的首頁：一塊空地（補二十五），上面一句話和「去建立角色」；蓋、看日曆、進門先藏起來
+  function renderEmpty(opts) {
+    st.building = false; st.pick = null; st.natEdit = false;
+    $('hwho').innerHTML = '<b>你的空地</b><span class="small muted"> 還沒有房子</span>';
+    ['hVillage', 'hpick', 'hBuild', 'hDoor', 'hLook', 'hbuild'].forEach(function (id) { $(id).hidden = true; });
+    $('hhint').textContent = WORLD.available ? '一指拖著轉、兩指縮放' : '還沒創角色：建立以後這裡會有你的房子和日曆';
+    tutBar();
+    var box = $('hhome'); box.hidden = false;
+    box.innerHTML = '<div class="hnat hempty" id="hEmpty"><span class="natext">這是你的空地。建立角色以後，房子和日曆就會蓋在這裡。</span></div><div class="hbig"><button type="button" class="btn big pri" data-hact="toCreate" id="hCreate">去建立角色</button></div>';
+    var hb = document.querySelector('.hbar').getBoundingClientRect(), vb = $('view-house').getBoundingClientRect(); box.style.top = (hb.bottom - vb.top + 4) + 'px';
+    if (WORLD.available) { var fb = document.querySelector('.hfoot').getBoundingClientRect(); WORLD.setInsets(box.getBoundingClientRect().bottom - vb.top, vb.bottom - fb.top); WORLD.show(data(), { resetCamera: opts && opts.resetCamera }); }
+    else { $('hcal').innerHTML = ''; }
   }
   /* ---------- 首頁（補二十二）：自己的能量之家最上面一排，像讀小說：今天的前情提要、今天還剩幾點可以跟人換、事件簿／公告欄兩個大鈕、交換關係。3D 畫好之前就看得到、點得到 ---------- */
   function home(own, v) {
@@ -91,7 +105,7 @@ var HOUSE = (function () {
     if (on) $('htut').innerHTML = '<span class="small">' + esc(stp.hint) + '</span>' + (APP.tut().step === 6 ? '<button type="button" class="btn sm pri" data-hact="myHouse">去我的能量之家</button>' : '') + '<button type="button" class="btn sm warn" data-hact="tutSkip">跳過教學</button>';
   }
   function onTap(hit) {
-    if (!hit) return;
+    if (!hit || APP.isBlank()) return;
     if (st.pick) { if (hit.kind === 'spot') pickSpot(hit.pos); return; }
     if (hit.kind === 'house') { st.travel = true; APP.goHouse(hit.serial, false, { travel: true }); return; }   // 點村裡別間屋：畫面滑過去
     if (st.building) { buildTap(hit); return; }
@@ -182,6 +196,7 @@ var HOUSE = (function () {
     else if (a === 'pickSel') { if (st.pick && st.pick.sel) pickSpot(st.pick.sel); }
     else if (a === 'pickCancel') { st.pick = null; APP.goTable(null, 'village'); }
     else if (a === 'myHouse') APP.goHouse(me().serial);
+    else if (a === 'toCreate') APP.goTable(null, 'res');
     else if (a === 'toLog') APP.goTable(null, 'log');
     else if (a === 'toFind') APP.goTable(null, 'find');
     else if (a === 'toMap') APP.goTable(null, 'map');
