@@ -166,6 +166,7 @@ var WORLD = (function () {
   }
   // 門：一塊 1×2 的方塊，照方向轉；門牌掛在門上方
   function buildDoor(view) {
+    if (!view.look.door) { if (view.empty) buildEmptySign(); return; }
     var d = view.look.door, f = CORE.doorFront(d[4] || 0), ry = (d[4] || 0) * Math.PI / 180, cx = d[0] + 0.5, cz = d[2] + 0.5;
     var frame = add(new T.Mesh(new T.BoxGeometry(1, 2, 1), new T.MeshLambertMaterial({ color: '#3B342C' })), 'doorframe'); frame.position.set(cx, d[1] + 1, cz);
     var door = add(new T.Mesh(new T.BoxGeometry(0.84, 1.84, 0.12), new T.MeshLambertMaterial({ color: '#7A5536' })), 'door'); door.position.set(cx + f[0] * 0.47, d[1] + 1, cz + f[1] * 0.47); door.rotation.y = ry; picks.push(door);
@@ -173,6 +174,13 @@ var WORLD = (function () {
     var lines = view.closed ? ['只給鄰居看'] : [view.age ? view.age.text : '', view.sign ? '「' + view.sign + '」' : ''].filter(Boolean);
     var sign = add(new T.Mesh(new T.PlaneGeometry(1.6, 0.5), new T.MeshBasicMaterial({ map: signTexture(lines, view.closed ? '#3B4652' : '#F4EBD3', view.closed ? '#FFFFFF' : '#3B342C'), side: T.DoubleSide })), 'sign');
     sign.position.set(cx + f[0] * 0.52, d[1] + 2.35, cz + f[1] * 0.52); sign.rotation.y = ry;
+  }
+
+  // 空地（還沒創角色）：地皮中間插一塊木牌「空地」
+  function buildEmptySign() {
+    var post = add(new T.Mesh(new T.BoxGeometry(0.18, 2.2, 0.18), new T.MeshLambertMaterial({ color: '#7A5536' })), 'emptypost'); post.position.set(0, 1.1, 0);
+    var sign = add(new T.Mesh(new T.PlaneGeometry(3.2, 1.0), new T.MeshBasicMaterial({ map: signTexture(['空地'], '#F4EBD3', '#3B342C'), side: T.DoubleSide })), 'emptysign'); sign.position.set(0, 2.0, 0.1);
+    counts.empty = true;
   }
 
   /* ---------- 自己蓋的方塊：同一種合成一個網格，被擋住的面不畫 ---------- */
@@ -317,7 +325,8 @@ var WORLD = (function () {
   function monthBlock() { var list = current.cal.blocks; for (var i = list.length - 1; i >= 0; i--) if (list[i]) return list[i]; return CORE.CAL_START; }
   function rotRad() { return (hg && hg.rot ? hg.rot : 0) * Math.PI / 180; }
   // 一打開：鏡頭對著這個月那一塊日曆的正面，旁邊看得到一點房子（村子裡照那一間的朝向）
-  function calPose() { var p = monthBlock(); return { target: toWorld(new T.Vector3(p[0] + CW / 2, p[1] + CH / 2 - 0.1, ZF)), theta: rotRad(), phi: 1.38, dist: fitDist(3.0) }; }
+  function calPose() { if (current && current.empty) return { target: toWorld(new T.Vector3(0, 1.2, 0)), theta: 0.3, phi: 1.15, dist: fitDist(current.plot.size * 0.42) };   // 空地：從前面斜上方看整塊地
+    var p = monthBlock(); return { target: toWorld(new T.Vector3(p[0] + CW / 2, p[1] + CH / 2 - 0.1, ZF)), theta: rotRad(), phi: 1.38, dist: fitDist(3.0) }; }
   // 蓋的時候：從右前方高處往下看整塊地皮
   function buildPose() { var p = current.plot; return { target: toWorld(new T.Vector3(0, 1, 0)), theta: rotRad() + 0.55, phi: 0.6, dist: fitDist(p.size * 0.66) }; }
   // 看整個村子：從上面看，全部的屋（和能放的地）都在畫面裡
@@ -495,7 +504,7 @@ var WORLD = (function () {
     available: true, atlasSize: atlasSize, texSize: function () { return lastAtlas; }, init: init, show: show, resize: resize, setInsets: setInsets, hitAt: hitAt, screenOf: screenOf, focusDay: focusDay, lookCalendar: lookCalendar, lookVillage: lookVillage,
     onTap: function (fn) { onTap = fn; },
     pause: function () { paused = true; if (raf) { cancelAnimationFrame(raf); raf = 0; } }, resume: function () { paused = false; dirty = true; loop(); },
-    info: function () { var c = (counts.unlit || 0) + (counts.litgray || 0) + (counts.dark || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.litAll || 0, colored: counts.colored || 0, litColored: counts.lit || 0, litGray: counts.litgray || 0, dark: counts.dark || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length - 1 + (hg ? hg.children.length : 0) : 0, serial: current ? current.serial : null, building: building, focus: focus, animating: !!anim, previewThrough: !!counts.previewThrough, houses: counts.houses || 0, farFaces: counts.farFaces || 0, spots: counts.spots || 0, selSpot: counts.selSpot || null, rot: hg ? hg.rot || 0 : 0 }; },
+    info: function () { var c = (counts.unlit || 0) + (counts.litgray || 0) + (counts.dark || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.litAll || 0, colored: counts.colored || 0, litColored: counts.lit || 0, litGray: counts.litgray || 0, dark: counts.dark || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length - 1 + (hg ? hg.children.length : 0) : 0, serial: current ? current.serial : null, empty: !!counts.empty, building: building, focus: focus, animating: !!anim, previewThrough: !!counts.previewThrough, houses: counts.houses || 0, farFaces: counts.farFaces || 0, spots: counts.spots || 0, selSpot: counts.selSpot || null, rot: hg ? hg.rot || 0 : 0 }; },
     calPose: function () { return current ? calPose() : null; },
     villagePose: function () { if (!current) return null; var p = villagePose(); return { target: p.target.toArray(), theta: p.theta, phi: p.phi, dist: p.dist, neighbor: p.neighbor || null }; },
     // 畫面上看到的這個月那塊有多大（像素，高和寬）
