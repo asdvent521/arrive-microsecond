@@ -219,11 +219,9 @@ button.box{cursor:pointer}
 .page .calp td.none .dn{color:#BBB;border-color:#DDD}
 .page .calp .ev{margin-top:calc(var(--mm)*.8);font-family:var(--hand);color:var(--pen);font-size:calc(var(--mm)*2.9);line-height:1.3}
 .page .calp .more{font-size:calc(var(--mm)*2.5);color:#777;margin-top:calc(var(--mm)*.4)}
-/* 磚的四種樣子（補二十二）：暗的灰白、亮的灰白（前情提要）、暗的彩色（跟人換）、亮的彩色；顏色越深成交越多 */
+/* 磚：灰白（沒成交）、彩色（跟人換）；顏色越深成交越多；不分亮暗（2026-11-20） */
 .page .calp td.empty,.page .calp td.day{background:#ECE9E1}
-.page .calp td.lit{background:#FFFDF4}
 .page .calp td.lv1{background:#D9C27E}.page .calp td.lv2{background:#C8A64E}.page .calp td.lv3{background:#AE8A2C}
-.page .calp td.lit.lv1{background:#F8E7B0}.page .calp td.lit.lv2{background:#F3D77C}.page .calp td.lit.lv3{background:#EBBF4A}
 .page .calp td.lv1::after,.page .calp td.lv2::after,.page .calp td.lv3::after{border-right-color:var(--pen)}
 .page .calp td.mark::before{content:"";position:absolute;right:calc(var(--mm)*1.6);top:calc(var(--mm)*1.6);width:calc(var(--mm)*1.6);height:calc(var(--mm)*1.6);border-radius:50%;background:var(--ink);z-index:1}
 .page .calp td.cover{background:repeating-linear-gradient(45deg,#C9C3B6 0 calc(var(--mm)*1.5),#B9B3A6 calc(var(--mm)*1.5) calc(var(--mm)*3))}
@@ -249,8 +247,6 @@ button.box{cursor:pointer}
 .hnat .small{display:block;color:var(--muted)} .hnat .natext{display:block;font-size:1.02rem;line-height:1.45;max-height:4.4em;overflow:hidden}
 .hnat.empty{font-size:1.05rem;border-style:dashed}
 @media (orientation: landscape){.hnat:not(.edit){display:flex;align-items:baseline;gap:8px;white-space:nowrap;overflow:hidden;padding:6px 12px} .hnat:not(.edit) .small{display:inline;flex:none} .hnat:not(.edit) .natext{display:inline-block;flex:1;min-width:0;max-height:1.45em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom} .hnat.empty .small{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}}   /* 轉橫只顯示一行，點了才打開看全部和改 */
-.hnat.edit{cursor:default} .hnat.edit textarea{width:100%;box-sizing:border-box;font:inherit;font-size:1rem;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg);margin:4px 0;resize:vertical}
-.hnatrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px} .hnatrow input[type=number]{width:4.5em;min-height:32px;font:inherit;padding:2px 6px;border:1px solid var(--line);border-radius:var(--r-s)}
 .hleft{background:var(--hud);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:var(--r-m);padding:6px 12px;font-size:.95rem} .hleft b{font-size:1.15rem}
 .hrow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;pointer-events:none} .hrow>*{pointer-events:auto} .hbig{display:flex;flex-wrap:wrap;gap:8px;align-items:center} .hbig .btn.big{font-size:1.1rem;padding:10px 22px;min-height:46px}
 body.in-house #view-table{display:none}
@@ -682,7 +678,7 @@ var CORE = (function () {
     var dn = dayNum(atUs);
     return state.holds.filter(function (h) { return h.issuer === serial && dayNum(h.atUs) === dn; }).reduce(function (s, h) { return s + h.price; }, 0);
   }
-  function remainingToday(state, role, atUs) { return Math.max(0, dailyPoints(role, atUs) - givenToday(state, role.serial, atUs) - natureToday(state, role.serial, atUs)); }   // 所有角色給出去的、給了自然的都扣
+  function remainingToday(state, role, atUs) { return Math.max(0, dailyPoints(role, atUs) - givenToday(state, role.serial, atUs)); }   // 所有角色給出去的都扣（跟自然換也是跟角色換，一樣算在給出去的裡面）
 
   /* ---------- 規則 3：貨跟著角色，分「可換」與「已保留」。可換隨時加減；已保留不能手動減 ---------- */
   function stockOf(c, id) { if (c && c.chars) c = firstChar(c) || { stock: {} }; return c.stock[id] || (c.stock[id] = { avail: 0, reserved: 0 }); }
@@ -2316,39 +2312,7 @@ var CORE = (function () {
       e.docking = d.id; e.status = d.traded ? 'traded' : d.ok ? 'nodock' : 'invalid'; e.reason = d.traded ? null : d.reason;
     });
   }
-  /* ---------- 跟自然換：前情提要（補二十二）。一人一天一段（不分角色）：一段自由寫的字（最多 300 字）加「今天給了自然幾點」（至少 1 點，到小數點後 6 位）；寫下就算，扣今天的點、不動資源表的份數；只能寫今天，今天之內能改、能撤掉；預設全藏；不算進任何靠對接紀錄的數字 ---------- */
-  var NATURE_MAX = 300;
-  function natVis(l) { if (!VIS_LEVELS[l]) bad('只能選公開、只給鄰居看或全藏'); return l; }
-  function naturesOf(state) { return state.natures || (state.natures = []); }
-  function natureOf(state, serial, day) { return naturesOf(state).find(function (x) { return x.serial === serial && x.day === day; }) || null; }
-  function natureToday(state, serial, atUs) { var x = natureOf(state, serial, dayNum(atUs == null ? nowUs() : atUs)); return x ? x.points : 0; }
-  function writeNature(state, serial, f, atUs) {
-    atUs = atUs || nowUs(); var r = need(state, serial), dn = dayNum(atUs); f = f || {};
-    if (f.day != null && f.day !== '' && Math.floor(+f.day) !== dn) bad(Math.floor(+f.day) < dn ? '過了今天就不能改' : '不能先寫明天');
-    var text = String(f.text == null ? '' : f.text).trim(); if (!text) bad('寫一點今天跟自然的交流');
-    if (Array.from(text).length > NATURE_MAX) bad('最多 ' + NATURE_MAX + ' 字');
-    if (f.points == null || f.points === '') bad('給自然至少 1 點'); var pts = parsePoints(f.points, '給自然的點'); if (!(pts >= P)) bad('給自然至少 1 點');
-    var cur = natureOf(state, serial, dn), have = remainingToday(state, r, atUs) + (cur ? cur.points : 0);   // 改點數：原本給的先退回再算
-    if (pts > have) bad('今天還剩的點不夠（還剩 ' + fmtPoints(have) + ' 點）');
-    if (cur) { cur.text = text; cur.points = pts; cur.atUs = atUs; if (f.vis !== undefined) cur.vis = natVis(f.vis); return cur; }
-    var x = { id: newId('na'), serial: serial, day: dn, text: text, points: pts, atUs: atUs, vis: f.vis !== undefined ? natVis(f.vis) : 'hidden' };
-    naturesOf(state).push(x); return x;
-  }
-  // 整段撤掉：點全退（只能撤今天的）
-  function removeNature(state, serial, atUs) { atUs = atUs || nowUs(); var dn = dayNum(atUs), cur = natureOf(state, serial, dn); if (!cur) bad('今天還沒寫前情提要'); state.natures = naturesOf(state).filter(function (x) { return x !== cur; }); return cur; }
-  function setNatureVis(state, serial, day, level) { var x = natureOf(state, serial, day); if (!x) bad('那天沒有前情提要'); x.vis = natVis(level); return x; }
-  function canSeeNature(state, x, viewer) { if (viewer && viewer === x.serial) return true; return x.vis === 'public' || (x.vis === 'neighbors' && !!viewer && isNeighbor(state, x.serial, viewer)); }
-  // 看的人看不到整間屋（只給鄰居看、他不是鄰居）就一律不給，跟 viewHouse 的 closed 同一個判斷（第 12 輪）
-  function natureHidden(state, serial, viewer) { if (viewer && viewer === serial) return false; var r = roleOf(state, serial); return !r || houseClosed(state, r, viewer); }
-  // 看的人看得到的那天的前情提要（或 null）
-  function natureView(state, serial, viewer, day) { if (natureHidden(state, serial, viewer)) return null; var x = natureOf(state, serial, day); if (!x || !canSeeNature(state, x, viewer)) return null; return { id: x.id, day: x.day, text: x.text, points: x.points, vis: x.vis, mine: viewer === serial, atUs: x.atUs }; }
-  // 某一段日子寫了幾天（看的人看得到的）
-  function natureDays(state, serial, viewer, from, to) { if (natureHidden(state, serial, viewer)) return 0; var n = 0; naturesOf(state).forEach(function (x) { if (x.serial === serial && x.day >= from && x.day <= to && canSeeNature(state, x, viewer)) n++; }); return n; }
-  function cleanNature(state, x, scale) {
-    obj(x, '前情提要'); var out = { id: str(x.id, 60, '前情提要'), serial: str(x.serial, 11, '前情提要'), day: num(x.day, '前情提要'), text: str(x.text, NATURE_MAX * 4, '前情提要'), points: Math.round(num(x.points, '前情提要') * (scale || 1)), atUs: num(x.atUs, '前情提要'), vis: VIS_LEVELS[x.vis] ? x.vis : 'hidden' };
-    if (!roleOf(state, out.serial) || !(out.points >= 1) || !out.text.trim()) return null; return out;
-  }
-  function cleanNatures(state, raw, scale) { var seen = {}, out = []; list(raw || [], 200000, '前情提要').forEach(function (x) { try { var c = cleanNature(state, x, scale); if (c && !seen[c.serial + ':' + c.day]) { seen[c.serial + ':' + c.day] = true; out.push(c); } } catch (e) { /* 壞掉的丟掉 */ } }); state.natures = out; return out; }
+  /* ---------- 跟自然換（2026-11-20 東恆定）：自然不是平台寫死的對象，就是一個勾了「自然」的角色（例如小樂（後山））；跟它換就是一般的換。前情提要、還給自然的點、磚的亮暗都拿掉 ---------- */
 
   // 在那一筆上改自己那一邊的藏：馬上生效；引路人那一邊的教學紀錄不能改
   function setVis(state, serial, entryId, level) {
@@ -2394,9 +2358,9 @@ var CORE = (function () {
     entriesOf(state).forEach(function (e) { if (e.a !== ownerSerial && e.b !== ownerSerial) return; var dd = dayNum(e.atUs); (byDay[dd] = byDay[dd] || []).push(e); });
     var brick = function (day, future) {
       var es = byDay[day] || [], vis = es.filter(function (e) { return canSeeEntry(state, e, ownerSerial, viewer); });
-      var traded = vis.filter(function (e) { return e.status === 'traded'; }).length, judged = vis.filter(function (e) { return e.status !== 'booked'; }), nat = future ? null : natureOf(state, ownerSerial, day);
-      // 補二十二：亮＝那天有（看得到的）前情提要；level＝跟人成交幾次（最多 3，顏色越深）；都沒有是暗的灰白
-      return { day: day, future: future, lit: !!(nat && canSeeNature(state, nat, viewer)), level: Math.min(3, traded), traded: traded, mark: !traded && judged.length > 0, booked: vis.some(function (e) { return e.status === 'booked'; }), cover: es.length > 0 && vis.length === 0, n: vis.length };
+      var traded = vis.filter(function (e) { return e.status === 'traded'; }).length, judged = vis.filter(function (e) { return e.status !== 'booked'; });
+      // level＝跟人成交幾次（最多 3，顏色越深）；沒成交是灰白。磚不分亮暗（2026-11-20 前情提要拿掉）
+      return { day: day, future: future, level: Math.min(3, traded), traded: traded, mark: !traded && judged.length > 0, booked: vis.some(function (e) { return e.status === 'booked'; }), cover: es.length > 0 && vis.length === 0, n: vis.length };
     };
     for (d = born; d <= today; d++) bricks.push(spot(brick(d, false)));
     Object.keys(byDay).map(Number).filter(function (x) { return x > today; }).sort(function (x, y) { return x - y; }).forEach(function (x) { bricks.push(spot(brick(x, true))); });
@@ -2426,7 +2390,7 @@ var CORE = (function () {
       if (viewer === ownerSerial) { out.vis = e.vis[ownerSerial]; out.locked = e.tutorial && ownerSerial === GUIDE; }
       return out;
     });
-    return { closed: false, day: day, label: dayLabel(day), owner: { serial: r.serial, name: r.name }, mine: viewer === ownerSerial, entries: rows, covered: es.length - vis.length, nature: natureView(state, ownerSerial, viewer, day),
+    return { closed: false, day: day, label: dayLabel(day), owner: { serial: r.serial, name: r.name }, mine: viewer === ownerSerial, entries: rows, covered: es.length - vis.length,
       rules: v ? { uses: v.rules.uses.slice(), conditions: v.rules.conditions.map(condText), problem: v.rules.problem || '', village: v.rules.village, site: v.rules.site || '' } : { uses: [], conditions: [], problem: '', village: '', site: '' }, resources: v ? v.resources.map(function (x) { return { name: x.name, price: x.price, keepDays: x.keepDays, def: x.def, deliver: deliverText(x) }; }) : [] };
   }
   // 從舊存檔（第 1 輪）的對接紀錄、時段補出每一筆（每一筆公開，引路人的教學那一邊全藏）
@@ -2507,7 +2471,7 @@ var CORE = (function () {
   function fresh(opts) {
     opts = opts || {};
     var now = nowUs(), hist = opts.history !== false, ago = function (days) { return hist ? now - days * DAY_US : now; };
-    var st = { v: 9, model: 2, me: -1, roles: [], issued: [], holds: [], dockings: [], redeems: [], acceptances: [], records: [], notices: [], tutorial: freshTutorial(), standings: [], greets: [], greetWaits: {}, villages: [], circles: [], natures: [], hints: {} };
+    var st = { v: 9, model: 2, me: -1, roles: [], issued: [], holds: [], dockings: [], redeems: [], acceptances: [], records: [], notices: [], tutorial: freshTutorial(), standings: [], greets: [], greetWaits: {}, villages: [], circles: [], hints: {} };
     // 示範角色：阿澄（聊天傾聽；條件：可換的貨 ≥ 5）、小樂（書；家規要先接受才換得成）、阿明（攝影）、引路人（教學；沒有條件、一堆 0 點的「空的」）。每人一個角色，東西都綁了實體。第一次打開從創角色開始
     createRole(st, { serial: '00000000002', name: '阿澄', bg: '聊天傾聽', dailyPoints: pts(2000), house: { template: 'tower', wall: 'brick', roof: 'slate', sign: '聽你講，幫你改', calDir: 'up', extra: [[-3, 0, 2, 'lamp'], [-4, 0, 3, 'flower', 0], [-5, 0, 3, 'flower', 0]] },
       rules: { uses: ['1 阿澄點 = 聽你講 1 分鐘', '100 阿澄點 = 幫你改一份履歷'], conditions: [{ field: 'avail', op: '>=', value: 5 }], problem: '改好的那一份用 LINE 傳過去；傳不到或檔案壞了，隔天重傳一次', village: '東恆家規：對接後要一起立一個難題。' },
@@ -2526,11 +2490,6 @@ var CORE = (function () {
     accept(st, '00000000002', charId('00000000003', 1), now - 229 * DAY_US); accept(st, '00000000003', charId('00000000002', 1), now - 229 * DAY_US);   // 阿澄和小樂一開始就接受了對方的規則（第 12 輪）
     accept(st, '00000000002', charId('00000000003', 2), now - 29 * DAY_US); accept(st, '00000000003', charId('00000000002', 2), now - 29 * DAY_US);
     if (hist) demoHistory(st, now);
-    // 示範的前情提要（補二十二）：阿澄最近三天公開、小樂一天公開一天只給鄰居看；引路人沒有。不帶過去紀錄的示範（測試用）不寫，今天的點才不會被扣
-    if (hist) {
-      [['今天一早去河堤走了一圈，撿了一袋垃圾，帶著清爽的心情開始今天的旅程', 30, 0], ['雨停了，把陽台的花都澆過一遍，聽了十分鐘的雨聲', 20, 1], ['去後山撿柴，順手把步道的落葉掃到旁邊', 40, 2]].forEach(function (x) { try { writeNature(st, '00000000002', { text: x[0], points: pts(x[1]), vis: 'public' }, now - x[2] * DAY_US); } catch (e) { /* 點不夠就不寫 */ } });
-      [['早上曬了棉被，跟巷口的野貓打了招呼', 10, 1, 'public'], ['晚上關了燈看星星，給自然一點安靜', 10, 3, 'neighbors']].forEach(function (x) { try { writeNature(st, '00000000003', { text: x[0], points: pts(x[1]), vis: x[3] }, now - x[2] * DAY_US); } catch (e) { /* 點不夠就不寫 */ } });
-    }
     // 示範角色的日曆用規則層一個月一個月長到現在：阿澄一直往上（到頂往右）、小樂往右（到邊往上）、引路人往左四個月再往上
     if (hist) { var g = roleOf(st, GUIDE), gh = houseOf(g); growTo(gh, bornOf(g), Math.min(4, monthIndex(bornOf(g), dayNum(now)) + 1)); gh.cal.dir = 'up'; growCalendars(st, now); st.roles.forEach(function (r) { houseOf(r).calRemoved = 0; }); }
     // 阿澄開兩個對接時段：3 分鐘後、10 分鐘後，各 2 個名額
@@ -2568,15 +2527,16 @@ var CORE = (function () {
     expire(st, now);
     st.records.push({ kind: 'demo', at: now, text: '示範資料：阿澄、小樂過去的紀錄照規則跑出來' });
   }
-  // 教學六步（補二十三：創角色、寫前情提要、骰子、約引路人、那一微秒、看自己的能量之家；空的不用兌現，原本第 6 步「兌現」拿掉）。之前是八步、六步、七步，讀舊存檔時把步數對過來
-  function freshTutorial() { return { six: true, seven: true, v12: true, step: 1, skipped: false, slot: null, dice: false, went: false, house: false, nature: false }; }
+  // 教學五步（2026-11-20：創角色、骰子、約引路人、那一微秒、看自己的能量之家；前情提要拿掉）。之前是八步、六步、七步、六步，讀舊存檔時把步數對過來
+  function freshTutorial() { return { six: true, seven: true, v12: true, v14: true, step: 1, skipped: false, slot: null, dice: false, went: false, house: false }; }
   function cleanTutorial(tu) {
     var step = tu.step == null ? 'done' : (tu.step === 'done' ? 'done' : num(tu.step, '教學'));
     if (!tu.six && typeof step === 'number') step = step <= 1 ? 1 : step <= 4 ? 2 : step - 2;   // 八步的 2～4（隨機、找序號、看規則）併成一步「骰子」
     if (!tu.seven && typeof step === 'number' && step >= 2) step += 1;   // 補二十二：第 2 步變「寫前情提要」，六步存檔的 2～6 往後挪成 3～7
     if (!tu.v12 && typeof step === 'number' && step >= 6) step = 6;   // 補二十三：七步的第 6 步（兌現）拿掉，停在 6、7 的都接到新的第 6 步（看自己的能量之家）
     if (typeof step === 'number' && step > 6) step = 6;
-    return { six: true, seven: true, v12: true, step: step, skipped: !!tu.skipped, slot: tu.slot == null ? null : str(tu.slot, 60, '教學'), dice: !!tu.dice || !!tu.random, went: !!tu.went || !!tu.door, house: !!tu.house, nature: !!tu.nature };
+    if (!tu.v14 && typeof step === 'number' && step >= 3) step -= 1;   // 2026-11-20：第 2 步「寫前情提要」拿掉，停在 2 的接到骰子、3～6 往前挪成 2～5
+    return { six: true, seven: true, v12: true, v14: true, step: step, skipped: !!tu.skipped, slot: tu.slot == null ? null : str(tu.slot, 60, '教學'), dice: !!tu.dice || !!tu.random, went: !!tu.went || !!tu.door, house: !!tu.house };
   }
   // 引路人在公告欄一直掛著一張教學用的公告：需要「空的」、可以給「空的」；沒有期限，成交也不拿掉
   function guideNotice(st, now) {
@@ -2806,15 +2766,15 @@ var CORE = (function () {
           (j.acceptances || []).forEach(function (x) { x = obj(x, '接受'); seen(x.who); seen(isCharId(x.of) ? serialOfChar(x.of) : x.of); }); (j.records || []).forEach(function (x) { x = obj(x, '紀錄'); seen(x.serial); });
           var tutorial;
           if (ver === 9) tutorial = cleanTutorial(tu);
-          else tutorial = me < 0 ? freshTutorial() : { six: true, seven: true, v12: true, step: 'done', skipped: !!tu.skipped, slot: null, dice: false, went: false, house: false, nature: false };   // v8 搬過來：教學步驟不一樣，還沒創角色的從頭，其他算走完
+          else tutorial = me < 0 ? freshTutorial() : { six: true, seven: true, v12: true, v14: true, step: 'done', skipped: !!tu.skipped, slot: null, dice: false, went: false, house: false };   // v8 搬過來：教學步驟不一樣，還沒創角色的從頭，其他算走完
           // 接受過的規則：舊的「接受家規」記的是人，搬到他的第一個角色；內容只有家規、沒有出問題怎麼辦，跟現在不一樣就算舊版
           var acceptances = list(j.acceptances || [], LIMITS.rows, '接受').map(function (a) { obj(a, '接受'); var of = isCharId(a.of) ? a.of : charId(str(a.of, 11, '接受'), 1); return { who: str(a.who, 11, '接受'), of: of, problem: a.problem == null ? '' : str(a.problem, LIMITS.text, '接受'), village: a.village == null ? '' : str(a.village, LIMITS.text, '接受'), atUs: num(a.atUs, '接受'), ver: a.ver == null ? null : str(a.ver, 60, '接受') }; });
-          var out = { v: 9, model: 2, me: me, roles: roles, issued: issued, holds: holds, dockings: list(j.dockings || [], LIMITS.rows, '對接').map(function (d) { return cleanDocking(d, scale); }), redeems: copy('redeems').map(function (x) { if (x.cost != null) x.cost = scaled(+x.cost || 0, scale); return x; }), acceptances: acceptances, records: copy('records'), notices: (function (dn) { return list(j.notices || [], 20000, '公告').map(function (n) { return cleanNotice(n, dn); }); })(dayNum(nowUs())), tutorial: tutorial, standings: list(j.standings || [], 20000, '固定約').map(cleanStanding), natures: [], greets: list(j.greets || [], 20000, '密鑰').map(cleanGreet), greetWaits: {}, villages: [], circles: [], hints: cleanHints(j.hints) };
+          var out = { v: 9, model: 2, me: me, roles: roles, issued: issued, holds: holds, dockings: list(j.dockings || [], LIMITS.rows, '對接').map(function (d) { return cleanDocking(d, scale); }), redeems: copy('redeems').map(function (x) { if (x.cost != null) x.cost = scaled(+x.cost || 0, scale); return x; }), acceptances: acceptances, records: copy('records'), notices: (function (dn) { return list(j.notices || [], 20000, '公告').map(function (n) { return cleanNotice(n, dn); }); })(dayNum(nowUs())), tutorial: tutorial, standings: list(j.standings || [], 20000, '固定約').map(cleanStanding), greets: list(j.greets || [], 20000, '密鑰').map(cleanGreet), greetWaits: {}, villages: [], circles: [], hints: cleanHints(j.hints) };
           out.notices.forEach(function (n) { if (n.parent && !out.notices.some(function (p) { return p.id === n.parent.notice; })) n.parent = null; });   // 接在不在了的公告下面：線拿掉
           cleanVillages(out, j.villages);
           out.circles = list(j.circles || [], 20000, '一圈').map(function (c) { return cleanCircle(out, c); });
           if (Array.isArray(j.entries)) out.entries = list(j.entries, LIMITS.rows, '每一筆').map(cleanEntry); else buildEntries(out);   // 第 1 輪的存檔：從對接紀錄和時段補出每一筆（每一筆公開）
-          cleanNatures(out, j.natures, scale);
+          // 舊存檔的前情提要（2026-11-20 拿掉）讀進來就不用了；已經扣掉的點是過去的天，不退
           // 舊存檔背包裡的空物件（0 點、沒勾種類、沒寫交）當作結束：從背包拿掉，貨照兌現的算法扣掉保留
           if (scale !== 1 || j.model !== 2) out.holds.forEach(function (h) { if (h.status !== 'held') return; var ic = charOf(out, h.issuerRole); if (!ic) return; var x = resourceOf(versionOnDay(ic.char, dayNum(h.atUs)), h.resource); if (x && isEmptyItem(x)) { h.status = 'redeemed'; h.redeemedAt = h.atUs; h.empty = true; var sk = stockOf(ic.char, h.resource); sk.reserved = Math.max(0, sk.reserved - 1); } });
           // 舊存檔裡示範的阿澄和小樂：跟新的示範資料一樣，一開始就接受了對方的規則
@@ -2881,7 +2841,7 @@ var CORE = (function () {
     DOCK_WINDOW_US: DOCK_WINDOW_US, missed: missed, setPresent: setPresent, isPresent: isPresent, judge: judge, expire: expire, myBookings: myBookings, settleDirection: settleDirection,
     itemsText: itemsText, holdStatus: holdStatus, expireHolds: expireHolds, holdsOf: holdsOf, heldPoints: heldPoints, holdings: holdings, redeem: redeem, setHoldProblem: setHoldProblem, holdProblemFor: holdProblemFor, PROBLEM_NOTE_MAX: PROBLEM_NOTE_MAX,
     VILLAGE_CELL: VILLAGE_CELL, villagesOf: villagesOf, villageOf: villageOf, neighborsOf: neighborsOf, freeSpots: freeSpots, suggestedSpot: suggestedSpot, spotProblem: spotProblem, inviteNeighbor: inviteNeighbor, applyVillage: applyVillage, approveVillage: approveVillage, rejectVillage: rejectVillage, joinVillage: joinVillage, moveHouse: moveHouse, leaveVillage: leaveVillage, askLeave: askLeave, villageInfo: villageInfo, myInvites: myInvites, viewVillage: viewVillage, cleanVillages: cleanVillages, connected: connected,
-    freshTutorial: freshTutorial, cleanTutorial: cleanTutorial, NATURE_MAX: NATURE_MAX, naturesOf: naturesOf, natureOf: natureOf, natureToday: natureToday, writeNature: writeNature, removeNature: removeNature, setNatureVis: setNatureVis, natureView: natureView, natureDays: natureDays, cleanNatures: cleanNatures, relations: relations,
+    freshTutorial: freshTutorial, cleanTutorial: cleanTutorial, relations: relations,
     foodAvail: foodAvail, foodSupply: foodSupply, FOOD_FAIL: FOOD_FAIL, nameWith: nameWith, nameOf: nameOf,
     P: P, MAX_POINTS: MAX_POINTS, parsePoints: parsePoints, fmtPoints: fmtPoints, pts: pts, CHAR_MAX: CHAR_MAX, BG_MAX: BG_MAX, charId: charId, isCharId: isCharId, serialOfChar: serialOfChar, abbrevChar: abbrevChar, expandChar: expandChar, charsOf: charsOf, firstChar: firstChar, curChar: curChar, setCur: setCur, charOf: charOf, pickChar: pickChar, cleanBg: cleanBg, bgOf: bgOf, setBg: setBg, openChar: openChar, closeChar: closeChar, charBlockers: charBlockers, isEmptyItem: isEmptyItem, deliverText: deliverText, emptyOf: emptyOf, DELIVER_MAX: DELIVER_MAX, PROBLEM_MAX: PROBLEM_MAX, PROBLEM_DEFAULT: PROBLEM_DEFAULT, noticeChar: noticeChar, findChar: findChar,
     CATS: CATS, SUBS: SUBS, BIGS: BIGS, VERBS: VERBS, TAG_MAX: TAG_MAX, NOTICE_DAYS: NOTICE_DAYS, NOTICE_MAX: NOTICE_MAX, renewNotice: renewNotice, expiringNotices: expiringNotices, inActiveCircle: inActiveCircle, chainTree: chainTree, NODE_STATUS: NODE_STATUS, catOf: catOf, classify: classify, cleanTags: cleanTags, normText: normText, matchText: matchText, matchItem: matchItem, setNotice: setNotice, VACATED_MAX: VACATED_MAX,
@@ -2950,7 +2910,7 @@ var APP = (function () {
     me = r;
     if (skip) { tut().step = 'done'; tut().skipped = true; }
     changed(); emit('me'); tutTick();
-    if (!skip) goHouse(r.serial);   // 創完角色到能量之家：教學第 2 步寫前情提要（補二十二）
+    if (!skip) goHouse(r.serial);   // 創完角色到能量之家（首頁）：教學第 2 步在這裡就能按骰子
     return r;
   }
   // 測試和示範用：放一個示範的「我」（J1），教學算跳過
@@ -2987,7 +2947,7 @@ var APP = (function () {
     return { rows: out, next: next, hint: hint };
   }
 
-  /* ---------- 新手教學（DESIGN 7-4）：六步（補二十三：空的不用兌現，原本的第 6 步「兌現」拿掉）；最後一步看自己的能量之家 ---------- */
+  /* ---------- 新手教學（DESIGN 7-4）：五步（2026-11-20 前情提要那步拿掉）；最後一步看自己的能量之家 ---------- */
   var GUIDE = CORE.GUIDE, TUT_SLOT_US = 60e6;   // 引路人的時段：走到約他那一步才開，大約一分鐘後
   function tut() { return state.tutorial; }
   function tutActive() { return tut().step !== 'done'; }
@@ -2998,14 +2958,13 @@ var APP = (function () {
   // 每一步：名字、怎麼做、在哪一張紙、做完沒
   var TUT = [
     { id: 't1', name: '創角色', how: '資源表那張紙已經寫好第一行「空的」，填名字、生產背景（最多 6 個字）和每天的點，按「建立」。出問題怎麼辦也先寫好一句，可以改', sheet: 'res', done: function () { return !isBlank(); } },
-    { id: 't2', name: '寫前情提要', how: '能量之家首頁最上面已經幫你寫好一句前情提要，可以改；給了自然 1 點，按「寫好了」。亮＝今天跟自然交流過', sheet: 'house', done: function () { return !!CORE.natureOf(state, me.serial, CORE.dayNum(now())); } },
-    { id: 't3', name: '找陌生人：骰子', how: '按最上面的骰子骰出一個序號，按「去」，看他的資源表（也可以按「看他的能量之家」）', sheet: 'res', done: function () { return !!tut().went; } },
-    { id: 't4', name: '約引路人、選他的「空的」', how: '到「公告欄」打「空的」找到引路人（教學）的公告，按「約他」；事件簿多一行（會到已經勾了），在那一行按「選他的東西」選他的「空的」。引路人一定會選你的「空的」。兩邊都是空的、一樣多：一樣多時，來約的人是主動方，主動那一格圈「我」，寫「照我的規則・他接受了」（引路人自動接受）', sheet: 'find',
+    { id: 't2', name: '找陌生人：骰子', how: '按最上面的骰子骰出一個序號，按「去」，看他的資源表（也可以按「看他的能量之家」）', sheet: 'res', done: function () { return !!tut().went; } },
+    { id: 't3', name: '約引路人、選他的「空的」', how: '到「公告欄」打「空的」找到引路人（教學）的公告，按「約他」；事件簿多一行（會到已經勾了），在那一行按「選他的東西」選他的「空的」。引路人一定會選你的「空的」。兩邊都是空的、一樣多：一樣多時，來約的人是主動方，主動那一格圈「我」，寫「照我的規則・他接受了」（引路人自動接受）', sheet: 'find',
       done: function () { var s = tutSlot(); if (!s || s.bookings.indexOf(me.serial) < 0 || !CORE.isPresent(state, me.serial, s.id)) return false; var gc = CORE.slotChar(state, s, GUIDE); return !!gc && CORE.wantsValid(state, s, me.serial, GUIDE).some(function (id) { var x = CORE.resourceOf(CORE.version(gc, s.atUs), id); return x && CORE.isEmptyItem(x); }); } },
-    { id: 't5', name: '那一微秒', how: '你和引路人都選了空的，一樣多時，來約的人是主動方，所以主動那一格圈「我」、照你的規則。大約一分鐘後，白光一閃，跳出成交結果：「我給他：空的；我收到：引路人的空的；主動：我（生產背景）・照我的規則」；那一行變成成交，對方簽名出現紅字「引路人」，兌現那格寫「不用交」。跟人換到實體時，東西到手再按『兌現』；空的不用。不用守著', sheet: 'log', done: function () { return !!tutDocking(); } },
-    { id: 't6', name: '看自己的能量之家', how: '按「去我的能量之家」：你 0 歲，第一塊磚變彩色了。彩色＝今天跟人換過', sheet: 'house', done: function () { return !!tut().house; } }
+    { id: 't4', name: '那一微秒', how: '你和引路人都選了空的，一樣多時，來約的人是主動方，所以主動那一格圈「我」、照你的規則。大約一分鐘後，白光一閃，跳出成交結果：「我給他：空的；我收到：引路人的空的；主動：我（生產背景）・照我的規則」；那一行變成成交，對方簽名出現紅字「引路人」，兌現那格寫「不用交」。跟人換到實體時，東西到手再按『兌現』；空的不用。不用守著', sheet: 'log', done: function () { return !!tutDocking(); } },
+    { id: 't5', name: '看自己的能量之家', how: '按「去我的能量之家」：你 0 歲，第一塊磚變彩色了。彩色＝今天跟人換過', sheet: 'house', done: function () { return !!tut().house; } }
   ];
-  var NO = ['①', '②', '③', '④', '⑤', '⑥'];
+  var NO = ['①', '②', '③', '④', '⑤'];
   function tutSteps() {
     var T = tut(), rows = TUT.map(function (x, i) { return { id: x.id, no: NO[i], name: x.name, ok: i + 1 < T.step, status: x.how, sheet: x.sheet, tut: true }; });
     var next = rows[T.step - 1] || null;
@@ -3014,10 +2973,9 @@ var APP = (function () {
   // 畫面告訴我發生了什麼：按了骰子、按「去」到了別人那張紙、到了自己的能量之家
   function tutEvent(name, arg) {
     var T = tut(); if (!tutActive()) return;
-    if (name === 'dice' && T.step === 3) T.dice = true;
-    if (name === 'go' && T.step === 3 && T.dice && arg && arg !== me.serial) T.went = true;
-    if (name === 'nature' && T.step === 2) { T.nature = true; tutTick(); emit('firstLit'); return; }
-    if (name === 'myHouse' && T.step === 6) { T.house = true; tutTick(); emit('firstBrick'); return; }
+    if (name === 'dice' && T.step === 2) T.dice = true;
+    if (name === 'go' && T.step === 2 && T.dice && arg && arg !== me.serial) T.went = true;
+    if (name === 'myHouse' && T.step === 5) { T.house = true; tutTick(); emit('firstBrick'); return; }
     tutTick();
   }
   function tutSkip() { var T = tut(); if (!tutActive() || isBlank()) return; T.step = 'done'; T.skipped = true; changed(); emit('tut', 'done'); }
@@ -3026,9 +2984,9 @@ var APP = (function () {
     var T = tut(); if (!tutActive() || typeof T.step !== 'number' || isBlank()) return;
     var g = guide(); if (!g) { T.step = 'done'; return; }
     var dirty = false, t = now();
-    if (T.step >= 4 && T.step <= 5) {
+    if (T.step >= 3 && T.step <= 4) {
       var s = tutSlot();
-      if (!s || (s.judged && !tutDocking())) { s = CORE.addSlot(state, GUIDE, t + TUT_SLOT_US + Math.floor(Math.random() * 1000), 1, null, t); T.slot = s.id; if (T.step === 5) T.step = 4; dirty = true; }   // 走到約他那一步才開；錯過了再開一個
+      if (!s || (s.judged && !tutDocking())) { s = CORE.addSlot(state, GUIDE, t + TUT_SLOT_US + Math.floor(Math.random() * 1000), 1, null, t); T.slot = s.id; if (T.step === 4) T.step = 3; dirty = true; }   // 走到約他那一步才開；錯過了再開一個
       if (s.bookings.indexOf(me.serial) >= 0 && !s.judged) { var e = emptyOf(me, s.atUs); if (e && CORE.wantsValid(state, s, GUIDE, me.serial).indexOf(e.id) < 0) { CORE.setWants(state, s.id, GUIDE, me.serial, [e.id]); dirty = true; } }   // 引路人一定選玩家的「空的」
     }
     var guard = 0;
@@ -3106,8 +3064,8 @@ var KIT = (function () {
     if (!b) return 'none';
     var c = [];
     if (b.future) c.push('fut');
-    // 補二十二：lit＝有前情提要（亮）；lv1～3＝跟人成交的級數（顏色越深）；蓋布、小記號、虛線框照舊
-    if (b.cover) c.push('cover'); else { if (b.lit) c.push('lit'); if (b.level) c.push('lv' + Math.min(3, b.level)); }
+    // lv1～3＝跟人成交的級數（顏色越深）；不分亮暗（2026-11-20）；蓋布、小記號、虛線框照舊
+    if (b.cover) c.push('cover'); else if (b.level) c.push('lv' + Math.min(3, b.level));
     if (!b.level && b.mark) c.push('mark'); else if (b.booked && !b.level) c.push('bk');
     return c.join(' ') || 'empty';
   }
@@ -3123,7 +3081,7 @@ var KIT = (function () {
     for (var i = 0; i < lead; i++) cells.push('<td class="pad"></td>');
     for (var k = 0; k < days; k++) {
       var dn = first + k, b = byDay[dn], lines = [], more = '', cls = dn < v.born ? 'none' : b ? cellCls(b) : 'empty';
-      if (!v.closed && dn >= v.born && b && (b.n || b.cover || b.lit)) {
+      if (!v.closed && dn >= v.born && b && (b.n || b.cover)) {
         var d = CORE.dayDetail(S, ownerSerial, viewerSerial, dn, now);
         if (!d.closed) {
           d.entries.forEach(function (e) { var st = e.status === 'traded' ? 'traded' : e.status === 'booked' ? 'booked' : e.status === 'miss' ? 'miss' : 'nodock'; cnt[st]++; lines.push(esc(e.time + ' ' + e.other.name + (st === 'booked' ? '（約）' : st === 'miss' ? '（錯過）' : st === 'nodock' ? '（沒成）' : ''))); });
@@ -3137,10 +3095,9 @@ var KIT = (function () {
     while (cells.length % 7) cells.push('<td class="pad"></td>');
     var trs = ''; for (var r = 0; r < cells.length / 7; r++) trs += '<tr style="height:calc(var(--mm)*' + h + ')">' + cells.slice(r * 7, r * 7 + 7).join('') + '</tr>';
     var sub = '<button type="button" class="mini o" data-act="calMonth" data-n="-1">‹ 前一個月</button><button type="button" class="mini o" data-act="calMonth" data-n="1">後一個月 ›</button>　一個月一張・一格一天' + (v.closed ? '・<span class="tagp off">只給鄰居看</span>' : '');
-    var natDays = v.closed ? 0 : CORE.natureDays(S, ownerSerial, viewerSerial, first, first + days - 1);
-    var fields = '<span><span class="ln s">' + y + '</span> 年 <span class="ln s">' + (m + 1) + '</span> 月</span><span>名字 <span class="ln">' + esc(owner ? owner.name : CORE.abbrev(ownerSerial)) + (mine ? '（我）' : '') + '</span></span><span class="tot">這個月成交 <b class="num">' + cnt.traded + '</b> 次・沒成 <b class="num">' + cnt.nodock + '</b> 次・錯過 <b class="num">' + cnt.miss + '</b> 次・還約著 <b class="num">' + cnt.booked + '</b> 次・寫了前情提要 <b class="num" id="natDays">' + natDays + '</b> 天</span>';
+    var fields = '<span><span class="ln s">' + y + '</span> 年 <span class="ln s">' + (m + 1) + '</span> 月</span><span>名字 <span class="ln">' + esc(owner ? owner.name : CORE.abbrev(ownerSerial)) + (mine ? '（我）' : '') + '</span></span><span class="tot">這個月成交 <b class="num">' + cnt.traded + '</b> 次・沒成 <b class="num">' + cnt.nodock + '</b> 次・錯過 <b class="num">' + cnt.miss + '</b> 次・還約著 <b class="num">' + cnt.booked + '</b> 次</span>';
     var body = '<table class="calp" data-y="' + y + '" data-m="' + m + '"><colgroup>' + '<col style="width:14.28%">'.repeat(7) + '</colgroup><thead><tr><th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th></tr></thead><tbody>' + trs + '</tbody></table>';
-    var foot = mine ? '<b>一格一天</b>：底色跟能量之家的磚一樣，寫了前情提要就亮，跟人成交就有顏色、成交越多顏色越深，沒成、錯過有小記號，還約著的是虛線框；創角色以前的日子空著，今天紅框。<b>點一格</b>翻到那天的事件簿，還沒到的日子也能點，進去可以開時段。' : '<b>' + esc(owner ? owner.name : '') + ' 的日曆</b>：跟看他的能量之家一樣，他藏起來的那幾筆看不到（蓋布）；點一格看那天。';
+    var foot = mine ? '<b>一格一天</b>：底色跟能量之家的磚一樣，跟人成交就有顏色、成交越多顏色越深，沒成、錯過有小記號，還約著的是虛線框；創角色以前的日子空著，今天紅框。<b>點一格</b>翻到那天的事件簿，還沒到的日子也能點，進去可以開時段。' : '<b>' + esc(owner ? owner.name : '') + ' 的日曆</b>：跟看他的能量之家一樣，他藏起來的那幾筆看不到（蓋布）；點一格看那天。';
     return page('cal', '日曆', sub, fields, body, foot);
   }
   /* ---------- 那天的明細：點一格或點一塊磚 ---------- */
@@ -3162,12 +3119,8 @@ var KIT = (function () {
       return '<div class="ent">' + head + body + vis + '</div>';
     }).join('');
     var covered = d.covered ? '<div class="small muted ent">還有 ' + d.covered + ' 筆蓋著</div>' : '';
-    // 最上面是那天的前情提要（看的人看得到才顯示）；自己的可以改給誰看
-    var nat = d.nature ? '<div class="ent nature"><div class="ent-h"><b>前情提要</b> <span class="tag">給了自然 ' + CORE.fmtPoints(d.nature.points) + ' 點</span></div><div class="small natext">' + esc(d.nature.text) + '</div>' + (d.nature.mine ? '<div class="vis"><label class="small">給誰看：<select data-natvis="' + d.nature.day + '" aria-label="前情提要給誰看">' + Object.keys(VIS).map(function (k) { return '<option value="' + k + '"' + (k === d.nature.vis ? ' selected' : '') + '>' + VIS[k] + '</option>'; }).join('') + '</select></label></div>' : '') + '</div>' : '';
-    rows = nat + rows;
     var rules = '<details class="small"><summary>那天生效的規則表和資源表</summary><div>用途：' + esc(d.rules.uses.join('；') || '（沒寫）') + '</div><div>對接條件：' + esc(d.rules.conditions.join('；') || '沒有條件') + '</div><div>出問題怎麼辦：' + esc(d.rules.problem || '（沒寫）') + '</div><div>家規：' + esc(d.rules.village || '（沒有）') + '</div><div>資源：' + esc(d.resources.map(function (x) { return x.name + ' ' + CORE.fmtPoints(x.price) + ' 點（' + (x.deliver === '不用交' ? '不用交' : '交：' + x.deliver) + '）'; }).join('、') || '（沒有）') + '</div></details>';
     pop((owner ? owner.name + ' ' : '') + d.label, { html: (rows || (d.covered ? '' : '<div class="small muted">這一天沒有紀錄。</div>')) + covered + rules }, [{ label: '好', pri: true }]);
-    $('popBody').querySelectorAll('[data-natvis]').forEach(function (sel) { sel.onchange = function () { var r = APP.run(function () { CORE.setNatureVis(APP.state(), me, +sel.dataset.natvis, sel.value); }); if (!r.ok) alertMsg(r.msg); dayPop(ownerSerial, day, onChange); if (onChange) onChange(); }; });
     $('popBody').querySelectorAll('[data-vis]').forEach(function (sel) { sel.onchange = function () { var r = APP.run(function () { CORE.setVis(APP.state(), me, sel.dataset.vis, sel.value); }); if (!r.ok) alertMsg(r.msg); dayPop(ownerSerial, day, onChange); if (onChange) onChange(); }; });
     $('popBody').querySelectorAll('[data-goserial]').forEach(function (b) { b.onclick = function () { close(); APP.goTable(b.dataset.goserial, 'res', 'link'); }; });
   }
@@ -3262,10 +3215,8 @@ var WORLD = (function () {
     lastAtlas = { w: c.width, h: c.height };
     var tex = new T.CanvasTexture(c); tex.anisotropy = 4; tex.flipY = false; return tex;
   }
-  // 磚的顏色（補二十二）：跟人成交越多顏色越深（1～3 級）；亮的（有前情提要）是自己發光的亮色，暗的是受光的深色
-  function litColor(level) { return new T.Color(level >= 3 ? '#E8A41C' : level === 2 ? '#F0BE4A' : '#F7D684'); }
+  // 磚的顏色：跟人成交越多顏色越深（1～3 級）；不分亮暗（2026-11-20 前情提要拿掉）
   function darkColor(level) { return new T.Color(level >= 3 ? '#8A5E16' : level === 2 ? '#B07F2A' : '#C9A14A'); }
-  var LIT_GRAY = '#F6F1E3';   // 亮的灰白：只有前情提要
 
   /* ---------- 建場景 ---------- */
   function init(el) {
@@ -3328,13 +3279,13 @@ var WORLD = (function () {
       var edge = add(new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(CW + 0.02, CH + 0.02, CD + 0.02)), new T.LineBasicMaterial({ color: '#2D5A86', depthTest: false, transparent: true })), 'previewedge'); edge.position.copy(box.position); edge.renderOrder = 11;
       counts.previewThrough = true;
     }
-    // 磚：沒亮、亮、蓋布、虛線（未來的預約），加上小記號；只畫在房子上有位置的
-    var unlit = [], litGray = [], dark = [], litCol = [], cover = [], fut = [], mark = [];
+    // 磚：灰白（沒成交）、彩色（成交）、蓋布、虛線（未來的預約），加上小記號；只畫在房子上有位置的
+    var unlit = [], dark = [], cover = [], fut = [], mark = [];
     var posOf = function (b) { return b.g.m < list.length ? list[b.g.m] : (cal.preview && b.g.m === list.length ? cal.preview.pos : null); };
     view.bricks.forEach(function (b) {
       if (!b.onHouse || !b.g) return; var p = posOf(b); if (!p) return; b._p = p;
-      // 暗的灰白（都沒有）、亮的灰白（只有前情提要）、暗的彩色（只跟人換）、亮的彩色（兩個都有）；藏起來的蓋布；未來的虛線
-      if (closed) unlit.push(b); else if (b.future) fut.push(b); else if (b.cover) cover.push(b); else if (b.level && b.lit) litCol.push(b); else if (b.level) dark.push(b); else if (b.lit) litGray.push(b); else unlit.push(b);
+      // 灰白（沒成交）、彩色（跟人成交，越多越深）；藏起來的蓋布；未來的虛線
+      if (closed) unlit.push(b); else if (b.future) fut.push(b); else if (b.cover) cover.push(b); else if (b.level) dark.push(b); else unlit.push(b);
       if (!closed && b.mark && !b.future) mark.push(b);
     });
     var geo = new T.BoxGeometry(BS, BS, BD);
@@ -3345,10 +3296,8 @@ var WORLD = (function () {
       m.userData.days = bl.map(function (b) { return b.day; }); picks.push(m); counts[name] = bl.length; return m;
     };
     put(unlit, new T.MeshLambertMaterial({ color: closed ? '#A99C88' : BRICK }), 'unlit');
-    put(litGray, new T.MeshBasicMaterial({ color: LIT_GRAY }), 'litgray');
     put(dark, new T.MeshLambertMaterial({ color: 0xffffff }), 'dark', function (b) { return darkColor(b.level); });
-    put(litCol, new T.MeshBasicMaterial({ color: 0xffffff }), 'lit', function (b) { return litColor(b.level); });
-    counts.litAll = litGray.length + litCol.length; counts.colored = dark.length + litCol.length;
+    counts.colored = dark.length;
     put(cover, new T.MeshLambertMaterial({ map: cloth() }), 'cover');
     put(fut, new T.MeshBasicMaterial({ map: dashed(), transparent: true, opacity: 0.95, depthWrite: false }), 'future');
     var mk = inst(new T.BoxGeometry(BS * 0.36, BS * 0.36, 0.02), new T.MeshBasicMaterial({ color: '#2B2520' }), mark.length, 'mark');
@@ -3696,7 +3645,7 @@ var WORLD = (function () {
     available: true, atlasSize: atlasSize, texSize: function () { return lastAtlas; }, init: init, show: show, resize: resize, setInsets: setInsets, hitAt: hitAt, screenOf: screenOf, focusDay: focusDay, lookCalendar: lookCalendar, lookVillage: lookVillage,
     onTap: function (fn) { onTap = fn; },
     pause: function () { paused = true; if (raf) { cancelAnimationFrame(raf); raf = 0; } }, resume: function () { paused = false; dirty = true; loop(); },
-    info: function () { var c = (counts.unlit || 0) + (counts.litgray || 0) + (counts.dark || 0) + (counts.lit || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, lit: counts.litAll || 0, colored: counts.colored || 0, litColored: counts.lit || 0, litGray: counts.litgray || 0, dark: counts.dark || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length - 1 + (hg ? hg.children.length : 0) : 0, serial: current ? current.serial : null, empty: !!counts.empty, building: building, focus: focus, animating: !!anim, previewThrough: !!counts.previewThrough, houses: counts.houses || 0, farFaces: counts.farFaces || 0, spots: counts.spots || 0, selSpot: counts.selSpot || null, rot: hg ? hg.rot || 0 : 0 }; },
+    info: function () { var c = (counts.unlit || 0) + (counts.dark || 0) + (counts.cover || 0) + (counts.future || 0); return { calls: lastCalls, bricks: c, colored: counts.colored || 0, dark: counts.dark || 0, cover: counts.cover || 0, future: counts.future || 0, marks: counts.mark || 0, cal: counts.cal || 0, blocks: counts.blocks || 0, faces: counts.faces || 0, props: counts.props || 0, theta: cam.theta, phi: cam.phi, dist: cam.dist, target: cam.target.toArray(), meshes: root ? root.children.length - 1 + (hg ? hg.children.length : 0) : 0, serial: current ? current.serial : null, empty: !!counts.empty, building: building, focus: focus, animating: !!anim, previewThrough: !!counts.previewThrough, houses: counts.houses || 0, farFaces: counts.farFaces || 0, spots: counts.spots || 0, selSpot: counts.selSpot || null, rot: hg ? hg.rot || 0 : 0 }; },
     calPose: function () { return current ? calPose() : null; },
     villagePose: function () { if (!current) return null; var p = villagePose(); return { target: p.target.toArray(), theta: p.theta, phi: p.phi, dist: p.dist, neighbor: p.neighbor || null }; },
     // 畫面上看到的這個月那塊有多大（像素，高和寬）
@@ -3837,7 +3786,7 @@ var SHEETS = (function () {
     var trs2 = held.slice(0, 3).map(function (h) { var d2 = h.docking ? CORE.dockingOf(S(), h.docking) : null; return '<tr data-row data-id="' + h.id + '"' + rowH(8.6) + '><td>' + md(CORE.dayNum(h.atUs)) + '</td><td>' + lk(h.issuer, h.issuerRole) + ' ' + esc(nameW(h.issuer, h.issuerRole, h.atUs)) + '</td><td>' + esc(h.name) + '<small>' + esc((h.deliver ? '交：' + h.deliver : '交：（舊的，沒寫）') + '・' + (h.untilDay == null ? '一直留' : '留到 ' + md(h.untilDay))) + '</small></td><td>' + (d2 ? leadDone(d2, m) : '') + '</td><td>' + (h.status === 'redeemed' ? hhmm(h.redeemedAt) + ' ' + sig(nameOf(h.issuer)) : btn('redeem', '兌現', ' data-id="' + h.id + '"')) + '</td><td>' + problemBtn(h, m) + '</td></tr>'; }).join('') + pad(Math.max(0, 3 - held.length), 6, 8.6) + (held.length > 3 ? '<tr' + rowH(6) + '><td colspan="6" class="dim">還有 ' + (held.length - 3) + ' 筆，翻到收到那天的事件簿看</td></tr>' : '');
     var remind = reminders(m);
     var sub = btn('prevDay', '‹ 前一天', '', 'o') + btn('nextDay', '後一天 ›', '', 'o') + (isToday ? '' : btn('today', '今天', '', 'o')) + '　一天一張・照時間往下寫・點日期到日曆紙' + (pages > 1 ? '　' + btn('pagePrev', '‹', UI.page ? '' : ' disabled', 'o') + ' 第 ' + (UI.page + 1) + '／' + pages + ' 張 ' + btn('pageNext', '›', UI.page < pages - 1 ? '' : ' disabled', 'o') : '');
-    var fields = '<span>日期 ' + ln('<button type="button" class="lk" data-act="pickDay">' + esc(dayText(dn)) + '</button>') + '</span><span>名字 ' + ln(esc(m.name) + '（' + esc(CORE.abbrev(m.serial)) + '）') + '</span><span>今天最多給 ' + ln(fmt(daily), 's') + ' 點</span>' + (isToday ? '<span>現在還能給 ' + ln('<b id="energyText">' + fmt(CORE.remainingToday(S(), m, t)) + '</b>', 's') + ' 點</span><span class="small natline">' + (function () { var nat = CORE.natureOf(S(), m.serial, dn); return nat ? '已還自然 ' + fmt(nat.points) + ' 點 ' + btn('natureGo', '前情提要', '', 'o') : btn('natureGo', '寫今天的前情提要', '', 'o'); })() + '</span>' : '');
+    var fields = '<span>日期 ' + ln('<button type="button" class="lk" data-act="pickDay">' + esc(dayText(dn)) + '</button>') + '</span><span>名字 ' + ln(esc(m.name) + '（' + esc(CORE.abbrev(m.serial)) + '）') + '</span><span>今天最多給 ' + ln(fmt(daily), 's') + ' 點</span>' + (isToday ? '<span>現在還能給 ' + ln('<b id="energyText">' + fmt(CORE.remainingToday(S(), m, t)) + '</b>', 's') + ' 點</span>' : '');
     var body = (remind ? '<div class="remind">' + remind + '</div>' : '') + '<table>' + cols([7, 12, 15, 17, 9, 8, 7, 10, 15]) + th([['時間'], ['跟誰', '名字（生產背景）'], ['我給他', '他選了我的什麼・價錢・交什麼'], ['我收到', '我選了他的什麼・交什麼・保留到哪天'], ['主動', '圈主動的那個・照誰的規則'], ['結果', '成交／沒成／沒來'], ['今天還剩', '點'], ['對方簽名', '成交就自動簽'], ['兌現', '哪天・對方簽名・出問題']]) + '<tbody>' + trs + '</tbody></table>' +
       '<div class="lab">以前收到、還沒兌現的（背包；今天去換）</div><table>' + cols([11, 18, 29, 10, 18, 14]) + th([['哪天收到的'], ['誰的', '哪個角色'], ['什麼東西', '交什麼'], ['主動'], ['兌現・對方簽名'], ['出問題', '一句話，兩個人看得到']]) + '<tbody>' + trs2 + '</tbody></table>';
     return page('log', '事件簿', sub, fields, body, '<b>成交</b>：在約好的時間見面，兩邊都選了對方一樣東西才算，只有一邊選就是沒成。<b>主動</b>：給得多的那個人（一樣多時是來約的人）；只判主動方的條件，被動方要先接受主動方的「出問題怎麼辦」和家規。<b>今天還剩</b>：每成交一次，扣掉對方選的那樣東西的價錢；沒給完的點隔天不留。<b>兌現</b>：東西交到你手上再按，空的不用。<b>出問題</b>：收的人寫一句話，只有你們兩個看得到。');
@@ -4297,8 +4246,8 @@ var SHEETS = (function () {
     ['五張紙', '事件簿、日曆、資源表、公告欄、更多，跟紙本一模一樣的 A4 橫式。手機轉橫看整張；直放可以左右滑。寫進去的是藍字，簽名是紅字（系統簽）。'],
     ['人和角色', '一個人（序號 J1）一份每天的點、聯絡方式、能量之家、背包；底下的角色（角色編號 J1-1）各有生產背景、規則表、資源表。一個人最多 5 個角色（更多→我的角色、資源表上面的「＋開新角色」），每天的點共用；自己的角色之間不能換。'],
     ['現在用的角色', '有兩個以上角色時，在能量之家首頁那一列（或資源表上面的分頁）點一個，就是現在用的角色：資源表、規則表打開的是它，約人、開時段、掛公告、設密鑰都用它。那幾個地方有一行「用（廚房）・換」，可以臨時換一個。'],
-    ['生產背景', '這個角色用什麼生產（廚房、相機、後山），最多 6 個字，寫在名字後面的括弧裡：「阿澄（聊天傾聽）」。一定要寫；改了隔天才算。田、河、後山這類自然界的，旁邊勾「自然」。'],
-    ['日曆', '一個月一張，一格一天：底色跟能量之家的磚一樣，成交越多越亮，沒成、錯過有小記號，還約著的是虛線框，今天紅框；一格裡寫那天幾點跟誰。點一格翻到那天的事件簿。他的日曆在他的那張紙「看他的日曆」，照藏的規則。'],
+    ['生產背景', '這個角色用什麼生產（廚房、相機、後山），最多 6 個字，寫在名字後面的括弧裡：「阿澄（聊天傾聽）」。一定要寫；改了隔天才算。田、河、後山這類自然界的，旁邊勾「自然」；跟自然換就是跟勾了自然的角色換，跟一般的換一樣。'],
+    ['日曆', '一個月一張，一格一天：底色跟能量之家的磚一樣，成交越多顏色越深，沒成、錯過有小記號，還約著的是虛線框，今天紅框；一格裡寫那天幾點跟誰。點一格翻到那天的事件簿。他的日曆在他的那張紙「看他的日曆」，照藏的規則。'],
     ['序號或密鑰框和骰子', '最上面的框輸入序號（例如 J2）或角色編號（J2-1）按「去」就到那個人的資源表；輸入打招呼密鑰就跟配對的人當場換一次（等對方 1 分鐘）。按骰子骰一個還在玩的人的序號進框裡，按「去」才過去，不喜歡可以再骰。'],
     ['事件簿', '一天一張，一行一次見面：時間、跟誰、我給他、我收到、主動、結果、今天還剩、對方簽名、兌現。還沒到的那一行淡黃：倒數、選他的東西、會到的勾（預設勾著）、取消。在空白那一行的時間格寫時間就開了一個時段。下面一小張是以前收到、還沒兌現的（就是背包），每一筆旁邊可以寫「出問題」。點日期到日曆紙的那個月。'],
     ['主動方、被動方', '一對人裡給得多的那個是主動方（對方選走的東西價錢加起來比較多）；一樣多時，來約的人是主動方（兩個都是來約的，比較早約的；打招呼密鑰是先輸入的）。那一微秒只判主動方規則表裡的條件，被動方要先接受主動方的「出問題怎麼辦」和家規那一版，沒接受不成交。事件簿「主動」那一格圈著誰，就照誰的規則。'],
@@ -4310,8 +4259,8 @@ var SHEETS = (function () {
     ['村子', '處得好的人把能量之家搬到同一個村子（到他的那張紙「邀他當鄰居」或「申請搬去他那個村子」，村裡每個人同意，再到能量之家挑一塊地）。鄰居看得到彼此「只給鄰居看」的屋和那幾筆。在能量之家點村裡別間屋，畫面滑過去；「看村子」拉遠從上面看。更多 → 鄰居和村子：有誰、待同意的、搬走、換位置。'],
     ['那一微秒', '成交那一刻整個畫面白光一閃，跳出成交結果：我給他、我收到、主動方是誰、照誰的規則；那一行變成交、對方簽名變紅字；收到實體的東西，到手再按「兌現」。沒開著的話，下次打開跳出「你不在的時候」。成交結果裡可以勾「以後每天這個時間自動約」，兩邊都勾就成固定約，事件簿每天那一行標「每天」，按「停」結束。'],
     ['更多', '規則表（用途、對接條件、出問題怎麼辦、家規和家規網站、每人最多給的預設）、我接受過的規則、一起成交、打招呼密鑰、我開的時段、我的能量之家、鄰居和村子、交換關係、聯絡方式和不玩了、說明。'],
-    ['能量之家', '每個人一間：自己蓋的房子，上面長著一條日曆，一個月一塊、一天一塊磚，寫了前情提要就亮，跟人換過就是彩色。點門進他的資源表那張紙。在自己的能量之家外面按「蓋」改房子、搬門、選日曆往哪長。'],
-    ['新手教學', '六步：創角色（寫生產背景）、寫前情提要、骰子、約引路人選他的「空的」、那一微秒、看自己的能量之家。可以跳過；教學的對接標「教學」，不算進對接過幾次。']
+    ['能量之家', '每個人一間：自己蓋的房子，上面長著一條日曆，一個月一塊、一天一塊磚，跟人換過就是彩色，換越多顏色越深。點門進他的資源表那張紙。在自己的能量之家外面按「蓋」改房子、搬門、選日曆往哪長。'],
+    ['新手教學', '五步：創角色（寫生產背景）、骰子、約引路人選他的「空的」、那一微秒、看自己的能量之家。可以跳過；教學的對接標「教學」，不算進對接過幾次。']
   ];
   function helpPage() { return page('help', '說明', back() + '每個字是什麼意思', '', '<div class="help">' + HELP.map(function (h) { return '<h3>' + esc(h[0]) + '</h3><p>' + esc(h[1]) + '</p>'; }).join('') + '</div>', '', true); }
   // 他的規則：條件（我通不通）、出問題怎麼辦和家規（旁邊「接受」）、家規網站
@@ -4358,7 +4307,7 @@ var SHEETS = (function () {
     $('tother').innerHTML = o ? '<b>' + esc(CORE.abbrev(o.serial) + ' ' + nameW(o.serial)) + '</b> 的' + (UI.osheet === 'cal' ? '日曆 ' : '那張紙 ') + btn('home', '回我自己', '', 'o') : '<span class="small muted">' + (APP.isBlank() ? '還沒創角色' : '<span class="nw">我是 <b>' + esc(CORE.abbrev(m.serial) + ' ' + m.name) + '</b></span>' + (multi() ? '<span class="nw">・用（<b id="curChar">' + esc(bgNow(myChar()) || CORE.abbrevChar(myChar().id)) + '</b>）</span>' + btn('pickChar', '換', '', 'o') : '')) + '</span>';
     var st = APP.tutActive() && !APP.isBlank() ? APP.steps() : null;
     $('tutbar').hidden = !APP.tutActive();
-    if (APP.tutActive()) $('tutbar').innerHTML = '<span class="small">' + esc(APP.isBlank() ? '新手教學 ① 創角色：資源表那張紙已經寫好「空的」，填名字、生產背景和每天的點，按「建立」' : st.hint) + '</span>' + (APP.tut().step === 6 ? btn('myHouse', '去我的能量之家', '', 'go') : '') + (APP.isBlank() ? '' : btn('tutSkip', '跳過教學', '', 'o'));
+    if (APP.tutActive()) $('tutbar').innerHTML = '<span class="small">' + esc(APP.isBlank() ? '新手教學 ① 創角色：資源表那張紙已經寫好「空的」，填名字、生產背景和每天的點，按「建立」' : st.hint) + '</span>' + (APP.tut().step === 5 ? btn('myHouse', '去我的能量之家', '', 'go') : '') + (APP.isBlank() ? '' : btn('tutSkip', '跳過教學', '', 'o'));
     var cur = o ? null : (MORE.some(function (x) { return x[0] === UI.sheet; }) ? 'more' : UI.sheet === 'tree' ? 'find' : UI.sheet);
     $('ttabs').innerHTML = TABS.map(function (t) { return '<button type="button" class="tab' + (cur === t[0] ? ' on' : '') + '" data-act="tab" data-s="' + t[0] + '"' + (cur === t[0] ? ' aria-current="page"' : '') + '>' + esc(t[1]) + '</button>'; }).join('');
     var key = o ? UI.osheet : UI.sheet, scroll = window.scrollY, same = render.last === (o ? o.serial + ':' + (UI.ochar || '') : '') + key;
@@ -4491,7 +4440,6 @@ var SHEETS = (function () {
     foodGive: function () { UI.mode = 'want'; UI.cat = 'food'; render(); },
     cat: function (b) { var id = b.dataset.id || '', cur = UI.cat, curBig = cur ? (CORE.SUBS[cur] ? CORE.SUBS[cur].big : cur) : ''; UI.cat = id && (cur === id || (CORE.BIGS[id] && curBig === id)) ? '' : id; render(); },   // 再點一次同一個大類（或它底下的小類亮著）就收起來
     post: function () { var give = [].slice.call(document.querySelectorAll('#tmain [data-give]')).filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.give; }); var u = val('ntUntil'); run(function () { CORE.postNotice(S(), me().serial, { role: myChar().id, need: val('ntNeed'), cat: val('ntCat'), tags: val('ntTags'), give: give, cap: val('ntCap') || 3, untilDay: u ? CORE.dayNum(new Date(u + 'T12:00:00').getTime() * 1000) : null }, now()); }, '公告掛上去了'); },
-    natureGo: function () { APP.goHouse(me().serial); },
     mapPick: function (b) { UI.mapSel = UI.mapSel === b.dataset.id ? null : b.dataset.id; render(); },
     mapMore: function () { var el = $('mapTable'); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); },
     mapLog: function (b) { UI.other = null; UI.sheet = 'log'; UI.day = b.dataset.day ? +b.dataset.day : null; UI.page = 0; UI.msg = ''; render(); },
@@ -4630,7 +4578,7 @@ var HOUSE = (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var esc = APP.esc;
-  var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], cal: null, shown: false, ready: false, travel: false, pick: null, rot: 0, natEdit: false, peek: false };   // natEdit：首頁的前情提要正在改；peek：教學說明磚的時候先把首頁那一排收起來，磚才看得到   // cal：3D 用不了時日曆紙翻到哪個月；pick：挑地（{ village, pending }）；rot：挑地選的朝向
+  var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], cal: null, shown: false, ready: false, travel: false, pick: null, rot: 0, peek: false };   // peek：教學說明磚的時候先把首頁那一排收起來，磚才看得到   // cal：3D 用不了時日曆紙翻到哪個月；pick：挑地（{ village, pending }）；rot：挑地選的朝向
   function me() { return APP.me(); }
   function viewer() { return APP.isBlank() ? null : me().serial; }
   function data() { if (APP.isBlank()) return CORE.viewEmptyPlot(APP.now()); return CORE.viewHouse(APP.state(), st.serial, viewer(), APP.now()); }
@@ -4684,7 +4632,7 @@ var HOUSE = (function () {
   }
   // 還沒創角色的首頁：一塊空地（補二十五），上面一句話和「去建立角色」；蓋、看日曆、進門先藏起來
   function renderEmpty(opts) {
-    st.building = false; st.pick = null; st.natEdit = false;
+    st.building = false; st.pick = null;
     $('hwho').innerHTML = '<b>你的空地</b><span class="small muted"> 還沒有房子</span>';
     ['hVillage', 'hpick', 'hBuild', 'hDoor', 'hLook', 'hbuild'].forEach(function (id) { $(id).hidden = true; });
     $('hhint').textContent = WORLD.available ? '一指拖著轉、兩指縮放' : '還沒創角色：建立以後這裡會有你的房子和日曆';
@@ -4695,37 +4643,23 @@ var HOUSE = (function () {
     if (WORLD.available) { var fb = document.querySelector('.hfoot').getBoundingClientRect(); WORLD.setInsets(box.getBoundingClientRect().bottom - vb.top, vb.bottom - fb.top); WORLD.show(data(), { resetCamera: opts && opts.resetCamera }); }
     else { $('hcal').innerHTML = ''; }
   }
-  /* ---------- 首頁（補二十二）：自己的能量之家最上面一排，像讀小說：今天的前情提要、今天還剩幾點可以跟人換、事件簿／公告欄兩個大鈕、交換關係。3D 畫好之前就看得到、點得到 ---------- */
+  /* ---------- 首頁（補二十二）：自己的能量之家最上面一排：今天還剩幾點可以跟人換（前情提要 2026-11-20 拿掉）、事件簿／公告欄兩個大鈕、交換關係。3D 畫好之前就看得到、點得到 ---------- */
   function home(own, v) {
     var box = $('hhome'); box.hidden = !own || !!st.pick || st.building || st.peek;
     if (box.hidden) { box.innerHTML = ''; return; }
-    var S = APP.state(), m = me(), t = APP.now(), dn = CORE.dayNum(t), nat = CORE.natureOf(S, m.serial, dn), tutNat = APP.tutActive() && APP.tut().step === 2;
-    var html;
-    if (st.natEdit || (tutNat && !nat)) {
-      var text = nat ? nat.text : (tutNat ? '今天喝了一杯水，帶著好心情開始今天的旅程' : ''), pts = nat ? CORE.fmtPoints(nat.points) : '1';
-      html = '<div class="hnat edit"><label class="small">今天的前情提要（跟自然的交流，最多 ' + CORE.NATURE_MAX + ' 字）</label><textarea id="natText" rows="2" maxlength="' + CORE.NATURE_MAX + '" placeholder="例如：今天一早去後山撿柴，順手清了一袋垃圾，帶著開心的心情開始今天的旅程">' + esc(text) + '</textarea><div class="hnatrow"><label class="small">今天給了自然 <input type="number" id="natPts" value="' + pts + '" min="0" step="any" inputmode="decimal" aria-label="給了自然幾點"> 點</label><button type="button" class="btn sm pri" data-hact="natSave">寫好了</button>' + (nat ? '<button type="button" class="btn sm warn" data-hact="natDrop">整段撤掉</button>' : '') + '<button type="button" class="btn sm" data-hact="natCancel">' + (nat ? '不改了' : '先不寫') + '</button></div></div>';
-    } else if (nat) html = '<button type="button" class="hnat" data-hact="natEdit" title="點了能改"><span class="small">前情提要・給了自然 ' + CORE.fmtPoints(nat.points) + ' 點</span><span class="natext">' + esc(nat.text) + '</span></button>';
-    else html = '<button type="button" class="hnat empty" data-hact="natEdit">寫今天的前情提要<span class="small">今天跟自然的交流，和給了自然幾點</span></button>';
+    var S = APP.state(), m = me(), t = APP.now(), html = '';
     // 現在用的角色（第 13 輪）：有兩個以上角色時，首頁這一列點一個就換；約人、開時段、掛公告、設密鑰都用它
     var cs = CORE.charsOf(m), cur = CORE.curChar(m);
     var roles = cs.length < 2 ? '' : '<div class="hroles" id="hRoles"><span class="small">現在用</span>' + cs.map(function (c) { var bg = CORE.version(c, t).bg; return '<button type="button" class="btn sm' + (c === cur ? ' on' : '') + '" data-hact="useChar" data-id="' + c.id + '"' + (c === cur ? ' aria-current="true"' : '') + '>' + esc(CORE.abbrevChar(c.id) + (bg ? ' ' + bg : '')) + '</button>'; }).join('') + '</div>';
-    html += '<div class="hrow">' + roles + '<div class="hleft">今天還剩 <b id="hLeft">' + CORE.fmtPoints(CORE.remainingToday(S, m, t)) + '</b> 點可以跟人換' + (nat ? '<span class="small">・已還自然 ' + CORE.fmtPoints(nat.points) + ' 點</span>' : '') + '</div>';
+    html += '<div class="hrow">' + roles + '<div class="hleft">今天還剩 <b id="hLeft">' + CORE.fmtPoints(CORE.remainingToday(S, m, t)) + '</b> 點可以跟人換</div>';
     html += '<div class="hbig"><button type="button" class="btn big pri" data-hact="toLog">事件簿</button><button type="button" class="btn big pri" data-hact="toFind">公告欄</button><button type="button" class="btn sm" data-hact="toMap">交換關係</button></div></div>';   // 橫放時還剩和大鈕同一列，直放自動換行
     box.innerHTML = html;
-    var np = $('natPts'); if (np) KIT.fitInputs(np.parentNode);   // 給了自然幾點：長的小數也看得到全部
     var hb = document.querySelector('.hbar').getBoundingClientRect(), vb = $('view-house').getBoundingClientRect(); box.style.top = (hb.bottom - vb.top + 4) + 'px';
-  }
-  function natSave() {
-    var S = APP.state(), s = me().serial, wasTut = APP.tutActive() && APP.tut().step === 2;
-    var r = APP.run(function () { return CORE.writeNature(S, s, { text: $('natText').value, points: $('natPts').value }, APP.now()); }, '寫好了');
-    if (!r.ok) { msg(r.msg); return; }
-    st.natEdit = false; msg('寫好了，今天那塊磚亮起來'); render();
-    if (wasTut) APP.tutEvent('nature');
   }
   function tutBar() {
     var on = APP.tutActive() && !APP.isBlank(), stp = on ? APP.steps() : null;
     $('htut').hidden = !on;
-    if (on) $('htut').innerHTML = '<span class="small">' + esc(stp.hint) + '</span>' + (APP.tut().step === 6 ? '<button type="button" class="btn sm pri" data-hact="myHouse">去我的能量之家</button>' : '') + '<button type="button" class="btn sm warn" data-hact="tutSkip">跳過教學</button>';
+    if (on) $('htut').innerHTML = '<span class="small">' + esc(stp.hint) + '</span>' + (APP.tut().step === 5 ? '<button type="button" class="btn sm pri" data-hact="myHouse">去我的能量之家</button>' : '') + '<button type="button" class="btn sm warn" data-hact="tutSkip">跳過教學</button>';
   }
   function onTap(hit) {
     if (!hit || APP.isBlank()) return;
@@ -4824,10 +4758,6 @@ var HOUSE = (function () {
     else if (a === 'toFind') APP.goTable(null, 'find');
     else if (a === 'toMap') APP.goTable(null, 'map');
     else if (a === 'useChar') { APP.useChar(b.dataset.id); var c = CORE.curChar(me()); msg('現在用 ' + CORE.abbrevChar(c.id) + ' ' + (CORE.version(c, APP.now()).bg || '')); render(); }
-    else if (a === 'natEdit') { st.natEdit = true; render(); var ta = $('natText'); if (ta) ta.focus(); }
-    else if (a === 'natCancel') { st.natEdit = false; render(); }
-    else if (a === 'natSave') natSave();
-    else if (a === 'natDrop') { KIT.pop('整段撤掉？', '今天的前情提要整段拿掉，給自然的點全部退回；今天那塊磚暗回去。', [{ label: '不要' }, { label: '撤掉', warn: true, fn: function () { var r = APP.run(function () { CORE.removeNature(APP.state(), me().serial, APP.now()); }, '撤掉了，點退回來'); st.natEdit = false; msg(r.msg); render(); } }]); }
     else if (a === 'tutSkip') { APP.tutSkip(); msg('跳過了教學。想只收不給，記得要有 0 點的空物件。'); tutBar(); }
   });
   $('hSerialIn').addEventListener('keydown', function (e) { if (e.key === 'Enter') goSerial(); });
@@ -4846,10 +4776,8 @@ var HOUSE = (function () {
   APP.on('change', function () { if (st.shown) render(); });
   APP.on('tut', function () { if (st.shown) tutBar(); });
   APP.on('calGrow', function () { if (st.shown) render(); });
-  // 教學第 2 步：寫了前情提要，今天那塊磚亮起來
-  APP.on('firstLit', function () { peekBrick('亮＝今天跟自然交流過', '今天那塊磚亮起來了（就是上面框起來的那一塊）：寫了前情提要就亮。接下來跟人換：按「事件簿」，按最上面的骰子找個陌生人看看。'); });
-  // 教學第 6 步：鏡頭靠近第一塊日曆上今天那塊磚，框起來
-  APP.on('firstBrick', function () { peekBrick('你 0 歲，第一塊磚變彩色了', '就是上面日曆方塊上框起來的那一塊。彩色＝今天跟人換過，成交越多顏色越深；亮＝今天跟自然交流過。房子可以按「蓋」自己蓋。教學完成！'); });
+  // 教學第 5 步：鏡頭靠近第一塊日曆上今天那塊磚，框起來
+  APP.on('firstBrick', function () { peekBrick('你 0 歲，第一塊磚變彩色了', '就是上面日曆方塊上框起來的那一塊。彩色＝今天跟人換過，成交越多顏色越深。房子可以按「蓋」自己蓋。教學完成！'); });
   // 說明磚的時候先把首頁那一排收起來、鏡頭靠近今天那塊磚；說明關了再放回來
   function peekBrick(title, body) {
     var v = st.shown ? data() : null;
@@ -4858,7 +4786,7 @@ var HOUSE = (function () {
   }
   // 成交那一刻正好開著：白光一閃，今天那塊磚亮起來（重畫就亮）
   APP.on('dock', function (res) { if (!st.shown) return; var hit = res.some(function (x) { return x.docking && x.docking.traded && (x.docking.a === st.serial || x.docking.b === st.serial); }); render(); if (hit) KIT.flash(); });
-  if (APP.view().name === 'house') APP.goHouse(APP.view().serial);   // 一打開是自己的能量之家（補二十二）；放在所有事件都掛好之後，教學第 6 步的存檔一打開就會跳出第一塊磚的說明
+  if (APP.view().name === 'house') APP.goHouse(APP.view().serial);   // 一打開是自己的能量之家（補二十二）；放在所有事件都掛好之後，教學第 5 步的存檔一打開就會跳出第一塊磚的說明
   return { st: st, render: render, data: data, village: village };
 })();
 

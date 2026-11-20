@@ -33,8 +33,8 @@ var KIT = (function () {
     if (!b) return 'none';
     var c = [];
     if (b.future) c.push('fut');
-    // 補二十二：lit＝有前情提要（亮）；lv1～3＝跟人成交的級數（顏色越深）；蓋布、小記號、虛線框照舊
-    if (b.cover) c.push('cover'); else { if (b.lit) c.push('lit'); if (b.level) c.push('lv' + Math.min(3, b.level)); }
+    // lv1～3＝跟人成交的級數（顏色越深）；不分亮暗（2026-11-20）；蓋布、小記號、虛線框照舊
+    if (b.cover) c.push('cover'); else if (b.level) c.push('lv' + Math.min(3, b.level));
     if (!b.level && b.mark) c.push('mark'); else if (b.booked && !b.level) c.push('bk');
     return c.join(' ') || 'empty';
   }
@@ -50,7 +50,7 @@ var KIT = (function () {
     for (var i = 0; i < lead; i++) cells.push('<td class="pad"></td>');
     for (var k = 0; k < days; k++) {
       var dn = first + k, b = byDay[dn], lines = [], more = '', cls = dn < v.born ? 'none' : b ? cellCls(b) : 'empty';
-      if (!v.closed && dn >= v.born && b && (b.n || b.cover || b.lit)) {
+      if (!v.closed && dn >= v.born && b && (b.n || b.cover)) {
         var d = CORE.dayDetail(S, ownerSerial, viewerSerial, dn, now);
         if (!d.closed) {
           d.entries.forEach(function (e) { var st = e.status === 'traded' ? 'traded' : e.status === 'booked' ? 'booked' : e.status === 'miss' ? 'miss' : 'nodock'; cnt[st]++; lines.push(esc(e.time + ' ' + e.other.name + (st === 'booked' ? '（約）' : st === 'miss' ? '（錯過）' : st === 'nodock' ? '（沒成）' : ''))); });
@@ -64,10 +64,9 @@ var KIT = (function () {
     while (cells.length % 7) cells.push('<td class="pad"></td>');
     var trs = ''; for (var r = 0; r < cells.length / 7; r++) trs += '<tr style="height:calc(var(--mm)*' + h + ')">' + cells.slice(r * 7, r * 7 + 7).join('') + '</tr>';
     var sub = '<button type="button" class="mini o" data-act="calMonth" data-n="-1">‹ 前一個月</button><button type="button" class="mini o" data-act="calMonth" data-n="1">後一個月 ›</button>　一個月一張・一格一天' + (v.closed ? '・<span class="tagp off">只給鄰居看</span>' : '');
-    var natDays = v.closed ? 0 : CORE.natureDays(S, ownerSerial, viewerSerial, first, first + days - 1);
-    var fields = '<span><span class="ln s">' + y + '</span> 年 <span class="ln s">' + (m + 1) + '</span> 月</span><span>名字 <span class="ln">' + esc(owner ? owner.name : CORE.abbrev(ownerSerial)) + (mine ? '（我）' : '') + '</span></span><span class="tot">這個月成交 <b class="num">' + cnt.traded + '</b> 次・沒成 <b class="num">' + cnt.nodock + '</b> 次・錯過 <b class="num">' + cnt.miss + '</b> 次・還約著 <b class="num">' + cnt.booked + '</b> 次・寫了前情提要 <b class="num" id="natDays">' + natDays + '</b> 天</span>';
+    var fields = '<span><span class="ln s">' + y + '</span> 年 <span class="ln s">' + (m + 1) + '</span> 月</span><span>名字 <span class="ln">' + esc(owner ? owner.name : CORE.abbrev(ownerSerial)) + (mine ? '（我）' : '') + '</span></span><span class="tot">這個月成交 <b class="num">' + cnt.traded + '</b> 次・沒成 <b class="num">' + cnt.nodock + '</b> 次・錯過 <b class="num">' + cnt.miss + '</b> 次・還約著 <b class="num">' + cnt.booked + '</b> 次</span>';
     var body = '<table class="calp" data-y="' + y + '" data-m="' + m + '"><colgroup>' + '<col style="width:14.28%">'.repeat(7) + '</colgroup><thead><tr><th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th></tr></thead><tbody>' + trs + '</tbody></table>';
-    var foot = mine ? '<b>一格一天</b>：底色跟能量之家的磚一樣，寫了前情提要就亮，跟人成交就有顏色、成交越多顏色越深，沒成、錯過有小記號，還約著的是虛線框；創角色以前的日子空著，今天紅框。<b>點一格</b>翻到那天的事件簿，還沒到的日子也能點，進去可以開時段。' : '<b>' + esc(owner ? owner.name : '') + ' 的日曆</b>：跟看他的能量之家一樣，他藏起來的那幾筆看不到（蓋布）；點一格看那天。';
+    var foot = mine ? '<b>一格一天</b>：底色跟能量之家的磚一樣，跟人成交就有顏色、成交越多顏色越深，沒成、錯過有小記號，還約著的是虛線框；創角色以前的日子空著，今天紅框。<b>點一格</b>翻到那天的事件簿，還沒到的日子也能點，進去可以開時段。' : '<b>' + esc(owner ? owner.name : '') + ' 的日曆</b>：跟看他的能量之家一樣，他藏起來的那幾筆看不到（蓋布）；點一格看那天。';
     return page('cal', '日曆', sub, fields, body, foot);
   }
   /* ---------- 那天的明細：點一格或點一塊磚 ---------- */
@@ -89,12 +88,8 @@ var KIT = (function () {
       return '<div class="ent">' + head + body + vis + '</div>';
     }).join('');
     var covered = d.covered ? '<div class="small muted ent">還有 ' + d.covered + ' 筆蓋著</div>' : '';
-    // 最上面是那天的前情提要（看的人看得到才顯示）；自己的可以改給誰看
-    var nat = d.nature ? '<div class="ent nature"><div class="ent-h"><b>前情提要</b> <span class="tag">給了自然 ' + CORE.fmtPoints(d.nature.points) + ' 點</span></div><div class="small natext">' + esc(d.nature.text) + '</div>' + (d.nature.mine ? '<div class="vis"><label class="small">給誰看：<select data-natvis="' + d.nature.day + '" aria-label="前情提要給誰看">' + Object.keys(VIS).map(function (k) { return '<option value="' + k + '"' + (k === d.nature.vis ? ' selected' : '') + '>' + VIS[k] + '</option>'; }).join('') + '</select></label></div>' : '') + '</div>' : '';
-    rows = nat + rows;
     var rules = '<details class="small"><summary>那天生效的規則表和資源表</summary><div>用途：' + esc(d.rules.uses.join('；') || '（沒寫）') + '</div><div>對接條件：' + esc(d.rules.conditions.join('；') || '沒有條件') + '</div><div>出問題怎麼辦：' + esc(d.rules.problem || '（沒寫）') + '</div><div>家規：' + esc(d.rules.village || '（沒有）') + '</div><div>資源：' + esc(d.resources.map(function (x) { return x.name + ' ' + CORE.fmtPoints(x.price) + ' 點（' + (x.deliver === '不用交' ? '不用交' : '交：' + x.deliver) + '）'; }).join('、') || '（沒有）') + '</div></details>';
     pop((owner ? owner.name + ' ' : '') + d.label, { html: (rows || (d.covered ? '' : '<div class="small muted">這一天沒有紀錄。</div>')) + covered + rules }, [{ label: '好', pri: true }]);
-    $('popBody').querySelectorAll('[data-natvis]').forEach(function (sel) { sel.onchange = function () { var r = APP.run(function () { CORE.setNatureVis(APP.state(), me, +sel.dataset.natvis, sel.value); }); if (!r.ok) alertMsg(r.msg); dayPop(ownerSerial, day, onChange); if (onChange) onChange(); }; });
     $('popBody').querySelectorAll('[data-vis]').forEach(function (sel) { sel.onchange = function () { var r = APP.run(function () { CORE.setVis(APP.state(), me, sel.dataset.vis, sel.value); }); if (!r.ok) alertMsg(r.msg); dayPop(ownerSerial, day, onChange); if (onChange) onChange(); }; });
     $('popBody').querySelectorAll('[data-goserial]').forEach(function (b) { b.onclick = function () { close(); APP.goTable(b.dataset.goserial, 'res', 'link'); }; });
   }

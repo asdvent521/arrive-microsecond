@@ -7,7 +7,7 @@ var HOUSE = (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var esc = APP.esc;
-  var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], cal: null, shown: false, ready: false, travel: false, pick: null, rot: 0, natEdit: false, peek: false };   // natEdit：首頁的前情提要正在改；peek：教學說明磚的時候先把首頁那一排收起來，磚才看得到   // cal：3D 用不了時日曆紙翻到哪個月；pick：挑地（{ village, pending }）；rot：挑地選的朝向
+  var st = { serial: null, building: false, kind: 'brick', mode: 'add', undo: [], cal: null, shown: false, ready: false, travel: false, pick: null, rot: 0, peek: false };   // peek：教學說明磚的時候先把首頁那一排收起來，磚才看得到   // cal：3D 用不了時日曆紙翻到哪個月；pick：挑地（{ village, pending }）；rot：挑地選的朝向
   function me() { return APP.me(); }
   function viewer() { return APP.isBlank() ? null : me().serial; }
   function data() { if (APP.isBlank()) return CORE.viewEmptyPlot(APP.now()); return CORE.viewHouse(APP.state(), st.serial, viewer(), APP.now()); }
@@ -61,7 +61,7 @@ var HOUSE = (function () {
   }
   // 還沒創角色的首頁：一塊空地（補二十五），上面一句話和「去建立角色」；蓋、看日曆、進門先藏起來
   function renderEmpty(opts) {
-    st.building = false; st.pick = null; st.natEdit = false;
+    st.building = false; st.pick = null;
     $('hwho').innerHTML = '<b>你的空地</b><span class="small muted"> 還沒有房子</span>';
     ['hVillage', 'hpick', 'hBuild', 'hDoor', 'hLook', 'hbuild'].forEach(function (id) { $(id).hidden = true; });
     $('hhint').textContent = WORLD.available ? '一指拖著轉、兩指縮放' : '還沒創角色：建立以後這裡會有你的房子和日曆';
@@ -72,37 +72,23 @@ var HOUSE = (function () {
     if (WORLD.available) { var fb = document.querySelector('.hfoot').getBoundingClientRect(); WORLD.setInsets(box.getBoundingClientRect().bottom - vb.top, vb.bottom - fb.top); WORLD.show(data(), { resetCamera: opts && opts.resetCamera }); }
     else { $('hcal').innerHTML = ''; }
   }
-  /* ---------- 首頁（補二十二）：自己的能量之家最上面一排，像讀小說：今天的前情提要、今天還剩幾點可以跟人換、事件簿／公告欄兩個大鈕、交換關係。3D 畫好之前就看得到、點得到 ---------- */
+  /* ---------- 首頁（補二十二）：自己的能量之家最上面一排：今天還剩幾點可以跟人換（前情提要 2026-11-20 拿掉）、事件簿／公告欄兩個大鈕、交換關係。3D 畫好之前就看得到、點得到 ---------- */
   function home(own, v) {
     var box = $('hhome'); box.hidden = !own || !!st.pick || st.building || st.peek;
     if (box.hidden) { box.innerHTML = ''; return; }
-    var S = APP.state(), m = me(), t = APP.now(), dn = CORE.dayNum(t), nat = CORE.natureOf(S, m.serial, dn), tutNat = APP.tutActive() && APP.tut().step === 2;
-    var html;
-    if (st.natEdit || (tutNat && !nat)) {
-      var text = nat ? nat.text : (tutNat ? '今天喝了一杯水，帶著好心情開始今天的旅程' : ''), pts = nat ? CORE.fmtPoints(nat.points) : '1';
-      html = '<div class="hnat edit"><label class="small">今天的前情提要（跟自然的交流，最多 ' + CORE.NATURE_MAX + ' 字）</label><textarea id="natText" rows="2" maxlength="' + CORE.NATURE_MAX + '" placeholder="例如：今天一早去後山撿柴，順手清了一袋垃圾，帶著開心的心情開始今天的旅程">' + esc(text) + '</textarea><div class="hnatrow"><label class="small">今天給了自然 <input type="number" id="natPts" value="' + pts + '" min="0" step="any" inputmode="decimal" aria-label="給了自然幾點"> 點</label><button type="button" class="btn sm pri" data-hact="natSave">寫好了</button>' + (nat ? '<button type="button" class="btn sm warn" data-hact="natDrop">整段撤掉</button>' : '') + '<button type="button" class="btn sm" data-hact="natCancel">' + (nat ? '不改了' : '先不寫') + '</button></div></div>';
-    } else if (nat) html = '<button type="button" class="hnat" data-hact="natEdit" title="點了能改"><span class="small">前情提要・給了自然 ' + CORE.fmtPoints(nat.points) + ' 點</span><span class="natext">' + esc(nat.text) + '</span></button>';
-    else html = '<button type="button" class="hnat empty" data-hact="natEdit">寫今天的前情提要<span class="small">今天跟自然的交流，和給了自然幾點</span></button>';
+    var S = APP.state(), m = me(), t = APP.now(), html = '';
     // 現在用的角色（第 13 輪）：有兩個以上角色時，首頁這一列點一個就換；約人、開時段、掛公告、設密鑰都用它
     var cs = CORE.charsOf(m), cur = CORE.curChar(m);
     var roles = cs.length < 2 ? '' : '<div class="hroles" id="hRoles"><span class="small">現在用</span>' + cs.map(function (c) { var bg = CORE.version(c, t).bg; return '<button type="button" class="btn sm' + (c === cur ? ' on' : '') + '" data-hact="useChar" data-id="' + c.id + '"' + (c === cur ? ' aria-current="true"' : '') + '>' + esc(CORE.abbrevChar(c.id) + (bg ? ' ' + bg : '')) + '</button>'; }).join('') + '</div>';
-    html += '<div class="hrow">' + roles + '<div class="hleft">今天還剩 <b id="hLeft">' + CORE.fmtPoints(CORE.remainingToday(S, m, t)) + '</b> 點可以跟人換' + (nat ? '<span class="small">・已還自然 ' + CORE.fmtPoints(nat.points) + ' 點</span>' : '') + '</div>';
+    html += '<div class="hrow">' + roles + '<div class="hleft">今天還剩 <b id="hLeft">' + CORE.fmtPoints(CORE.remainingToday(S, m, t)) + '</b> 點可以跟人換</div>';
     html += '<div class="hbig"><button type="button" class="btn big pri" data-hact="toLog">事件簿</button><button type="button" class="btn big pri" data-hact="toFind">公告欄</button><button type="button" class="btn sm" data-hact="toMap">交換關係</button></div></div>';   // 橫放時還剩和大鈕同一列，直放自動換行
     box.innerHTML = html;
-    var np = $('natPts'); if (np) KIT.fitInputs(np.parentNode);   // 給了自然幾點：長的小數也看得到全部
     var hb = document.querySelector('.hbar').getBoundingClientRect(), vb = $('view-house').getBoundingClientRect(); box.style.top = (hb.bottom - vb.top + 4) + 'px';
-  }
-  function natSave() {
-    var S = APP.state(), s = me().serial, wasTut = APP.tutActive() && APP.tut().step === 2;
-    var r = APP.run(function () { return CORE.writeNature(S, s, { text: $('natText').value, points: $('natPts').value }, APP.now()); }, '寫好了');
-    if (!r.ok) { msg(r.msg); return; }
-    st.natEdit = false; msg('寫好了，今天那塊磚亮起來'); render();
-    if (wasTut) APP.tutEvent('nature');
   }
   function tutBar() {
     var on = APP.tutActive() && !APP.isBlank(), stp = on ? APP.steps() : null;
     $('htut').hidden = !on;
-    if (on) $('htut').innerHTML = '<span class="small">' + esc(stp.hint) + '</span>' + (APP.tut().step === 6 ? '<button type="button" class="btn sm pri" data-hact="myHouse">去我的能量之家</button>' : '') + '<button type="button" class="btn sm warn" data-hact="tutSkip">跳過教學</button>';
+    if (on) $('htut').innerHTML = '<span class="small">' + esc(stp.hint) + '</span>' + (APP.tut().step === 5 ? '<button type="button" class="btn sm pri" data-hact="myHouse">去我的能量之家</button>' : '') + '<button type="button" class="btn sm warn" data-hact="tutSkip">跳過教學</button>';
   }
   function onTap(hit) {
     if (!hit || APP.isBlank()) return;
@@ -201,10 +187,6 @@ var HOUSE = (function () {
     else if (a === 'toFind') APP.goTable(null, 'find');
     else if (a === 'toMap') APP.goTable(null, 'map');
     else if (a === 'useChar') { APP.useChar(b.dataset.id); var c = CORE.curChar(me()); msg('現在用 ' + CORE.abbrevChar(c.id) + ' ' + (CORE.version(c, APP.now()).bg || '')); render(); }
-    else if (a === 'natEdit') { st.natEdit = true; render(); var ta = $('natText'); if (ta) ta.focus(); }
-    else if (a === 'natCancel') { st.natEdit = false; render(); }
-    else if (a === 'natSave') natSave();
-    else if (a === 'natDrop') { KIT.pop('整段撤掉？', '今天的前情提要整段拿掉，給自然的點全部退回；今天那塊磚暗回去。', [{ label: '不要' }, { label: '撤掉', warn: true, fn: function () { var r = APP.run(function () { CORE.removeNature(APP.state(), me().serial, APP.now()); }, '撤掉了，點退回來'); st.natEdit = false; msg(r.msg); render(); } }]); }
     else if (a === 'tutSkip') { APP.tutSkip(); msg('跳過了教學。想只收不給，記得要有 0 點的空物件。'); tutBar(); }
   });
   $('hSerialIn').addEventListener('keydown', function (e) { if (e.key === 'Enter') goSerial(); });
@@ -223,10 +205,8 @@ var HOUSE = (function () {
   APP.on('change', function () { if (st.shown) render(); });
   APP.on('tut', function () { if (st.shown) tutBar(); });
   APP.on('calGrow', function () { if (st.shown) render(); });
-  // 教學第 2 步：寫了前情提要，今天那塊磚亮起來
-  APP.on('firstLit', function () { peekBrick('亮＝今天跟自然交流過', '今天那塊磚亮起來了（就是上面框起來的那一塊）：寫了前情提要就亮。接下來跟人換：按「事件簿」，按最上面的骰子找個陌生人看看。'); });
-  // 教學第 6 步：鏡頭靠近第一塊日曆上今天那塊磚，框起來
-  APP.on('firstBrick', function () { peekBrick('你 0 歲，第一塊磚變彩色了', '就是上面日曆方塊上框起來的那一塊。彩色＝今天跟人換過，成交越多顏色越深；亮＝今天跟自然交流過。房子可以按「蓋」自己蓋。教學完成！'); });
+  // 教學第 5 步：鏡頭靠近第一塊日曆上今天那塊磚，框起來
+  APP.on('firstBrick', function () { peekBrick('你 0 歲，第一塊磚變彩色了', '就是上面日曆方塊上框起來的那一塊。彩色＝今天跟人換過，成交越多顏色越深。房子可以按「蓋」自己蓋。教學完成！'); });
   // 說明磚的時候先把首頁那一排收起來、鏡頭靠近今天那塊磚；說明關了再放回來
   function peekBrick(title, body) {
     var v = st.shown ? data() : null;
@@ -235,6 +215,6 @@ var HOUSE = (function () {
   }
   // 成交那一刻正好開著：白光一閃，今天那塊磚亮起來（重畫就亮）
   APP.on('dock', function (res) { if (!st.shown) return; var hit = res.some(function (x) { return x.docking && x.docking.traded && (x.docking.a === st.serial || x.docking.b === st.serial); }); render(); if (hit) KIT.flash(); });
-  if (APP.view().name === 'house') APP.goHouse(APP.view().serial);   // 一打開是自己的能量之家（補二十二）；放在所有事件都掛好之後，教學第 6 步的存檔一打開就會跳出第一塊磚的說明
+  if (APP.view().name === 'house') APP.goHouse(APP.view().serial);   // 一打開是自己的能量之家（補二十二）；放在所有事件都掛好之後，教學第 5 步的存檔一打開就會跳出第一塊磚的說明
   return { st: st, render: render, data: data, village: village };
 })();
