@@ -32,12 +32,12 @@ var EX = {
   },
   log: {
     date: '10 月 14 日（二）', name: '阿春', daily: '2000',
-    story: '一早去後山撿柴，順手清了一袋垃圾，帶著開心的心情開始今天', natPts: '20',
     rows: [
-      { t: '6:00', who: '阿美（花店）', use: '菜園', give: '空的・0', get: '她的空的', lead: '我', why: '一樣多・我來約', res: '成交', left: '1980', sig: '阿美', cash: '不用交' },
-      { t: '9:30', who: '阿美（花店）', use: '公園', give: '陪走路 30 分・300', get: '她的一盆薄荷', keep: '留到 10/21', lead: '我', why: '我給得多・照我的規則', res: '成交', left: '1680', sig: '阿美' },
-      { t: '14:00', who: '老林（工具間）', use: '菜園', give: '醃蘿蔔一罐・199.5', get: '他的修雨傘一次', keep: '留到 10/28', lead: '他', why: '他給得多・照他的規則', res: '成交', left: '1480.5', sig: '林' },
-      { t: '16:00', who: '小周（相機）', use: '菜園', give: '—', get: '—', lead: '', why: '', res: '沒來', left: '1480.5', sig: '' }
+      { t: '6:00', who: '阿美（花店）', use: '菜園', give: '空的・0', get: '她的空的', lead: '我', why: '一樣多・我來約', res: '成交', left: '2000', sig: '阿美', cash: '不用交' },
+      { t: '7:00', who: '李伯（後山）', use: '菜園', give: '青菜一把・50.25', get: '他的一捆柴', keep: '留到 10/16', lead: '我', why: '我給得多・照我的規則', res: '成交', left: '1949.75', sig: '李' },
+      { t: '9:30', who: '阿美（花店）', use: '公園', give: '陪走路 30 分・300', get: '她的一盆薄荷', keep: '留到 10/21', lead: '我', why: '我給得多・照我的規則', res: '成交', left: '1649.75', sig: '阿美' },
+      { t: '14:00', who: '老林（工具間）', use: '菜園', give: '醃蘿蔔一罐・199.5', get: '他的修雨傘一次', keep: '留到 10/28', lead: '他', why: '他給得多・照他的規則', res: '成交', left: '1450.25', sig: '林' },
+      { t: '16:00', who: '小周（相機）', use: '菜園', give: '—', get: '—', lead: '', why: '', res: '沒來', left: '1450.25', sig: '' }
     ],
     cashed: [
       { day: '10 月 10 日', who: '李伯（後山）J5-1', what: '剪頭髮一次・交：一張理髮卡', sig: '李', prob: '' },
@@ -45,9 +45,9 @@ var EX = {
     ]
   },
   cal: {
-    y: '2026', m: '10', name: '阿春', deals: '12', first: 4, days: 31,
-    cells: { 1: ['6:00 阿美'], 3: ['6:00 阿美', '10:00 老林'], 5: ['6:00 阿美'], 7: ['6:00 阿美', '15:00 小周'], 8: ['6:00 阿美'], 10: ['6:00 阿美', '9:00 李伯'], 12: ['6:00 阿美'], 13: ['16:00 小周（沒來）'], 14: ['6:00 阿美', '9:30 阿美', '14:00 老林', '還有 1 筆'], 15: ['6:00 阿美'], 17: ['18:30 阿美（約）'], 20: ['9:00 老林（約）'] },
-    deal: [1, 3, 5, 7, 8, 10, 12, 14, 15], story: [1, 2, 3, 5, 6, 7, 8, 9, 10, 12, 13, 14]
+    y: '2026', m: '10', name: '阿春', deals: '13', first: 4, days: 31,
+    cells: { 1: ['6:00 阿美'], 3: ['6:00 阿美', '10:00 老林'], 5: ['6:00 阿美'], 7: ['6:00 阿美', '15:00 小周'], 8: ['6:00 阿美'], 10: ['6:00 阿美', '9:00 李伯'], 12: ['6:00 阿美'], 13: ['16:00 小周（沒來）'], 14: ['6:00 阿美', '7:00 李伯', '9:30 阿美', '還有 2 筆'], 15: ['6:00 阿美'], 17: ['18:30 阿美（約）'], 20: ['9:00 老林（約）'] },
+    deal: [1, 3, 5, 7, 8, 10, 12, 14, 15]
   },
   board: {
     place: '里民活動中心', date: '10 月 14 日',
@@ -84,8 +84,7 @@ function resPage(ex) {
 
 function logPage(ex) {
   var d = ex ? EX.log : { rows: [], cashed: [] }, N = 7, M = 3;
-  var top = '<div class="row">日期 ' + line(d.date, 40) + '<span class="gap"></span>名字 ' + line(d.name, 30) + '<span class="gap"></span>今天最多給 ' + line(d.daily, 30) + ' 點<span class="small">（所有角色共用）</span><span class="small">　一個人一張，所有角色的見面寫在一起</span></div>' +
-    '<div class="row story">前情提要（今天跟自然的交流）' + line(d.story, 150) + '<span class="gap"></span>給了自然 ' + line(d.natPts, 24) + ' 點</div>';
+  var top = '<div class="row">日期 ' + line(d.date, 40) + '<span class="gap"></span>名字 ' + line(d.name, 30) + '<span class="gap"></span>今天最多給 ' + line(d.daily, 30) + ' 點<span class="small">（所有角色共用）</span><span class="small">　一個人一張，所有角色的見面寫在一起</span></div>';
   var rows = '';
   for (var i = 0; i < N; i++) {
     var r = d.rows[i] || {};
@@ -96,24 +95,24 @@ function logPage(ex) {
   var crow = '';
   for (var j = 0; j < M; j++) { var c = d.cashed[j] || {}; crow += '<tr><td>' + fill(c.day) + '</td><td>' + fill(c.who) + '</td><td>' + fill(c.what) + '</td><td class="c">' + fill(c.sig) + '</td><td>' + fill(c.prob) + '</td></tr>'; }
   var cash = '<div class="lab">今天兌現的（以前收到的東西，實體到手才簽）</div><table class="cash"><colgroup><col style="width:12%"><col style="width:18%"><col style="width:30%"><col style="width:10%"><col style="width:30%"></colgroup><thead><tr><th>哪天收到的</th><th>誰的<small>名字（生產背景）・角色編號</small></th><th>什麼東西・交什麼</th><th>對方簽名</th><th>出問題<small>寫一句話，照主動方的「出問題怎麼辦」處理</small></th></tr></thead><tbody>' + crow + '</tbody></table>';
-  var foot = '<div class="foot"><b>前情提要</b>：自己寫，不用誰簽；下面的表格只寫跟人換的，「今天還剩」先扣掉給自然的點。<b>成交</b>：在約好的時間見面，兩邊都選了對方一樣東西才算。<b>主動</b>：誰給的價錢多就圈誰，一樣多圈來約的人；互簽就是同意照主動方的規則（被動方先看主動方資源表最下面的「出問題怎麼辦」）。<b>今天還剩</b>：每成交一次扣掉對方選的那樣東西的價錢，沒給完的點隔天不留。<b>簽名</b>：兩人都在對方的事件簿那一行簽，誰都不能自己亂寫。空的不用兌現，兌現格寫「不用交」。</div>';
+  var foot = '<div class="foot"><b>跟自然換</b>：就是跟勾了「自然」的角色換（例如李伯（後山）），跟一般的換一樣寫一行。<b>成交</b>：在約好的時間見面，兩邊都選了對方一樣東西才算。<b>主動</b>：誰給的價錢多就圈誰，一樣多圈來約的人；互簽就是同意照主動方的規則（被動方先看主動方資源表最下面的「出問題怎麼辦」）。<b>今天還剩</b>：每成交一次扣掉對方選的那樣東西的價錢，沒給完的點隔天不留。<b>簽名</b>：兩人都在對方的事件簿那一行簽，誰都不能自己亂寫。空的不用兌現，兌現格寫「不用交」。</div>';
   return '<section class="page">' + head('事件簿', '一天一張・照時間往下寫・舊的收在一起就是日曆', ex) + top + table + cash + foot + '</section>';
 }
 
 function calPage(ex) {
-  var d = ex ? EX.cal : { cells: {}, deal: [], story: [] };
+  var d = ex ? EX.cal : { cells: {}, deal: [] };
   var top = '<div class="row">' + line(d.y, 18) + ' 年 ' + line(d.m, 10) + ' 月<span class="gap"></span>名字 ' + line(d.name, 30) + '<span class="gap"></span>這個月成交 ' + line(d.deals, 14) + ' 次</div>';
   var body = '<tr>' + '日一二三四五六'.split('').map(function (w) { return '<th>' + w + '</th>'; }).join('') + '</tr>';
   for (var wk = 0; wk < 6; wk++) {
     body += '<tr>';
     for (var wd = 0; wd < 7; wd++) {
       var n = wk * 7 + wd - (ex ? d.first : 99) + 1, has = ex && n >= 1 && n <= d.days;
-      var deal = has && d.deal.indexOf(n) >= 0, story = has && d.story.indexOf(n) >= 0;
-      body += '<td>' + (has ? '<span class="dn' + (story ? ' ring' : '') + '">' + n + '</span>' + (deal ? '<span class="corner"></span>' : '') + (d.cells[n] || []).map(function (s) { return '<div class="ev">' + fill(s) + '</div>'; }).join('') : '') + '</td>';
+      var deal = has && d.deal.indexOf(n) >= 0;
+      body += '<td>' + (has ? '<span class="dn">' + n + '</span>' + (deal ? '<span class="corner"></span>' : '') + (d.cells[n] || []).map(function (s) { return '<div class="ev">' + fill(s) + '</div>'; }).join('') : '') + '</td>';
     }
     body += '</tr>';
   }
-  var foot = '<div class="foot"><b>寫法</b>：一格一天，寫幾點跟誰（還沒到的寫「（約）」），放不下寫「還有 N 筆」。<b>成交</b>就把那一格右上角塗滿，一眼看得出這個月換了幾次。<b>寫了前情提要</b>的那天，把日期圈起來。</div>';
+  var foot = '<div class="foot"><b>寫法</b>：一格一天，寫幾點跟誰（還沒到的寫「（約）」），放不下寫「還有 N 筆」。<b>成交</b>就把那一格右上角塗滿，一眼看得出這個月換了幾次。</div>';
   return '<section class="page">' + head('月曆', '一個月一張・選用・一格一天', ex) + top + '<table class="cal">' + body + '</table>' + foot + '</section>';
 }
 

@@ -56,7 +56,7 @@ var APP = (function () {
     me = r;
     if (skip) { tut().step = 'done'; tut().skipped = true; }
     changed(); emit('me'); tutTick();
-    if (!skip) goHouse(r.serial);   // 創完角色到能量之家：教學第 2 步寫前情提要（補二十二）
+    if (!skip) goHouse(r.serial);   // 創完角色到能量之家（首頁）：教學第 2 步在這裡就能按骰子
     return r;
   }
   // 測試和示範用：放一個示範的「我」（J1），教學算跳過
@@ -93,7 +93,7 @@ var APP = (function () {
     return { rows: out, next: next, hint: hint };
   }
 
-  /* ---------- 新手教學（DESIGN 7-4）：六步（補二十三：空的不用兌現，原本的第 6 步「兌現」拿掉）；最後一步看自己的能量之家 ---------- */
+  /* ---------- 新手教學（DESIGN 7-4）：五步（2026-11-20 前情提要那步拿掉）；最後一步看自己的能量之家 ---------- */
   var GUIDE = CORE.GUIDE, TUT_SLOT_US = 60e6;   // 引路人的時段：走到約他那一步才開，大約一分鐘後
   function tut() { return state.tutorial; }
   function tutActive() { return tut().step !== 'done'; }
@@ -104,14 +104,13 @@ var APP = (function () {
   // 每一步：名字、怎麼做、在哪一張紙、做完沒
   var TUT = [
     { id: 't1', name: '創角色', how: '資源表那張紙已經寫好第一行「空的」，填名字、生產背景（最多 6 個字）和每天的點，按「建立」。出問題怎麼辦也先寫好一句，可以改', sheet: 'res', done: function () { return !isBlank(); } },
-    { id: 't2', name: '寫前情提要', how: '能量之家首頁最上面已經幫你寫好一句前情提要，可以改；給了自然 1 點，按「寫好了」。亮＝今天跟自然交流過', sheet: 'house', done: function () { return !!CORE.natureOf(state, me.serial, CORE.dayNum(now())); } },
-    { id: 't3', name: '找陌生人：骰子', how: '按最上面的骰子骰出一個序號，按「去」，看他的資源表（也可以按「看他的能量之家」）', sheet: 'res', done: function () { return !!tut().went; } },
-    { id: 't4', name: '約引路人、選他的「空的」', how: '到「公告欄」打「空的」找到引路人（教學）的公告，按「約他」；事件簿多一行（會到已經勾了），在那一行按「選他的東西」選他的「空的」。引路人一定會選你的「空的」。兩邊都是空的、一樣多：一樣多時，來約的人是主動方，主動那一格圈「我」，寫「照我的規則・他接受了」（引路人自動接受）', sheet: 'find',
+    { id: 't2', name: '找陌生人：骰子', how: '按最上面的骰子骰出一個序號，按「去」，看他的資源表（也可以按「看他的能量之家」）', sheet: 'res', done: function () { return !!tut().went; } },
+    { id: 't3', name: '約引路人、選他的「空的」', how: '到「公告欄」打「空的」找到引路人（教學）的公告，按「約他」；事件簿多一行（會到已經勾了），在那一行按「選他的東西」選他的「空的」。引路人一定會選你的「空的」。兩邊都是空的、一樣多：一樣多時，來約的人是主動方，主動那一格圈「我」，寫「照我的規則・他接受了」（引路人自動接受）', sheet: 'find',
       done: function () { var s = tutSlot(); if (!s || s.bookings.indexOf(me.serial) < 0 || !CORE.isPresent(state, me.serial, s.id)) return false; var gc = CORE.slotChar(state, s, GUIDE); return !!gc && CORE.wantsValid(state, s, me.serial, GUIDE).some(function (id) { var x = CORE.resourceOf(CORE.version(gc, s.atUs), id); return x && CORE.isEmptyItem(x); }); } },
-    { id: 't5', name: '那一微秒', how: '你和引路人都選了空的，一樣多時，來約的人是主動方，所以主動那一格圈「我」、照你的規則。大約一分鐘後，白光一閃，跳出成交結果：「我給他：空的；我收到：引路人的空的；主動：我（生產背景）・照我的規則」；那一行變成成交，對方簽名出現紅字「引路人」，兌現那格寫「不用交」。跟人換到實體時，東西到手再按『兌現』；空的不用。不用守著', sheet: 'log', done: function () { return !!tutDocking(); } },
-    { id: 't6', name: '看自己的能量之家', how: '按「去我的能量之家」：你 0 歲，第一塊磚變彩色了。彩色＝今天跟人換過', sheet: 'house', done: function () { return !!tut().house; } }
+    { id: 't4', name: '那一微秒', how: '你和引路人都選了空的，一樣多時，來約的人是主動方，所以主動那一格圈「我」、照你的規則。大約一分鐘後，白光一閃，跳出成交結果：「我給他：空的；我收到：引路人的空的；主動：我（生產背景）・照我的規則」；那一行變成成交，對方簽名出現紅字「引路人」，兌現那格寫「不用交」。跟人換到實體時，東西到手再按『兌現』；空的不用。不用守著', sheet: 'log', done: function () { return !!tutDocking(); } },
+    { id: 't5', name: '看自己的能量之家', how: '按「去我的能量之家」：你 0 歲，第一塊磚變彩色了。彩色＝今天跟人換過', sheet: 'house', done: function () { return !!tut().house; } }
   ];
-  var NO = ['①', '②', '③', '④', '⑤', '⑥'];
+  var NO = ['①', '②', '③', '④', '⑤'];
   function tutSteps() {
     var T = tut(), rows = TUT.map(function (x, i) { return { id: x.id, no: NO[i], name: x.name, ok: i + 1 < T.step, status: x.how, sheet: x.sheet, tut: true }; });
     var next = rows[T.step - 1] || null;
@@ -120,10 +119,9 @@ var APP = (function () {
   // 畫面告訴我發生了什麼：按了骰子、按「去」到了別人那張紙、到了自己的能量之家
   function tutEvent(name, arg) {
     var T = tut(); if (!tutActive()) return;
-    if (name === 'dice' && T.step === 3) T.dice = true;
-    if (name === 'go' && T.step === 3 && T.dice && arg && arg !== me.serial) T.went = true;
-    if (name === 'nature' && T.step === 2) { T.nature = true; tutTick(); emit('firstLit'); return; }
-    if (name === 'myHouse' && T.step === 6) { T.house = true; tutTick(); emit('firstBrick'); return; }
+    if (name === 'dice' && T.step === 2) T.dice = true;
+    if (name === 'go' && T.step === 2 && T.dice && arg && arg !== me.serial) T.went = true;
+    if (name === 'myHouse' && T.step === 5) { T.house = true; tutTick(); emit('firstBrick'); return; }
     tutTick();
   }
   function tutSkip() { var T = tut(); if (!tutActive() || isBlank()) return; T.step = 'done'; T.skipped = true; changed(); emit('tut', 'done'); }
@@ -132,9 +130,9 @@ var APP = (function () {
     var T = tut(); if (!tutActive() || typeof T.step !== 'number' || isBlank()) return;
     var g = guide(); if (!g) { T.step = 'done'; return; }
     var dirty = false, t = now();
-    if (T.step >= 4 && T.step <= 5) {
+    if (T.step >= 3 && T.step <= 4) {
       var s = tutSlot();
-      if (!s || (s.judged && !tutDocking())) { s = CORE.addSlot(state, GUIDE, t + TUT_SLOT_US + Math.floor(Math.random() * 1000), 1, null, t); T.slot = s.id; if (T.step === 5) T.step = 4; dirty = true; }   // 走到約他那一步才開；錯過了再開一個
+      if (!s || (s.judged && !tutDocking())) { s = CORE.addSlot(state, GUIDE, t + TUT_SLOT_US + Math.floor(Math.random() * 1000), 1, null, t); T.slot = s.id; if (T.step === 4) T.step = 3; dirty = true; }   // 走到約他那一步才開；錯過了再開一個
       if (s.bookings.indexOf(me.serial) >= 0 && !s.judged) { var e = emptyOf(me, s.atUs); if (e && CORE.wantsValid(state, s, GUIDE, me.serial).indexOf(e.id) < 0) { CORE.setWants(state, s.id, GUIDE, me.serial, [e.id]); dirty = true; } }   // 引路人一定選玩家的「空的」
     }
     var guard = 0;

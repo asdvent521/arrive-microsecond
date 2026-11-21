@@ -125,7 +125,7 @@ var SHEETS = (function () {
     var trs2 = held.slice(0, 3).map(function (h) { var d2 = h.docking ? CORE.dockingOf(S(), h.docking) : null; return '<tr data-row data-id="' + h.id + '"' + rowH(8.6) + '><td>' + md(CORE.dayNum(h.atUs)) + '</td><td>' + lk(h.issuer, h.issuerRole) + ' ' + esc(nameW(h.issuer, h.issuerRole, h.atUs)) + '</td><td>' + esc(h.name) + '<small>' + esc((h.deliver ? '交：' + h.deliver : '交：（舊的，沒寫）') + '・' + (h.untilDay == null ? '一直留' : '留到 ' + md(h.untilDay))) + '</small></td><td>' + (d2 ? leadDone(d2, m) : '') + '</td><td>' + (h.status === 'redeemed' ? hhmm(h.redeemedAt) + ' ' + sig(nameOf(h.issuer)) : btn('redeem', '兌現', ' data-id="' + h.id + '"')) + '</td><td>' + problemBtn(h, m) + '</td></tr>'; }).join('') + pad(Math.max(0, 3 - held.length), 6, 8.6) + (held.length > 3 ? '<tr' + rowH(6) + '><td colspan="6" class="dim">還有 ' + (held.length - 3) + ' 筆，翻到收到那天的事件簿看</td></tr>' : '');
     var remind = reminders(m);
     var sub = btn('prevDay', '‹ 前一天', '', 'o') + btn('nextDay', '後一天 ›', '', 'o') + (isToday ? '' : btn('today', '今天', '', 'o')) + '　一天一張・照時間往下寫・點日期到日曆紙' + (pages > 1 ? '　' + btn('pagePrev', '‹', UI.page ? '' : ' disabled', 'o') + ' 第 ' + (UI.page + 1) + '／' + pages + ' 張 ' + btn('pageNext', '›', UI.page < pages - 1 ? '' : ' disabled', 'o') : '');
-    var fields = '<span>日期 ' + ln('<button type="button" class="lk" data-act="pickDay">' + esc(dayText(dn)) + '</button>') + '</span><span>名字 ' + ln(esc(m.name) + '（' + esc(CORE.abbrev(m.serial)) + '）') + '</span><span>今天最多給 ' + ln(fmt(daily), 's') + ' 點</span>' + (isToday ? '<span>現在還能給 ' + ln('<b id="energyText">' + fmt(CORE.remainingToday(S(), m, t)) + '</b>', 's') + ' 點</span><span class="small natline">' + (function () { var nat = CORE.natureOf(S(), m.serial, dn); return nat ? '已還自然 ' + fmt(nat.points) + ' 點 ' + btn('natureGo', '前情提要', '', 'o') : btn('natureGo', '寫今天的前情提要', '', 'o'); })() + '</span>' : '');
+    var fields = '<span>日期 ' + ln('<button type="button" class="lk" data-act="pickDay">' + esc(dayText(dn)) + '</button>') + '</span><span>名字 ' + ln(esc(m.name) + '（' + esc(CORE.abbrev(m.serial)) + '）') + '</span><span>今天最多給 ' + ln(fmt(daily), 's') + ' 點</span>' + (isToday ? '<span>現在還能給 ' + ln('<b id="energyText">' + fmt(CORE.remainingToday(S(), m, t)) + '</b>', 's') + ' 點</span>' : '');
     var body = (remind ? '<div class="remind">' + remind + '</div>' : '') + '<table>' + cols([7, 12, 15, 17, 9, 8, 7, 10, 15]) + th([['時間'], ['跟誰', '名字（生產背景）'], ['我給他', '他選了我的什麼・價錢・交什麼'], ['我收到', '我選了他的什麼・交什麼・保留到哪天'], ['主動', '圈主動的那個・照誰的規則'], ['結果', '成交／沒成／沒來'], ['今天還剩', '點'], ['對方簽名', '成交就自動簽'], ['兌現', '哪天・對方簽名・出問題']]) + '<tbody>' + trs + '</tbody></table>' +
       '<div class="lab">以前收到、還沒兌現的（背包；今天去換）</div><table>' + cols([11, 18, 29, 10, 18, 14]) + th([['哪天收到的'], ['誰的', '哪個角色'], ['什麼東西', '交什麼'], ['主動'], ['兌現・對方簽名'], ['出問題', '一句話，兩個人看得到']]) + '<tbody>' + trs2 + '</tbody></table>';
     return page('log', '事件簿', sub, fields, body, '<b>成交</b>：在約好的時間見面，兩邊都選了對方一樣東西才算，只有一邊選就是沒成。<b>主動</b>：給得多的那個人（一樣多時是來約的人）；只判主動方的條件，被動方要先接受主動方的「出問題怎麼辦」和家規。<b>今天還剩</b>：每成交一次，扣掉對方選的那樣東西的價錢；沒給完的點隔天不留。<b>兌現</b>：東西交到你手上再按，空的不用。<b>出問題</b>：收的人寫一句話，只有你們兩個看得到。');
@@ -585,8 +585,8 @@ var SHEETS = (function () {
     ['五張紙', '事件簿、日曆、資源表、公告欄、更多，跟紙本一模一樣的 A4 橫式。手機轉橫看整張；直放可以左右滑。寫進去的是藍字，簽名是紅字（系統簽）。'],
     ['人和角色', '一個人（序號 J1）一份每天的點、聯絡方式、能量之家、背包；底下的角色（角色編號 J1-1）各有生產背景、規則表、資源表。一個人最多 5 個角色（更多→我的角色、資源表上面的「＋開新角色」），每天的點共用；自己的角色之間不能換。'],
     ['現在用的角色', '有兩個以上角色時，在能量之家首頁那一列（或資源表上面的分頁）點一個，就是現在用的角色：資源表、規則表打開的是它，約人、開時段、掛公告、設密鑰都用它。那幾個地方有一行「用（廚房）・換」，可以臨時換一個。'],
-    ['生產背景', '這個角色用什麼生產（廚房、相機、後山），最多 6 個字，寫在名字後面的括弧裡：「阿澄（聊天傾聽）」。一定要寫；改了隔天才算。田、河、後山這類自然界的，旁邊勾「自然」。'],
-    ['日曆', '一個月一張，一格一天：底色跟能量之家的磚一樣，成交越多越亮，沒成、錯過有小記號，還約著的是虛線框，今天紅框；一格裡寫那天幾點跟誰。點一格翻到那天的事件簿。他的日曆在他的那張紙「看他的日曆」，照藏的規則。'],
+    ['生產背景', '這個角色用什麼生產（廚房、相機、後山），最多 6 個字，寫在名字後面的括弧裡：「阿澄（聊天傾聽）」。一定要寫；改了隔天才算。田、河、後山這類自然界的，旁邊勾「自然」；跟自然換就是跟勾了自然的角色換，跟一般的換一樣。'],
+    ['日曆', '一個月一張，一格一天：底色跟能量之家的磚一樣，成交越多顏色越深，沒成、錯過有小記號，還約著的是虛線框，今天紅框；一格裡寫那天幾點跟誰。點一格翻到那天的事件簿。他的日曆在他的那張紙「看他的日曆」，照藏的規則。'],
     ['序號或密鑰框和骰子', '最上面的框輸入序號（例如 J2）或角色編號（J2-1）按「去」就到那個人的資源表；輸入打招呼密鑰就跟配對的人當場換一次（等對方 1 分鐘）。按骰子骰一個還在玩的人的序號進框裡，按「去」才過去，不喜歡可以再骰。'],
     ['事件簿', '一天一張，一行一次見面：時間、跟誰、我給他、我收到、主動、結果、今天還剩、對方簽名、兌現。還沒到的那一行淡黃：倒數、選他的東西、會到的勾（預設勾著）、取消。在空白那一行的時間格寫時間就開了一個時段。下面一小張是以前收到、還沒兌現的（就是背包），每一筆旁邊可以寫「出問題」。點日期到日曆紙的那個月。'],
     ['主動方、被動方', '一對人裡給得多的那個是主動方（對方選走的東西價錢加起來比較多）；一樣多時，來約的人是主動方（兩個都是來約的，比較早約的；打招呼密鑰是先輸入的）。那一微秒只判主動方規則表裡的條件，被動方要先接受主動方的「出問題怎麼辦」和家規那一版，沒接受不成交。事件簿「主動」那一格圈著誰，就照誰的規則。'],
@@ -598,8 +598,8 @@ var SHEETS = (function () {
     ['村子', '處得好的人把能量之家搬到同一個村子（到他的那張紙「邀他當鄰居」或「申請搬去他那個村子」，村裡每個人同意，再到能量之家挑一塊地）。鄰居看得到彼此「只給鄰居看」的屋和那幾筆。在能量之家點村裡別間屋，畫面滑過去；「看村子」拉遠從上面看。更多 → 鄰居和村子：有誰、待同意的、搬走、換位置。'],
     ['那一微秒', '成交那一刻整個畫面白光一閃，跳出成交結果：我給他、我收到、主動方是誰、照誰的規則；那一行變成交、對方簽名變紅字；收到實體的東西，到手再按「兌現」。沒開著的話，下次打開跳出「你不在的時候」。成交結果裡可以勾「以後每天這個時間自動約」，兩邊都勾就成固定約，事件簿每天那一行標「每天」，按「停」結束。'],
     ['更多', '規則表（用途、對接條件、出問題怎麼辦、家規和家規網站、每人最多給的預設）、我接受過的規則、一起成交、打招呼密鑰、我開的時段、我的能量之家、鄰居和村子、交換關係、聯絡方式和不玩了、說明。'],
-    ['能量之家', '每個人一間：自己蓋的房子，上面長著一條日曆，一個月一塊、一天一塊磚，寫了前情提要就亮，跟人換過就是彩色。點門進他的資源表那張紙。在自己的能量之家外面按「蓋」改房子、搬門、選日曆往哪長。'],
-    ['新手教學', '六步：創角色（寫生產背景）、寫前情提要、骰子、約引路人選他的「空的」、那一微秒、看自己的能量之家。可以跳過；教學的對接標「教學」，不算進對接過幾次。']
+    ['能量之家', '每個人一間：自己蓋的房子，上面長著一條日曆，一個月一塊、一天一塊磚，跟人換過就是彩色，換越多顏色越深。點門進他的資源表那張紙。在自己的能量之家外面按「蓋」改房子、搬門、選日曆往哪長。'],
+    ['新手教學', '五步：創角色（寫生產背景）、骰子、約引路人選他的「空的」、那一微秒、看自己的能量之家。可以跳過；教學的對接標「教學」，不算進對接過幾次。']
   ];
   function helpPage() { return page('help', '說明', back() + '每個字是什麼意思', '', '<div class="help">' + HELP.map(function (h) { return '<h3>' + esc(h[0]) + '</h3><p>' + esc(h[1]) + '</p>'; }).join('') + '</div>', '', true); }
   // 他的規則：條件（我通不通）、出問題怎麼辦和家規（旁邊「接受」）、家規網站
@@ -646,7 +646,7 @@ var SHEETS = (function () {
     $('tother').innerHTML = o ? '<b>' + esc(CORE.abbrev(o.serial) + ' ' + nameW(o.serial)) + '</b> 的' + (UI.osheet === 'cal' ? '日曆 ' : '那張紙 ') + btn('home', '回我自己', '', 'o') : '<span class="small muted">' + (APP.isBlank() ? '還沒創角色' : '<span class="nw">我是 <b>' + esc(CORE.abbrev(m.serial) + ' ' + m.name) + '</b></span>' + (multi() ? '<span class="nw">・用（<b id="curChar">' + esc(bgNow(myChar()) || CORE.abbrevChar(myChar().id)) + '</b>）</span>' + btn('pickChar', '換', '', 'o') : '')) + '</span>';
     var st = APP.tutActive() && !APP.isBlank() ? APP.steps() : null;
     $('tutbar').hidden = !APP.tutActive();
-    if (APP.tutActive()) $('tutbar').innerHTML = '<span class="small">' + esc(APP.isBlank() ? '新手教學 ① 創角色：資源表那張紙已經寫好「空的」，填名字、生產背景和每天的點，按「建立」' : st.hint) + '</span>' + (APP.tut().step === 6 ? btn('myHouse', '去我的能量之家', '', 'go') : '') + (APP.isBlank() ? '' : btn('tutSkip', '跳過教學', '', 'o'));
+    if (APP.tutActive()) $('tutbar').innerHTML = '<span class="small">' + esc(APP.isBlank() ? '新手教學 ① 創角色：資源表那張紙已經寫好「空的」，填名字、生產背景和每天的點，按「建立」' : st.hint) + '</span>' + (APP.tut().step === 5 ? btn('myHouse', '去我的能量之家', '', 'go') : '') + (APP.isBlank() ? '' : btn('tutSkip', '跳過教學', '', 'o'));
     var cur = o ? null : (MORE.some(function (x) { return x[0] === UI.sheet; }) ? 'more' : UI.sheet === 'tree' ? 'find' : UI.sheet);
     $('ttabs').innerHTML = TABS.map(function (t) { return '<button type="button" class="tab' + (cur === t[0] ? ' on' : '') + '" data-act="tab" data-s="' + t[0] + '"' + (cur === t[0] ? ' aria-current="page"' : '') + '>' + esc(t[1]) + '</button>'; }).join('');
     var key = o ? UI.osheet : UI.sheet, scroll = window.scrollY, same = render.last === (o ? o.serial + ':' + (UI.ochar || '') : '') + key;
@@ -779,7 +779,6 @@ var SHEETS = (function () {
     foodGive: function () { UI.mode = 'want'; UI.cat = 'food'; render(); },
     cat: function (b) { var id = b.dataset.id || '', cur = UI.cat, curBig = cur ? (CORE.SUBS[cur] ? CORE.SUBS[cur].big : cur) : ''; UI.cat = id && (cur === id || (CORE.BIGS[id] && curBig === id)) ? '' : id; render(); },   // 再點一次同一個大類（或它底下的小類亮著）就收起來
     post: function () { var give = [].slice.call(document.querySelectorAll('#tmain [data-give]')).filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.give; }); var u = val('ntUntil'); run(function () { CORE.postNotice(S(), me().serial, { role: myChar().id, need: val('ntNeed'), cat: val('ntCat'), tags: val('ntTags'), give: give, cap: val('ntCap') || 3, untilDay: u ? CORE.dayNum(new Date(u + 'T12:00:00').getTime() * 1000) : null }, now()); }, '公告掛上去了'); },
-    natureGo: function () { APP.goHouse(me().serial); },
     mapPick: function (b) { UI.mapSel = UI.mapSel === b.dataset.id ? null : b.dataset.id; render(); },
     mapMore: function () { var el = $('mapTable'); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); },
     mapLog: function (b) { UI.other = null; UI.sheet = 'log'; UI.day = b.dataset.day ? +b.dataset.day : null; UI.page = 0; UI.msg = ''; render(); },

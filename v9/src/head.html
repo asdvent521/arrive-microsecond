@@ -218,11 +218,9 @@ button.box{cursor:pointer}
 .page .calp td.none .dn{color:#BBB;border-color:#DDD}
 .page .calp .ev{margin-top:calc(var(--mm)*.8);font-family:var(--hand);color:var(--pen);font-size:calc(var(--mm)*2.9);line-height:1.3}
 .page .calp .more{font-size:calc(var(--mm)*2.5);color:#777;margin-top:calc(var(--mm)*.4)}
-/* 磚的四種樣子（補二十二）：暗的灰白、亮的灰白（前情提要）、暗的彩色（跟人換）、亮的彩色；顏色越深成交越多 */
+/* 磚：灰白（沒成交）、彩色（跟人換）；顏色越深成交越多；不分亮暗（2026-11-20） */
 .page .calp td.empty,.page .calp td.day{background:#ECE9E1}
-.page .calp td.lit{background:#FFFDF4}
 .page .calp td.lv1{background:#D9C27E}.page .calp td.lv2{background:#C8A64E}.page .calp td.lv3{background:#AE8A2C}
-.page .calp td.lit.lv1{background:#F8E7B0}.page .calp td.lit.lv2{background:#F3D77C}.page .calp td.lit.lv3{background:#EBBF4A}
 .page .calp td.lv1::after,.page .calp td.lv2::after,.page .calp td.lv3::after{border-right-color:var(--pen)}
 .page .calp td.mark::before{content:"";position:absolute;right:calc(var(--mm)*1.6);top:calc(var(--mm)*1.6);width:calc(var(--mm)*1.6);height:calc(var(--mm)*1.6);border-radius:50%;background:var(--ink);z-index:1}
 .page .calp td.cover{background:repeating-linear-gradient(45deg,#C9C3B6 0 calc(var(--mm)*1.5),#B9B3A6 calc(var(--mm)*1.5) calc(var(--mm)*3))}
@@ -248,8 +246,6 @@ button.box{cursor:pointer}
 .hnat .small{display:block;color:var(--muted)} .hnat .natext{display:block;font-size:1.02rem;line-height:1.45;max-height:4.4em;overflow:hidden}
 .hnat.empty{font-size:1.05rem;border-style:dashed}
 @media (orientation: landscape){.hnat:not(.edit){display:flex;align-items:baseline;gap:8px;white-space:nowrap;overflow:hidden;padding:6px 12px} .hnat:not(.edit) .small{display:inline;flex:none} .hnat:not(.edit) .natext{display:inline-block;flex:1;min-width:0;max-height:1.45em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom} .hnat.empty .small{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}}   /* 轉橫只顯示一行，點了才打開看全部和改 */
-.hnat.edit{cursor:default} .hnat.edit textarea{width:100%;box-sizing:border-box;font:inherit;font-size:1rem;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg);margin:4px 0;resize:vertical}
-.hnatrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px} .hnatrow input[type=number]{width:4.5em;min-height:32px;font:inherit;padding:2px 6px;border:1px solid var(--line);border-radius:var(--r-s)}
 .hleft{background:var(--hud);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:var(--r-m);padding:6px 12px;font-size:.95rem} .hleft b{font-size:1.15rem}
 .hrow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;pointer-events:none} .hrow>*{pointer-events:auto} .hbig{display:flex;flex-wrap:wrap;gap:8px;align-items:center} .hbig .btn.big{font-size:1.1rem;padding:10px 22px;min-height:46px}
 body.in-house #view-table{display:none}
