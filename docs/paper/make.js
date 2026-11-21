@@ -95,7 +95,7 @@ function logPage(ex) {
   var crow = '';
   for (var j = 0; j < M; j++) { var c = d.cashed[j] || {}; crow += '<tr><td>' + fill(c.day) + '</td><td>' + fill(c.who) + '</td><td>' + fill(c.what) + '</td><td class="c">' + fill(c.sig) + '</td><td>' + fill(c.prob) + '</td></tr>'; }
   var cash = '<div class="lab">今天兌現的（以前收到的東西，實體到手才簽）</div><table class="cash"><colgroup><col style="width:12%"><col style="width:18%"><col style="width:30%"><col style="width:10%"><col style="width:30%"></colgroup><thead><tr><th>哪天收到的</th><th>誰的<small>名字（生產背景）・角色編號</small></th><th>什麼東西・交什麼</th><th>對方簽名</th><th>出問題<small>寫一句話，照主動方的「出問題怎麼辦」處理</small></th></tr></thead><tbody>' + crow + '</tbody></table>';
-  var foot = '<div class="foot"><b>跟自然換</b>：就是跟勾了「自然」的角色換（例如李伯（後山）），跟一般的換一樣寫一行。<b>成交</b>：在約好的時間見面，兩邊都選了對方一樣東西才算。<b>主動</b>：誰給的價錢多就圈誰，一樣多圈來約的人；互簽就是同意照主動方的規則（被動方先看主動方資源表最下面的「出問題怎麼辦」）。<b>今天還剩</b>：每成交一次扣掉對方選的那樣東西的價錢，沒給完的點隔天不留。<b>簽名</b>：兩人都在對方的事件簿那一行簽，誰都不能自己亂寫。空的不用兌現，兌現格寫「不用交」。</div>';
+  var foot = '<div class="foot"><b>跟自然換</b>：就是跟勾了「自然」的角色換（例如李伯（後山）），跟一般的換一樣寫一行。<b>自己的兩個角色換</b>：也寫一行，「跟誰」寫自己的另一個角色，兩邊給的都從今天的點扣。<b>成交</b>：在約好的時間見面，兩邊都選了對方一樣東西才算。<b>主動</b>：誰給的價錢多就圈誰，一樣多圈來約的人；互簽就是同意照主動方的規則（被動方先看主動方資源表最下面的「出問題怎麼辦」）。<b>今天還剩</b>：每成交一次扣掉對方選的那樣東西的價錢，沒給完的點隔天不留。<b>簽名</b>：兩人都在對方的事件簿那一行簽，誰都不能自己亂寫。空的不用兌現，兌現格寫「不用交」。</div>';
   return '<section class="page">' + head('事件簿', '一天一張・照時間往下寫・舊的收在一起就是日曆', ex) + top + table + cash + foot + '</section>';
 }
 

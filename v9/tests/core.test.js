@@ -1664,7 +1664,7 @@ ok('人和角色（第 12 輪）：一個人底下最多 5 個角色；角色編
   var raw = JSON.parse(JSON.stringify(s.roles[0])), back = C.cleanRole(raw); assert.deepStrictEqual(back.chars.map(function (c) { return [c.id, c.closed]; }), raw.chars.map(function (c) { return [c.id, c.closed]; })); assert.strictEqual(back.nextChar, 7, '存檔讀回來編號照舊不重用');
   raw.chars[0].id = J1 + '-9'; throws(function () { C.cleanRole(raw); }, /角色編號格式錯/);
 });
-ok('角色之間（第 12 輪）：每天的點照人算（兩個角色給出去的扣同一份）；對方可換的貨、對接過幾次照人算；時段跟著角色開、對接紀錄記兩邊的角色；自己的角色不能約、同一個時段不能用兩個角色；不能跟自己的角色配密鑰、不能接自己角色的公告', function () {
+ok('角色之間（第 12 輪）：每天的點照人算（兩個角色給出去的扣同一份）；對方可換的貨、對接過幾次照人算；時段跟著角色開、對接紀錄記兩邊的角色；同一個角色不能約自己、同一個時段不能用兩個角色；不能跟自己的角色配密鑰、不能接自己角色的公告', function () {
   var s = base(), c2 = C.openChar(s, J1, { bg: '相機' }, T0 - DAY);
   var ph = C.addResource(s, c2.id, { name: '一張照片', kind: 'thing', price: pts(500) }, T0 - DAY); C.restock(s, c2.id, ph.id, 3);
   assert.strictEqual(C.availTotal(s.roles[0], T0), 21 + 1 + 3, '對方可換的貨：兩個角色加起來（空的 1、照片 3）'); assert.strictEqual(C.COND_FIELDS.avail.get(s, s.roles[0], T0), 25);
@@ -1682,7 +1682,7 @@ ok('角色之間（第 12 輪）：每天的點照人算（兩個角色給出去
   assert.ok(!db.traded && db.ra === c2.id && db.leadRole === c2.id && /甲 今天只剩 400 點，不能預支（要 500 點）/.test(db.reason), '第二個角色要給 500，這個人今天只剩 400：' + db.reason);
   assert.strictEqual(C.remainingToday(s, s.roles[0], T0 + 121e6), pts(400)); assert.strictEqual(C.dockCount(s, J1), 1, '對接過幾次照人算'); assert.strictEqual(C.ratio(s, J1).text, '600：0（最近 1 次）');
   assert.strictEqual(C.heldPoints(s, J2, J1, T0 + 121e6), pts(600), '對方收著多少我的東西照人算');
-  throws(function () { C.book(s, J1, b.id, T0); }, /自己的角色不能約/); assert.strictEqual(C.eligible(s, ch(s, J1), c2, T0).reason, '自己的角色不能約'); assert.strictEqual(C.canBook(s, s.roles[0], s.roles[0], T0).self, true);
+  throws(function () { C.book(s, J1, b.id, T0, true, false, c2.id); }, /同一個角色不能約自己開的時段/); assert.strictEqual(C.eligible(s, c2, c2, T0).reason, '同一個角色不能約自己'); assert.ok(C.eligible(s, ch(s, J1), c2, T0).ok, '自己的兩個角色可以約（2026-11-21）'); assert.strictEqual(C.canBook(s, s.roles[0], s.roles[0], T0).self, true);
   var sb = C.addSlot(s, J2, T0 + 300e6, 5, null, T0); C.book(s, J1, sb.id, T0, true, false, J1 + '-1');
   throws(function () { C.book(s, J1, sb.id, T0, true, false, c2.id); }, /你已經用 J1-1 約了這個時段/);
   assert.strictEqual(C.slotRoleId(s, sb, J1), J1 + '-1'); assert.strictEqual(C.slotRoleId(s, sb, J2), J2 + '-1', '主人用開時段的那個角色'); assert.strictEqual(C.slotChar(s, sb, J1).id, J1 + '-1');
@@ -1994,5 +1994,52 @@ ok('兩個角色的示範人物（第 13 輪）：阿澄（廚房）、小樂（
   assert.strictEqual(C.charsOf(C.roleOf(st, '00000000005')).length, 1, '阿明不補'); assert.strictEqual(C.charsOf(C.roleOf(st, C.GUIDE)).length, 1, '引路人不補');
   assert.ok(C.save(st)); var st2 = C.load(); assert.strictEqual(C.charsOf(C.roleOf(st2, who1)).length, 2, '再讀一次不會多補');
   delete global.localStorage;
+});
+ok('自己的角色之間也能換（2026-11-21）：開時段的角色和另一個角色約、選、那一微秒判主動方、自動算接受；點從同一份扣；背包、對接過幾次、換點比例、關係圖、磚都算；同一個角色不能約自己；一個時段只用一個角色來約；跟別人不重複配；存檔讀得回來', function () {
+  var s = base(), J12 = J1 + '-2', c2 = C.openChar(s, J1, { bg: '相機' }, T0 - DAY), r = s.roles[0];
+  var ph = C.addResource(s, c2.id, { name: '一張照片', kind: 'thing', price: pts(100), keepDays: 3 }, T0 - DAY); C.restock(s, c2.id, ph.id, 3);
+  var slot = C.addSlot(s, J1, T0 + 60e6, 3, null, T0, false, J1 + '-1');
+  throws(function () { C.book(s, J1, slot.id, T0, true, false, J1 + '-1'); }, /同一個角色不能約自己開的時段/);
+  C.book(s, J1, slot.id, T0, true, false, c2.id);
+  assert.deepStrictEqual(slot.bookings, [J12], '自己的另一個角色來約：這一方記角色編號'); assert.strictEqual(C.slotRoleId(s, slot, J12), J12); assert.ok(C.isPresent(s, J12, slot.id), '會到預設勾著');
+  throws(function () { C.book(s, J1, slot.id, T0, true, false, c2.id); }, /你已經用 J1-2 約了這個時段/);
+  C.book(s, J2, slot.id, T0); C.setPresent(s, J2, slot.id, true);
+  var es = C.entriesOf(s).filter(function (e) { return e.slot === slot.id; }).map(function (e) { return [e.a, e.b].join('|'); }).sort();
+  assert.deepStrictEqual(es, [J1 + '|' + J12, J1 + '|' + J2].sort(), '每一筆：自己兩個角色一筆、自己和乙一筆；J1-2 不跟乙再配一對');
+  throws(function () { C.setWants(s, slot.id, J2, J12, [ph.id]); }, /不在這個時段裡/);
+  C.setWants(s, slot.id, J1, J12, [ph.id]);   // J1-1 選 J1-2 的照片（100 點）
+  C.setWants(s, slot.id, J12, J1, ['y']);      // J1-2 選 J1-1 的一杯茶（50 點）
+  C.setWants(s, slot.id, J1, J2, ['e2']); C.setWants(s, slot.id, J2, J1, ['e1']);
+  var L = C.pairLead(s, slot, J1, J12, T0); assert.deepStrictEqual([L.lead, L.leadRole, L.why], [J12, J12, '給得多'], '主動方照規則判：J1-2 給得多');
+  assert.ok(C.acceptedFor(s, J1, c2, T0) && C.acceptedFor(s, J12, ch(s, J1), T0), '自己的角色自動算接受');
+  var left0 = C.remainingToday(s, r, T0 + 60e6), n0 = C.dockCount(s, J1);
+  C.judge(s, T0 + 60e6 + 1000);
+  var d = s.dockings.find(function (x) { return x.slot === slot.id && x.b === J12; });
+  assert.ok(d && d.traded, '自己兩個角色成交：' + (d && d.reason)); assert.deepStrictEqual([d.a, d.ra, d.b, d.rb, d.lead], [J1, J1 + '-1', J12, J12, J12]);
+  assert.strictEqual(C.remainingToday(s, r, T0 + 61e6), left0 - pts(150), '兩邊給的都從同一份每天的點扣（100＋50）');
+  var hs = s.holds.filter(function (h) { return h.docking === d.id; }).map(function (h) { return [h.issuer, h.issuerRole, h.holder, h.holderRole, h.name]; }).sort();
+  assert.deepStrictEqual(hs, [[J1, J1 + '-1', J1, J12, '一杯茶'], [J1, J12, J1, J1 + '-1', '一張照片']].sort(), '背包：自己給自己，記得是哪個角色給哪個角色');
+  assert.strictEqual(C.stockOf(c2, ph.id).reserved, 1, '照片保留一份');
+  assert.strictEqual(C.dockCount(s, J1), n0 + 2, '對接過幾次：自己換自己也算（加上跟乙那一次）');
+  assert.ok(C.ratio(s, J1).n >= 2, '換點比例也算');
+  var rel = C.relations(s, J1, T0 + 62e6); assert.ok(rel.some(function (x) { return x.serial === J12; }), '交換關係圖：自己的另一個角色也是一個點');
+  var b = C.viewHouse(s, J1, J1, T0 + 62e6).bricks.find(function (x) { return x.day === C.dayNum(T0 + 60e6); }); assert.strictEqual(b.level, 2, '磚：兩筆成交（自己一筆、乙一筆）');
+  var dd = C.dayDetail(s, J1, J1, C.dayNum(T0 + 60e6), T0 + 62e6), self = dd.entries.find(function (e) { return e.other.serial === J12; });
+  assert.ok(self && self.status === 'traded' && self.other.role === J12 && self.myRole === J1 + '-1', '那天的明細：跟自己的 J1-2 成交');
+  var h = s.holds.find(function (x) { return x.docking === d.id && x.name === '一張照片'; }); C.redeem(s, J1, h.id, T0 + 63e6); assert.strictEqual(h.status, 'redeemed', '自己兌現');
+  // 點不夠：兩邊加起來超過今天剩下的就不成交
+  var s2 = base(), c22 = C.openChar(s2, J1, { bg: '相機' }, T0 - DAY), big = C.addResource(s2, c22.id, { name: '大照片', kind: 'thing', price: pts(980) }, T0 - DAY); C.restock(s2, c22.id, big.id, 1);
+  var sl2 = C.addSlot(s2, J1, T0 + 60e6, 1, null, T0); C.book(s2, J1, sl2.id, T0, true, false, c22.id); C.setWants(s2, sl2.id, J1, J12, [big.id]); C.setWants(s2, sl2.id, J12, J1, ['y']); C.judge(s2, T0 + 61e6);
+  var d2 = s2.dockings[s2.dockings.length - 1]; assert.ok(!d2.traded && /兩個角色加起來要給 1030 點/.test(d2.reason), '點不夠：' + d2.reason);
+  // 存檔讀得回來
+  var raw = JSON.parse(JSON.stringify(s)); raw.v = 9; raw.tutorial = { step: 'done' }; var store = {}; global.localStorage = { getItem: function (k) { return store[k] || null; }, setItem: function (k, v) { store[k] = v; }, removeItem: function (k) { delete store[k]; } };
+  store['arrive-v9'] = JSON.stringify(raw); var st = C.load(); delete global.localStorage;
+  var sl = C.slotOf(st, slot.id).slot; assert.deepStrictEqual([sl.bookings.indexOf(J12) >= 0, sl.roles[J12]], [true, J12], '時段讀回來');
+  var dl = st.dockings.find(function (x) { return x.id === d.id; }); assert.deepStrictEqual([dl.b, dl.rb, dl.traded], [J12, J12, true], '對接讀回來');
+  assert.ok(C.entriesOf(st).some(function (e) { return e.b === J12 && e.roles[J12] === J12; }), '每一筆讀回來');
+  // 取消、收掉角色
+  var s3 = base(), c3 = C.openChar(s3, J1, { bg: '相機' }, T0 - DAY), sl3 = C.addSlot(s3, J1, T0 + 60e6, 1, null, T0); C.book(s3, J1, sl3.id, T0, true, false, c3.id);
+  C.cancelBooking(s3, J12, sl3.id); assert.deepStrictEqual(sl3.bookings, [], '取消'); assert.ok(!C.entriesOf(s3).some(function (e) { return e.slot === sl3.id; }), '取消了就沒有那一筆');
+  C.book(s3, J1, sl3.id, T0, true, false, c3.id); C.closeChar(s3, J1, J12, T0 + 1); assert.deepStrictEqual(sl3.bookings, [], '收掉角色：它的預約一起拿掉');
 });
 console.log('core.test.js ok（' + n + ' 項）');
