@@ -8,7 +8,7 @@ var J1 = '00000000001', J12 = '00000000001-2';
   var H = await lib.open(process.argv[2]), pg = H.pg, OUT = process.argv[3];
   await H.fresh();
   // 準備：第二個角色（相機），昨天就開好、有一樣「一張照片」30 點
-  await H.ev("(function(){var s=APP.state(),t=APP.now()-86400e6,c=CORE.openChar(s,'" + J1 + "',{bg:'相機'},t),r=CORE.addResource(s,c.id,{name:'一張照片',kind:'thing',price:CORE.pts(30)},t);CORE.restock(s,c.id,r.id,3);APP.changed();})()");
+  await H.ev("(function(){var s=APP.state(),t=APP.now()-86400e6,c=CORE.openChar(s,'" + J1 + "',{bg:'相機'},t),r=CORE.addResource(s,c.id,{name:'一張照片',kind:'thing',eUse:5,eBring:0,price:CORE.pts(30)},t);CORE.restock(s,c.id,r.id,3);APP.changed();})()");
   assert((await H.ev("CORE.charsOf(APP.me()).length")) === 2, '有兩個角色');
   var left0 = await H.ev("CORE.remainingToday(APP.state(),APP.me(),APP.now())");
   // 開時段（用第一個角色），那一行有「用另一個角色約」

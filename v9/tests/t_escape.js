@@ -19,8 +19,8 @@ var SHEETS = ['log', 'cal', 'res', 'find', 'more', 'rules', 'together', 'greet',
   await H.edit('#tmain [data-ed="site"]', 'https://example.com/' + X.replace(/ /g, '')); await check('規則表');
   await H.nav('res'); await H.edit('#tmain input[data-new="res"]', X);
   var rid = await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).resources.find(function(x){return x.name===" + JSON.stringify(X) + ";}).id");
-  await H.edit('#tmain input[data-ed="resDef"][data-id="' + rid + '"]', X); await H.edit('#tmain input[data-ed="resDeliver"][data-id="' + rid + '"]', X); await H.edit('#tmain tr.prob textarea[data-ed="problem"]', X); await check('資源表');
-  assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).resources.find(function(x){return x.id==='" + rid + "';}).deliver")) === X, '交什麼照原樣存起來');
+  await H.edit('#tmain input[data-ed="resDef"][data-id="' + rid + '"]', X); await H.ev("CORE.setResource(APP.state(), CORE.firstChar(APP.me()).id, '" + rid + "', { deliver: " + JSON.stringify(X) + ", eUse: 5 }, APP.now())"); await H.nav('more'); await H.nav('res'); await H.edit('#tmain tr.prob textarea[data-ed="problem"]', X); await check('資源表');
+  assert((await H.ev("CORE.pending(CORE.firstChar(APP.me()),APP.now()).resources.find(function(x){return x.id==='" + rid + "';}).deliver")) === X, '舊的交什麼照原樣存起來、照原樣顯示');
   await H.nav('find'); await H.setIn('ntNeed', X); await H.setIn('ntTags', X.slice(0, 20)); await H.click('#tmain [data-act="post"]'); await check('公告欄');
   await H.nav('house'); await H.edit('#tmain input[data-id="sign"]', X); await check('我的能量之家');
   var me = JSON.parse(await H.ev("JSON.stringify({c:APP.me().contact,s:CORE.houseOf(APP.me()).sign,n:APP.state().notices.filter(function(n){return n.need===" + JSON.stringify(X) + ";}).length})"));

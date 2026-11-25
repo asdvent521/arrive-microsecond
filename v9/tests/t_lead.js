@@ -1,5 +1,5 @@
 // 主動方和接受（第 12 輪）：他主動時那一行紅字「看規則・接受」，打開看得到出問題怎麼辦和家規，接受後變「已接受」；沒接受到時候不成交、原因對；
-// 我主動時「等他接受」，用換人替他接受後成交；成交結果寫主動方；背包有主動那一欄；「出問題」寫一句兩邊都看得到；空的寫不用交、不進背包；第一次收到實體跳那一句；
+// 我主動時「等他接受」，用換人替他接受後成交；成交結果寫主動方；背包有主動那一欄；「出問題」寫一句兩邊都看得到；空的寫不用交、不進背包；第一次收到東西跳那一句；
 // 價錢打 50.5、199.999999 顯示對，7 位擋下來；直放和轉橫各截一張。
 // node v9/tests/t_lead.js <test9.html> [截圖資料夾]
 var lib = require('./lib'), assert = lib.assert, path = require('path');
@@ -25,7 +25,7 @@ var J1 = '00000000001', J2 = '00000000002', J5 = '00000000005';
   await H.soon(s1, 3); await waitTraded(s1); await pg.waitForTimeout(400);
   assert((await H.popOpen()) && (await H.popBody()).indexOf('和 阿澄 不成立：你還沒接受 阿澄（聊天傾聽） 的規則') >= 0, '沒接受到那一微秒：不成交，原因「你還沒接受 阿澄（聊天傾聽） 的規則」：' + (await H.popBody())); await H.popOk();
   assert((await rowText(s1, J2)).indexOf('不成立') >= 0 && (await leadOn(s1, J2)) === '他' && (await rowText(s1, J2)).indexOf('你還沒接受') >= 0 && (await H.ev("APP.state().holds.length")) === 0, '那一行：不成立、主動圈「他」、寫你還沒接受；沒有保留');
-  // 2. 接受以後：再約一次 → 照他的規則・已接受 → 成交，成交結果寫主動方；第一次收到實體跳那一句
+  // 2. 接受以後：再約一次 → 照他的規則・已接受 → 成交，成交結果寫主動方；第一次收到東西跳那一句
   var s2 = await mk(180); await H.nav('log');
   await H.finger("function(){ var tr=" + H.entryRow(s2, J2) + "; return tr.querySelector('[data-act=\"seeRules\"]'); }", '看規則・接受'); await H.popOk('接受');
   assert((await H.msg()).indexOf('接受了 阿澄（聊天傾聽） 的規則') >= 0 && (await H.ev("CORE.acceptState(APP.state(),'" + J1 + "','" + J2 + "-1',APP.now())")) === 'current' && (await rowText(s2, J2)).indexOf('照他的規則・已接受') >= 0 && !(await H.ev("!!document.querySelector('#tmain .remind')")), '接受了：那一行寫「照他的規則・已接受」，提醒不見');
@@ -34,10 +34,10 @@ var J1 = '00000000001', J2 = '00000000002', J5 = '00000000005';
   var before = await H.ev("CORE.remainingToday(APP.state(),APP.me(),APP.now())");
   await H.soon(s2, 3); await waitTraded(s2); await pg.waitForTimeout(400);
   var body = await H.popBody();
-  assert((await H.popOpen()) && body.indexOf('我給他：陪跑一小時（交：一張打卡紙）（60 點）') >= 0 && body.indexOf('我收到：阿澄的改履歷（交：改好的那一份列印稿）') >= 0 && body.indexOf('主動：阿澄（聊天傾聽）・照他的規則（') >= 0 && body.indexOf('的版本）') >= 0 && body.indexOf('東西交到你手上，再在那一行按『兌現』') >= 0, '成交結果：我給他、我收到（交什麼）、主動：阿澄（聊天傾聽）・照他的規則（哪一天的版本）：' + body);
-  assert(body.indexOf('東西到手再按『兌現』') >= 0 && (await H.ev("APP.state().hints.phys")) === true, '第一次收到實體：跳一句「東西到手再按『兌現』」'); await H.popOk();
+  assert((await H.popOpen()) && body.indexOf('我給他：陪跑一小時（約 500 大卡）（60 點）') >= 0 && body.indexOf('我收到：阿澄的改履歷（約 10 大卡）') >= 0 && body.indexOf('主動：阿澄（聊天傾聽）・照他的規則（') >= 0 && body.indexOf('的版本）') >= 0 && body.indexOf('東西交到你手上，再在那一行按『兌現』') >= 0, '成交結果：我給他、我收到（交什麼）、主動：阿澄（聊天傾聽）・照他的規則（哪一天的版本）：' + body);
+  assert(body.indexOf('東西到手再按『兌現』') >= 0 && (await H.ev("APP.state().hints.phys")) === true, '第一次收到東西：跳一句「東西到手再按『兌現』」'); await H.popOk();
   var cells = await H.ev("Array.from(" + H.entryRow(s2, J2) + ".querySelectorAll('td')).map(function(td){return td.textContent.trim();})");
-  assert(cells[5] === '成交' && (await leadOn(s2, J2)) === '他' && cells[4].indexOf('照他的規則') >= 0 && cells[6] === (await H.ev("CORE.fmtPoints(" + (before - 60000000) + ")")) && cells[2].indexOf('交：一張打卡紙') >= 0 && cells[3].indexOf('交：改好的那一份列印稿') >= 0 && cells[8].indexOf('兌現') === 0 && cells[8].indexOf('出問題') >= 0, '那一行：成交、主動圈「他」照他的規則、我給他／我收到寫交什麼、兌現那格下面有「出問題」');
+  assert(cells[5] === '成交' && (await leadOn(s2, J2)) === '他' && cells[4].indexOf('照他的規則') >= 0 && cells[6] === (await H.ev("CORE.fmtPoints(" + (before - 60000000) + ")")) && cells[2].indexOf('約 500 大卡') >= 0 && cells[3].indexOf('約 10 大卡') >= 0 && cells[8].indexOf('兌現') === 0 && cells[8].indexOf('出問題') >= 0, '那一行：成交、主動圈「他」照他的規則、我給他／我收到寫交什麼、兌現那格下面有「出問題」');
   if (OUT) await pg.screenshot({ path: OUT + '/v9_lead_landscape.png', fullPage: true });
   // 3. 出問題：收的人寫一句（最多 40 字），給的人那邊也看得到；可以改、清掉；不改成交
   var hid = await H.ev("APP.state().holds.find(function(h){return h.holder==='" + J1 + "';}).id");
@@ -52,7 +52,7 @@ var J1 = '00000000001', J2 = '00000000002', J5 = '00000000005';
   // 背包：收到那一筆當作昨天的 → 下面那張有主動那一欄、交什麼、出問題
   await H.ev("(function(){var h=APP.state().holds.find(function(h){return h.id==='" + hid + "';});h.atUs-=86400e6;APP.changed();})()");
   var bag = await H.ev("(function(){var t=[...document.querySelectorAll('#tmain table')][1];var tr=t.querySelector('tr[data-row]');return {th:Array.from(t.querySelectorAll('th')).map(function(x){return x.firstChild.textContent;}).join(','),row:tr?tr.textContent:'',lead:tr&&tr.querySelector('.lead b.on')?tr.querySelector('.lead b.on').textContent:null};})()");
-  assert(bag.th === '哪天收到的,誰的,什麼東西,主動,兌現・對方簽名,出問題' && bag.row.indexOf('阿澄（聊天傾聽）') >= 0 && bag.row.indexOf('交：改好的那一份列印稿') >= 0 && bag.lead === '他' && bag.row.indexOf('出問題：列印稿缺了最後一頁') >= 0, '背包：哪天收到的｜誰的（哪個角色）｜什麼東西・交什麼｜主動｜兌現・對方簽名｜出問題');
+  assert(bag.th === '哪天收到的,誰的,什麼東西,主動,兌現・對方簽名,出問題' && bag.row.indexOf('阿澄（聊天傾聽）') >= 0 && bag.row.indexOf('約 10 大卡') >= 0 && bag.lead === '他' && bag.row.indexOf('出問題：列印稿缺了最後一頁') >= 0, '背包：哪天收到的｜誰的（哪個角色）｜什麼東西・交什麼｜主動｜兌現・對方簽名｜出問題');
   await H.finger("function(){ return [...document.querySelectorAll('#tmain table')][1].querySelector('[data-act=\"problem\"]'); }", '背包的出問題'); await H.popOk('清掉');
   assert((await H.ev("APP.state().holds.find(function(h){return h.id==='" + hid + "';}).problem")) === '', '清掉了');
   // 4. 我主動：我開時段、阿澄約、他選我的早餐（100）、我選他的試聽（0）→ 我給得多；阿澄還沒接受我的 → 「照我的規則・等他接受」→ 不成交；換人替他接受 → 成交
@@ -71,7 +71,7 @@ var J1 = '00000000001', J2 = '00000000002', J5 = '00000000005';
   await H.becomeMe(J1); await H.nav('log');
   assert((await rowText(s4, J2)).indexOf('照我的規則・他接受了') >= 0, '回到我：照我的規則・他接受了');
   await H.soon(s4, 3); await waitTraded(s4); await pg.waitForTimeout(400);
-  assert((await H.popOpen()) && (await H.popBody()).indexOf('主動：我（便當熟食）・照我的規則') >= 0 && (await H.popBody()).indexOf('我收到：阿澄的試聽 5 分鐘（交：一張試聽卡）') >= 0, '成交：主動：我（便當熟食）・照我的規則'); await H.popOk();
+  assert((await H.popOpen()) && (await H.popBody()).indexOf('主動：我（便當熟食）・照我的規則') >= 0 && (await H.popBody()).indexOf('我收到：阿澄的試聽 5 分鐘（約 2 大卡）') >= 0, '成交：主動：我（便當熟食）・照我的規則'); await H.popOk();
   assert((await rowText(s4, J2)).indexOf('成交') >= 0 && (await leadOn(s4, J2)) === '我', '那一行成交、主動圈「我」');
   // 5. 空的不用交、不進背包：約阿明，我選他的空的、他選我的早餐（陪跑只有一份，第 1 段換走了）
   var h0 = await H.ev("APP.state().holds.filter(function(h){return h.holder==='" + J1 + "';}).length");

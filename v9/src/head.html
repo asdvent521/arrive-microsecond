@@ -156,7 +156,7 @@ button.box{cursor:pointer}
 .page .fields .nat{display:inline-block;font-size:calc(var(--mm)*2.8);color:#3F7A4A;border:calc(var(--mm)*.25) solid #3F7A4A;border-radius:999px;padding:0 calc(var(--mm)*1.2);margin-left:calc(var(--mm)*1);vertical-align:middle;font-family:var(--serif)}
 .page td input.pr,.page td .pr{width:100%;min-width:0;padding:0 1px;text-align:right;font-size:calc(var(--mm)*3);letter-spacing:-.03em;font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}
 .page td input.pr::-webkit-outer-spin-button,.page td input.pr::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}   /* 小數點後 6 位要放得下：不畫上下箭頭 */
-.page td small.dl{display:flex;align-items:baseline;gap:calc(var(--mm)*.5);font-family:var(--serif)} .page td small.dl input{flex:1;min-width:0;font-family:var(--hand);font-size:calc(var(--mm)*3.3);color:var(--pen)}
+.page td small.dl{display:flex;align-items:baseline;gap:calc(var(--mm)*.5);font-family:var(--serif)} .page td small.dl input{flex:1;min-width:0;font-family:var(--hand);font-size:calc(var(--mm)*3.3);color:var(--pen)} .page td small.dl{white-space:nowrap;overflow:hidden} .page td small.dl .tot,.page td small.dl .dim{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis} .page td small.dl input.kc{flex:0 1 auto;width:3.2em;min-width:2em;text-align:right;border:0;border-bottom:1px dotted var(--line,#999);background:transparent;padding:0;-moz-appearance:textfield} .page td small.dl input.kc::-webkit-inner-spin-button,.page td small.dl input.kc::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 /* 整條鏈：分支樹（補二十） */
 /* 交換關係圖（補二十二）：這一頁用 px，直放時紙縮到螢幕寬 */
 .stage.fit{min-width:0}

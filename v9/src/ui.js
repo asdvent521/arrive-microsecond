@@ -70,7 +70,7 @@ var KIT = (function () {
     return page('cal', '日曆', sub, fields, body, foot);
   }
   /* ---------- 那天的明細：點一格或點一塊磚 ---------- */
-  function itemsText(items) { return items.length ? items.map(function (it) { return it.name + '（' + CORE.fmtPoints(it.price) + ' 點・' + (it.deliver === '不用交' || it.deliver === '' && it.price === 0 ? '不用交' : '交：' + (it.deliver || '（舊的，沒寫）')) + '）' + (it.state ? '［' + it.state + '］' : ''); }).join('、') : '（沒有）'; }
+  function itemsText(items) { return items.length ? items.map(function (it) { return it.name + '（' + CORE.fmtPoints(it.price) + ' 點・' + (it.energy ? it.energy : it.deliver === '不用交' || it.deliver === '' && it.price === 0 ? '不用交' : '交：' + (it.deliver || '（舊的，沒寫）')) + '）' + (it.state ? '［' + it.state + '］' : ''); }).join('、') : '（沒有）'; }
   function dayPop(ownerSerial, day, onChange) {
     var me = APP.me().serial, viewer = APP.isBlank() ? null : me, d = CORE.dayDetail(APP.state(), ownerSerial, viewer, day, APP.now());
     var owner = APP.roleOf(ownerSerial);
@@ -88,7 +88,7 @@ var KIT = (function () {
       return '<div class="ent">' + head + body + vis + '</div>';
     }).join('');
     var covered = d.covered ? '<div class="small muted ent">還有 ' + d.covered + ' 筆蓋著</div>' : '';
-    var rules = '<details class="small"><summary>那天生效的規則表和資源表</summary><div>用途：' + esc(d.rules.uses.join('；') || '（沒寫）') + '</div><div>對接條件：' + esc(d.rules.conditions.join('；') || '沒有條件') + '</div><div>出問題怎麼辦：' + esc(d.rules.problem || '（沒寫）') + '</div><div>家規：' + esc(d.rules.village || '（沒有）') + '</div><div>資源：' + esc(d.resources.map(function (x) { return x.name + ' ' + CORE.fmtPoints(x.price) + ' 點（' + (x.deliver === '不用交' ? '不用交' : '交：' + x.deliver) + '）'; }).join('、') || '（沒有）') + '</div></details>';
+    var rules = '<details class="small"><summary>那天生效的規則表和資源表</summary><div>用途：' + esc(d.rules.uses.join('；') || '（沒寫）') + '</div><div>對接條件：' + esc(d.rules.conditions.join('；') || '沒有條件') + '</div><div>出問題怎麼辦：' + esc(d.rules.problem || '（沒寫）') + '</div><div>家規：' + esc(d.rules.village || '（沒有）') + '</div><div>資源：' + esc(d.resources.map(function (x) { return x.name + ' ' + CORE.fmtPoints(x.price) + ' 點（' + x.deliver + (x.energy ? '・' + x.energy : '') + '）'; }).join('、') || '（沒有）') + '</div></details>';
     pop((owner ? owner.name + ' ' : '') + d.label, { html: (rows || (d.covered ? '' : '<div class="small muted">這一天沒有紀錄。</div>')) + covered + rules }, [{ label: '好', pri: true }]);
     $('popBody').querySelectorAll('[data-vis]').forEach(function (sel) { sel.onchange = function () { var r = APP.run(function () { CORE.setVis(APP.state(), me, sel.dataset.vis, sel.value); }); if (!r.ok) alertMsg(r.msg); dayPop(ownerSerial, day, onChange); if (onChange) onChange(); }; });
     $('popBody').querySelectorAll('[data-goserial]').forEach(function (b) { b.onclick = function () { close(); APP.goTable(b.dataset.goserial, 'res', 'link'); }; });

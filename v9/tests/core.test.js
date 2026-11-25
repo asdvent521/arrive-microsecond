@@ -19,9 +19,9 @@ function base() {   // 乾淨的三個角色，不帶示範時段
   var s = { v: 8, model: 2, me: 0, roles: [], holds: [], dockings: [], redeems: [], acceptances: [], records: [], presence: {} };
   // 每個人都有一個 0 點的空物件（e1、e2、e3），一換一時「只收不給」就拿它
   // 東西一定是實體（第 12 輪）：畫一張圖和一首歌是行為／訊息，寫了交什麼；一杯茶、借書是物質（本身）
-  C.createRole(s, { serial: J1, name: '甲', dailyPoints: pts(1000), rules: { uses: ['a'], conditions: [] }, resources: [{ id: 'x', name: '畫一張圖', deliver: '一張圖', price: pts(300), keepDays: 2, avail: 1 }, { id: 'y', name: '一杯茶', kind: 'thing', price: pts(50), keepDays: null, avail: 10 }, { id: 'e1', name: '空的', price: 0, keepDays: null, avail: 10 }] }, T0);
-  C.createRole(s, { serial: J2, name: '乙', dailyPoints: pts(500), rules: { uses: ['b'], conditions: [] }, resources: [{ id: 'p', name: '一首歌', deliver: '一張歌詞', price: pts(200), keepDays: 1, avail: 2 }, { id: 'e2', name: '空的', price: 0, keepDays: null, avail: 10 }] }, T0);
-  C.createRole(s, { serial: J3, name: '丙', dailyPoints: pts(300), rules: { uses: ['c'], conditions: [] }, resources: [{ id: 'q', name: '借書', kind: 'thing', price: pts(10), keepDays: null, avail: 5 }, { id: 'e3', name: '空的', price: 0, keepDays: null, avail: 10 }] }, T0);
+  C.createRole(s, { serial: J1, name: '甲', dailyPoints: pts(1000), rules: { uses: ['a'], conditions: [] }, resources: [{ id: 'x', name: '畫一張圖', deliver: '一張圖', eUse: 10, price: pts(300), keepDays: 2, avail: 1 }, { id: 'y', name: '一杯茶', kind: 'thing', eUse: 10, price: pts(50), keepDays: null, avail: 10 }, { id: 'e1', name: '空的', price: 0, keepDays: null, avail: 10 }] }, T0);
+  C.createRole(s, { serial: J2, name: '乙', dailyPoints: pts(500), rules: { uses: ['b'], conditions: [] }, resources: [{ id: 'p', name: '一首歌', deliver: '一張歌詞', eUse: 10, price: pts(200), keepDays: 1, avail: 2 }, { id: 'e2', name: '空的', price: 0, keepDays: null, avail: 10 }] }, T0);
+  C.createRole(s, { serial: J3, name: '丙', dailyPoints: pts(300), rules: { uses: ['c'], conditions: [] }, resources: [{ id: 'q', name: '借書', kind: 'thing', eUse: 10, price: pts(10), keepDays: null, avail: 5 }, { id: 'e3', name: '空的', price: 0, keepDays: null, avail: 10 }] }, T0);
   acceptAll(s);
   return s;
 }
@@ -129,7 +129,7 @@ ok('5d. 一換一：只有一邊選，整對不成交；只給不收（試用品
   var s1 = base(), slot1 = C.addSlot(s1, J1, T0 + 60e6, 5, null, T0); C.book(s1, J2, slot1.id, T0); C.setPresent(s1, J2, slot1.id, true);
   assert.strictEqual(C.judge(s1, T0 + 60e6, {})[0].docking.reason, '一換一：兩邊都沒選對方的東西');
   // 只給不收：甲拿出 0 點的試用品，選乙的空物件；乙選甲的試用品
-  var s2 = base(), tr = C.addResource(s2, J1, { name: '試喝一口', kind: 'thing', price: 0, keepDays: 3 }, T0 - DAY); C.restock(s2, J1, tr.id, 5);   // 0 點的試用品：要勾種類（物質＝本身）才不是空物件
+  var s2 = base(), tr = C.addResource(s2, J1, { name: '試喝一口', kind: 'thing', eUse: 10, price: 0, keepDays: 3 }, T0 - DAY); C.restock(s2, J1, tr.id, 5);   // 0 點的試用品：要勾種類（物質＝本身）才不是空物件
   var slot2 = meet(s2, J1, [J2]); C.setWants(s2, slot2.id, J2, J1, [tr.id]); C.setWants(s2, slot2.id, J1, J2, ['e2']);
   var d2 = C.judge(s2, T0 + 60e6, {})[0].docking;
   assert.strictEqual(d2.traded, true); assert.strictEqual(d2.gaveA, 0); assert.strictEqual(d2.gaveB, 0);
@@ -214,7 +214,7 @@ ok('6b. 保留到期沒換：作廢、貨回到可換、留紀錄；沒寫保留
 });
 ok('6c. 改版、改價錢、下架都不影響已經保留的', function () {
   var s = base(), slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['y']); C.judge(s, T0 + 60e6, {});
-  C.setResource(s, J1, 'y', { price: pts(999), name: '改名' }, T0); C.removeResource(s, J1, 'y', T0);
+  C.setResource(s, J1, 'y', { eUse: 10, price: pts(999), name: '改名' }, T0); C.removeResource(s, J1, 'y', T0);
   var h = s.holds[0];
   assert.strictEqual(C.resourceOf(cv(s.roles[0], T0 + DAY), 'y'), null, '明天下架');
   assert.strictEqual(C.holdStatus(h, T0 + DAY), 'held'); assert.strictEqual(h.name, '一杯茶'); assert.strictEqual(h.price, pts(50));
@@ -255,7 +255,7 @@ ok('5g. 時段在明天以後，來的人選了主人的東西，主人把它明
 ok('2c. 「對方可換的貨」只算當天版本裡有的：明天起才上架的補 50 份今天不算；下架後從生效那天起不算', function () {
   var s = base(), r = s.roles[0];
   assert.strictEqual(C.availTotal(r, T0), 21);
-  var z = C.addResource(s, J1, { name: '新東西', kind: 'thing', price: pts(5) }, T0); C.restock(s, J1, z.id, 50);
+  var z = C.addResource(s, J1, { name: '新東西', kind: 'thing', eUse: 10, price: pts(5) }, T0); C.restock(s, J1, z.id, 50);
   assert.strictEqual(C.availTotal(r, T0), 21, '明天起才上架的不算'); assert.strictEqual(C.availTotal(r, T0 + DAY), 71, '明天就算');
   C.removeResource(s, J1, 'y', T0);
   assert.strictEqual(C.availTotal(r, T0), 21, '今天還在'); assert.strictEqual(C.availTotal(r, T0 + DAY), 61, '下架後從生效那天起不算');
@@ -646,7 +646,7 @@ ok('每一筆：約的時候就有（未來的預約），取消預約就沒了�
   C.judge(s, T0 + 300e6); var ed = s.entries.find(function (x) { return x.slot === d2.id; }); assert.strictEqual(ed.status, 'invalid'); assert.ok(/至少 15/.test(ed.reason), '不成立寫原因：' + ed.reason);
   var det = C.dayDetail(s, J1, J1, C.dayNum(T0)); var results = det.entries.map(function (x) { return x.result; });
   ['成交', '不成交', '錯過', '不成立'].forEach(function (r) { assert.ok(results.indexOf(r) >= 0, '明細有「' + r + '」'); });
-  var tr = det.entries.find(function (x) { return x.status === 'traded'; }); assert.deepStrictEqual(tr.gave, [{ name: '一杯茶', price: pts(50), deliver: '本身', state: '保留中' }]); assert.deepStrictEqual(tr.got[0].name, '空的'); assert.ok(tr.lead && tr.lead.mine && tr.lead.why === '給得多', '明細寫主動方');
+  var tr = det.entries.find(function (x) { return x.status === 'traded'; }); assert.deepStrictEqual(tr.gave, [{ name: '一杯茶', price: pts(50), deliver: '', energy: '約 10 大卡', state: '保留中' }]); assert.deepStrictEqual(tr.got[0].name, '空的'); assert.ok(tr.lead && tr.lead.mine && tr.lead.why === '給得多', '明細寫主動方');
   // 對方不玩了，那一筆照樣顯示得出來（名字留著）
   C.quit(s, J2, T0 + 400e6, true);
   var det2 = C.dayDetail(s, J1, J1, C.dayNum(T0)); var x2 = det2.entries.find(function (x) { return x.status === 'traded'; });
@@ -707,7 +707,7 @@ ok('看一間屋：對接的兩個人永遠看得到；陌生人只看到蓋布�
 });
 ok('不洩漏：給陌生人的回傳整份轉成文字，找不到藏起來那幾筆的對方序號、名字、東西名稱', function () {
   var s = houseBase();
-  C.createRole(s, { serial: '00000000005', name: '秘密客', dailyPoints: pts(500), rules: {}, resources: [{ id: 'zz', name: '神秘禮物', kind: 'thing', price: pts(7), keepDays: null, avail: 5 }, { id: 'z0', name: '戊空', price: 0, keepDays: null, avail: 5 }] }, T0 - DAY);
+  C.createRole(s, { serial: '00000000005', name: '秘密客', dailyPoints: pts(500), rules: {}, resources: [{ id: 'zz', name: '神秘禮物', kind: 'thing', eUse: 10, price: pts(7), keepDays: null, avail: 5 }, { id: 'z0', name: '戊空', price: 0, keepDays: null, avail: 5 }] }, T0 - DAY);
   C.accept(s, '00000000005', J1, T0); C.accept(s, J1, '00000000005', T0);
   var a = C.addSlot(s, J1, T0 + 60e6, 5, null, T0); C.book(s, '00000000005', a.id, T0); C.setWants(s, a.id, '00000000005', J1, ['y']); C.setWants(s, a.id, J1, '00000000005', ['zz']); C.judge(s, T0 + 60e6); assert.ok(s.dockings[0].traded);
   C.setVis(s, J1, s.entries[0].id, 'hidden');
@@ -726,7 +726,7 @@ ok('引路人那一邊的教學紀錄固定全藏，不能改；玩家那一邊�
 });
 ok('門牌和磚：幾歲幾天（滿 365 天 1 歲，創角色那天 0 歲 0 天）、一天一塊、換日照 dayNum、未來有預約的那幾天是虛線（中間空著）、那天生效的規則表和資源表', function () {
   var s = houseBase(), born = T0 - 400 * DAY;
-  C.createRole(s, { serial: '00000000006', name: '老人家', dailyPoints: pts(700), rules: { uses: ['舊用途'] }, resources: [{ id: 'o1', name: '舊東西', kind: 'thing', price: pts(5), keepDays: null, avail: 3 }] }, born);
+  C.createRole(s, { serial: '00000000006', name: '老人家', dailyPoints: pts(700), rules: { uses: ['舊用途'] }, resources: [{ id: 'o1', name: '舊東西', kind: 'thing', eUse: 10, price: pts(5), keepDays: null, avail: 3 }] }, born);
   var v = C.viewHouse(s, '00000000006', null, T0);
   assert.strictEqual(v.age.text, '1 歲 35 天'); assert.strictEqual(v.bricks.length, 401, '創角色那天到今天每天一塊');
   assert.strictEqual(C.viewHouse(s, J1, null, T0).age.text, '0 歲 0 天', '創角色那天 0 歲 0 天'); assert.strictEqual(C.viewHouse(s, J1, null, T0).bricks.length, 1);
@@ -737,7 +737,7 @@ ok('門牌和磚：幾歲幾天（滿 365 天 1 歲，創角色那天 0 歲 0 �
   var fut = C.viewHouse(s, '00000000006', null, T0).bricks.filter(function (x) { return x.future; });
   assert.deepStrictEqual(fut.map(function (x) { return x.day - C.dayNum(T0); }), [3, 6], '未來只有有預約的那兩天，中間空著'); assert.ok(fut.every(function (x) { return x.booked; }));
   C.cancelBooking(s, J1, f2.id); assert.strictEqual(C.viewHouse(s, '00000000006', null, T0).bricks.filter(function (x) { return x.future; }).length, 1, '取消預約那塊虛線磚就沒了');
-  C.setRules(s, '00000000006', { uses: ['新用途'] }, T0); C.addResource(s, '00000000006', { name: '新東西', kind: 'thing', price: pts(9) }, T0);
+  C.setRules(s, '00000000006', { uses: ['新用途'] }, T0); C.addResource(s, '00000000006', { name: '新東西', kind: 'thing', eUse: 10, price: pts(9) }, T0);
   var old = C.dayDetail(s, '00000000006', null, C.dayNum(T0)), nxt = C.dayDetail(s, '00000000006', null, C.dayNum(T0) + 1);
   assert.deepStrictEqual(old.rules.uses, ['舊用途']); assert.deepStrictEqual(old.resources.map(function (x) { return x.name; }), ['舊東西'], '今天生效的是舊的');
   assert.deepStrictEqual(nxt.rules.uses, ['新用途']); assert.deepStrictEqual(nxt.resources.map(function (x) { return x.name; }), ['舊東西', '新東西'], '明天那一塊是新的');
@@ -1007,8 +1007,8 @@ ok('種類：每樣東西是訊息、行為、物質之一；舊資料沒選的�
   assert.strictEqual(cv(s.roles[0], T0).resources[0].kind, '', '舊資料：還沒選');
   C.setResource(s, J1, 'x', { kind: 'act' }, T0); assert.strictEqual(cv(s.roles[0], T0).resources[0].kind, '', '今天不變'); assert.strictEqual(cv(s.roles[0], T0 + DAY).resources[0].kind, 'act', '明天起是行為');
   throws(function () { C.setResource(s, J1, 'x', { kind: 'money' }, T0); }, /種類只有/);
-  var r = C.addResource(s, J1, { name: '一份食譜', kind: 'info', deliver: '一張食譜卡', price: pts(20) }, T0); assert.strictEqual(r.kind, 'info');
-  throws(function () { C.addResource(s, J1, { name: '沒綁的', kind: 'info', price: pts(20) }, T0); }, /要綁一樣實體/, '訊息、行為要寫交什麼');
+  var r = C.addResource(s, J1, { name: '一份食譜', kind: 'info', eUse: 5, eBring: 0, price: pts(20) }, T0); assert.strictEqual(r.kind, 'info');
+  throws(function () { C.addResource(s, J1, { name: '沒寫的', kind: 'info', price: pts(20) }, T0); }, /要寫能量/, '訊息、行為要寫能量');
   var raw = JSON.parse(JSON.stringify(s.roles[0])); raw.chars[0].versions[0].resources[0].kind = 'gold'; assert.strictEqual(C.cleanRole(raw).chars[0].versions[0].resources[0].kind, '', '讀檔：不認得的種類當還沒選');
   // 沒選種類照樣能換
   var a = C.addSlot(s, J1, T0 + 60e6, 5, null, T0); C.book(s, J2, a.id, T0); C.setWants(s, a.id, J2, J1, ['x']); C.setWants(s, a.id, J1, J2, ['e2']); C.judge(s, T0 + 60e6);
@@ -1036,7 +1036,7 @@ ok('條件限種類：「對方要給的東西種類」那一微秒才判，看�
   C.setRules(s, J1, { conditions: [{ field: 'giveKind', op: '=', value: 'same' }] }, T0 - DAY);
   var c = C.addSlot(s, J1, T0 + 180e6, 5, null, T0); C.book(s, J2, c.id, T0); C.setWants(s, c.id, J2, J1, ['x']); C.setWants(s, c.id, J1, J2, ['p']); C.judge(s, T0 + 180e6);
   assert.ok(!s.dockings[2].traded && /跟我同一種/.test(s.dockings[2].reason), '跟我同一種：訊息換行為不成');
-  C.addResource(s, J2, { id: 'pt', name: '一個便當', kind: 'thing', price: pts(50) }, T0 - DAY); C.restock(s, J2, 'pt', 2);
+  C.addResource(s, J2, { id: 'pt', name: '一個便當', kind: 'thing', eUse: 10, price: pts(50) }, T0 - DAY); C.restock(s, J2, 'pt', 2);
   var e = C.addSlot(s, J1, T0 + 240e6, 5, null, T0); C.book(s, J2, e.id, T0); C.setWants(s, e.id, J2, J1, ['y', 'y']); C.setWants(s, e.id, J1, J2, ['pt']); C.judge(s, T0 + 240e6);
   assert.ok(s.dockings[3].traded && s.dockings[3].lead === J1, '物質換物質：成交');
   // 一起成交的時段也看
@@ -1251,7 +1251,7 @@ ok('鄰居：看得到彼此「只給鄰居看」的屋和那幾筆；非鄰居�
   C.leaveVillage(s, J3); assert.ok(C.viewHouse(s, J1, J3, T0 + 61e6).closed, '搬走就不是鄰居了');
 });
 ok('接上去：接到需要下面（我給他）、接到可以給下面（他給我）、岔路照順序；接成一圈的偵測；上限；圈主開時段、大家預約、平台先選好、那一微秒全部成交；需要拿掉、其他岔路提醒「已經有人做到了」', function () {
-  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: {}, resources: [{ id: 'd', name: '一束花', kind: 'thing', price: pts(20), avail: 5 }, { id: 'e4', name: '空的', price: 0, avail: 5 }] }, T0); acceptAll(s);
+  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: {}, resources: [{ id: 'd', name: '一束花', kind: 'thing', eUse: 10, price: pts(20), avail: 5 }, { id: 'e4', name: '空的', price: 0, avail: 5 }] }, T0); acceptAll(s);
   var nA = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0);
   var lB = C.linkNotice(s, J2, nA.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1); assert.ok(lB.notice.parent.side === 'need' && lB.circle === null && lB.notice.cap === 4, '乙接到甲的需要下面：給一首歌，寫自己的需要借書；上限照上面那張');
   throws(function () { C.linkNotice(s, J2, nA.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1); }, /已經接在這張公告上了/);
@@ -1272,7 +1272,7 @@ ok('接上去：接到需要下面（我給他）、接到可以給下面（他�
   throws(function () { C.openCircleSlot(s, J1, c.id, T0 + 600e6, T0); }, /只有圈主/);
   var slot = C.openCircleSlot(s, J4, c.id, T0 + 600e6, T0); assert.ok(slot.together && slot.capacity === 2 && c.status === 'slotted');
   // 甲多一樣 0 點的試用品、排在「空的」前面：平台先選的還是真的空物件（不是隨便一樣 0 點的）
-  var tr0 = C.addResource(s, J1, { name: '試聽', kind: 'act', deliver: '一張試聽卡', price: 0 }, T0 - DAY); C.restock(s, J1, tr0.id, 3); var rsA = C.version(ch(s, J1), T0).resources; rsA.unshift(rsA.splice(rsA.indexOf(rsA.find(function (x) { return x.id === tr0.id; })), 1)[0]);
+  var tr0 = C.addResource(s, J1, { name: '試聽', kind: 'act', deliver: '一張試聽卡', eUse: 10, price: 0 }, T0 - DAY); C.restock(s, J1, tr0.id, 3); var rsA = C.version(ch(s, J1), T0).resources; rsA.unshift(rsA.splice(rsA.indexOf(rsA.find(function (x) { return x.id === tr0.id; })), 1)[0]);
   assert.strictEqual(C.version(ch(s, J1), T0).resources[0].id, tr0.id, '試用品排第一個'); assert.ok(!C.isEmptyItem(rsA[0])); assert.strictEqual(C.emptyOf(ch(s, J1), T0).id, 'e1');
   C.bookCircle(s, J1, c.id, T0 + 10); C.bookCircle(s, J2, c.id, T0 + 11);
   assert.ok(C.isPresent(s, J1, slot.id) && C.isPresent(s, J2, slot.id), '預約時就確認到達');
@@ -1320,7 +1320,7 @@ ok('一圈：人數超過圈裡任何一張公告的上限就不算接成；沒�
   C.judge(s3, T0 + 300e6); assert.ok(gc.status === 'done' && !C.noticeOf(s3, a3.id) && !C.noticeOf(s3, b3.notice.id), '送禮鏈成交：需要都拿掉');
 });
 ok('一圈：同一張公告好幾條岔路都接成一圈，掛公告的人選一條，其他排隊', function () {
-  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: {}, resources: [{ id: 'd', name: '一束花', kind: 'thing', price: pts(20), avail: 5 }, { id: 'e4', name: '空的', price: 0, avail: 5 }] }, T0); acceptAll(s);
+  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: {}, resources: [{ id: 'd', name: '一束花', kind: 'thing', eUse: 10, price: pts(20), avail: 5 }, { id: 'e4', name: '空的', price: 0, avail: 5 }] }, T0); acceptAll(s);
   var nA = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0);
   var lB = C.linkNotice(s, J2, nA.id, { side: 'need', give: ['p'], need: '畫一張圖' }, T0 + 1);
   var c1 = C.linkNotice(s, J1, lB.notice.id, { side: 'need', give: ['x'], need: '一首歌' }, T0 + 2).circle; assert.ok(c1 && c1.status === 'open', '甲 ↔ 乙 接成一圈');
@@ -1368,11 +1368,11 @@ ok('分類（補十九）：12 大類、76 小類、沒有「其他」；需要�
   var s = base(), nt = C.postNotice(s, J1, { need: '幫忙修水龍頭', give: ['y'], cap: 2 }, T0);
   assert.strictEqual(nt.cat, 'plumb', '掛公告自動選'); C.setNotice(s, J1, nt.id, { cat: 'appliance' }); assert.strictEqual(nt.cat, 'appliance', '可以改');
   C.setNotice(s, J1, nt.id, { cat: '' }); assert.strictEqual(nt.cat, ''); throws(function () { C.setNotice(s, J1, nt.id, { cat: 'nope' }); }, /沒有這個類別/); throws(function () { C.setNotice(s, J2, nt.id, { cat: 'plumb' }); }, /掛的人/);
-  var x = C.addResource(s, J1, { name: '手工餅乾', def: '', kind: 'thing', price: pts(20), keepDays: 3 }, T0); assert.strictEqual(x.cat, 'bake', '資源表加一樣自動選');
+  var x = C.addResource(s, J1, { name: '手工餅乾', def: '', kind: 'thing', eUse: 10, price: pts(20), keepDays: 3 }, T0); assert.strictEqual(x.cat, 'bake', '資源表加一樣自動選');
   C.setResource(s, J1, x.id, { name: '咖啡一杯' }, T0); assert.strictEqual(x.cat, 'drink', '名字改了、類別是自動的 → 重選');
   C.setResource(s, J1, x.id, { cat: 'bento' }, T0); C.setResource(s, J1, x.id, { name: '咖啡兩杯' }, T0); assert.strictEqual(x.cat, 'bento', '改過的類別不動');
-  throws(function () { C.addResource(s, J1, { name: 'a', kind: 'thing', price: pts(1), cat: 'zzz' }, T0); }, /沒有這個類別/);
-  assert.strictEqual(C.addResource(s, J1, { name: '一樣東西', kind: 'thing', price: pts(1) }, T0).cat, '', '判斷不出來的東西不掛');
+  throws(function () { C.addResource(s, J1, { name: 'a', kind: 'thing', eUse: 10, price: pts(1), cat: 'zzz' }, T0); }, /沒有這個類別/);
+  assert.strictEqual(C.addResource(s, J1, { name: '一樣東西', kind: 'thing', eUse: 10, price: pts(1) }, T0).cat, '', '判斷不出來的東西不掛');
 });
 ok('標籤（補十九）：最多 3 個、# 拿掉、空白逗點頓號分、找得到；舊存檔的「種類」變第一個標籤', function () {
   var s = base();
@@ -1380,7 +1380,7 @@ ok('標籤（補十九）：最多 3 個、# 拿掉、空白逗點頓號分、�
   throws(function () { C.postNotice(s, J1, { need: '修腳踏車', tags: ['a', 'b', 'c', 'd'], give: ['y'], cap: 2 }, T0); }, /標籤最多 3 個/);
   throws(function () { C.setNotice(s, J1, nt.id, { tags: 'a b c d' }); }, /標籤最多 3 個/); throws(function () { C.setNotice(s, J1, nt.id, { tags: '一二三四五六七八九十一二三四五六七八九十一' }); }, /標籤最多 20 字/);
   C.setNotice(s, J1, nt.id, { tags: '素食 素食' }); assert.deepStrictEqual(nt.tags, ['素食'], '重複的併掉');
-  var x = C.addResource(s, J2, { name: '一首歌', kind: 'thing', price: pts(5), tags: ['#週末'] }, T0); assert.deepStrictEqual(x.tags, ['週末']);
+  var x = C.addResource(s, J2, { name: '一首歌', kind: 'thing', eUse: 10, price: pts(5), tags: ['#週末'] }, T0); assert.deepStrictEqual(x.tags, ['週末']);
   assert.strictEqual(C.search(s, J1, '週末', T0 + DAY).resources.length, 1, '標籤找得到（資源表）'); assert.strictEqual(C.search(s, J2, { kw: '素食', mode: 'give' }, T0).notices.length, 1, '標籤找得到（公告）');
   var raw = JSON.parse(JSON.stringify(s)); raw.notices[0].kind = '修理'; delete raw.notices[0].tags; delete raw.notices[0].cat; delete raw.roles[1].chars[0].versions[0].resources[0].cat; delete raw.roles[1].chars[0].versions[0].resources[0].tags;
   var store = {}; global.localStorage = { getItem: function (k) { return store[k] || null; }, setItem: function (k, v) { store[k] = v; }, removeItem: function (k) { delete store[k]; } };
@@ -1391,7 +1391,7 @@ ok('標籤（補十九）：最多 3 個、# 拿掉、空白逗點頓號分、�
 });
 ok('近似詞和打錯字（補十九）：找「飯」找得到「便當」並寫「近似：飯 → 便當」；簡繁（面／麵）、字顛倒（電水／水電）、少一個字都容得下', function () {
   var s = base();
-  C.addResource(s, J2, { name: '便當一個', def: '', kind: 'thing', price: pts(30), keepDays: 1 }, T0); C.addResource(s, J2, { name: '牛肉麵', def: '', kind: 'thing', price: pts(40), keepDays: 1 }, T0); C.addResource(s, J3, { name: '水電修理', def: '換燈泡、修水龍頭', kind: 'thing', price: pts(50), keepDays: 1 }, T0);
+  C.addResource(s, J2, { name: '便當一個', def: '', kind: 'thing', eUse: 10, price: pts(30), keepDays: 1 }, T0); C.addResource(s, J2, { name: '牛肉麵', def: '', kind: 'thing', eUse: 10, price: pts(40), keepDays: 1 }, T0); C.addResource(s, J3, { name: '水電修理', def: '換燈泡、修水龍頭', kind: 'thing', eUse: 10, price: pts(50), keepDays: 1 }, T0);
   var t = T0 + DAY, r = C.search(s, J1, '飯', t), names = r.resources.map(function (x) { return x.resource.name + '|' + x.match.how; });
   assert.ok(names.indexOf('便當一個|近似：飯 → 便當') >= 0, '飯 → 便當：' + names.join('，'));
   assert.ok(C.search(s, J1, '面', t).resources.some(function (x) { return x.resource.name === '牛肉麵' && x.match.level === 1; }), '簡體「面」找得到「麵」');
@@ -1403,10 +1403,10 @@ ok('近似詞和打錯字（補十九）：找「飯」找得到「便當」並�
 });
 ok('排序（補十九）：完全對上 → 近似詞 → 同類；同一級裡我通得過他的條件的、還有空格的排前面；「我在找」列別人可以給的和資源表、「我能給」列別人的需要', function () {
   var s = base(), J4 = '00000000004', J5 = '00000000005';
-  C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: { conditions: [{ field: 'avail', op: '>=', value: 100 }] }, resources: [{ id: 'd1', name: '便當', kind: 'thing', price: pts(10), keepDays: 1, avail: 2 }] }, T0);   // 丁：對方可換 ≥ 100（甲不通）；甲也設對方可換 ≥ 3（丁只有 2 份不通）→ 甲丁兩邊都不通
+  C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: { conditions: [{ field: 'avail', op: '>=', value: 100 }] }, resources: [{ id: 'd1', name: '便當', kind: 'thing', eUse: 10, price: pts(10), keepDays: 1, avail: 2 }] }, T0);   // 丁：對方可換 ≥ 100（甲不通）；甲也設對方可換 ≥ 3（丁只有 2 份不通）→ 甲丁兩邊都不通
   C.setRules(s, J1, { conditions: [{ field: 'avail', op: '>=', value: 3 }] }, T0 - DAY);
-  C.createRole(s, { serial: J5, name: '戊', dailyPoints: pts(100), rules: {}, resources: [{ id: 'f1', name: '便當', kind: 'thing', price: pts(10), keepDays: 1, avail: 0 }, { id: 'f2', name: '炒飯', kind: 'thing', price: pts(10), keepDays: 1, avail: 1 }, { id: 'f3', name: '蛋糕', def: '', kind: 'thing', price: pts(10), keepDays: 1, avail: 1, cat: 'bento' }] }, T0);
-  C.addResource(s, J2, { name: '便當', kind: 'thing', price: pts(10), keepDays: 1 }, T0); C.restock(s, J2, cp(s.roles[1], T0).resources.slice(-1)[0].id, 1);
+  C.createRole(s, { serial: J5, name: '戊', dailyPoints: pts(100), rules: {}, resources: [{ id: 'f1', name: '便當', kind: 'thing', eUse: 10, price: pts(10), keepDays: 1, avail: 0 }, { id: 'f2', name: '炒飯', kind: 'thing', eUse: 10, price: pts(10), keepDays: 1, avail: 1 }, { id: 'f3', name: '蛋糕', def: '', kind: 'thing', eUse: 10, price: pts(10), keepDays: 1, avail: 1, cat: 'bento' }] }, T0);
+  C.addResource(s, J2, { name: '便當', kind: 'thing', eUse: 10, price: pts(10), keepDays: 1 }, T0); C.restock(s, J2, cp(s.roles[1], T0).resources.slice(-1)[0].id, 1);
   var t = T0 + DAY, r = C.search(s, J1, '便當', t).resources.map(function (x) { return x.role.name + x.resource.name + ':' + x.match.level; });
   assert.deepStrictEqual(r, ['乙便當:1', '戊便當:1', '丁便當:1', '戊炒飯:2', '戊蛋糕:3'], '完全對上（通的、有貨的先，再通的沒貨，再不通的）→ 近似（炒飯）→ 同類（蛋糕掛在便當熟食）：' + r.join('，'));
   assert.strictEqual(C.search(s, J1, '便當', t).resources[4].match.how, '同類：食物／便當熟食');
@@ -1453,7 +1453,7 @@ ok('動詞先看（第 10 輪）：搬冰箱 → 搬家、教我煮飯 → 烹�
 });
 ok('簡繁對照（第 10 輪）：找「脚踏车」對到腳踏車機車、「头发」找得到、「简历」→ 履歷求職、「照相」→ 攝影；詞表每個詞的簡體寫法都對得到', function () {
   assert.strictEqual(C.catOf(C.classify('脚踏车')).path, '修理／腳踏車機車'); assert.strictEqual(C.catOf(C.classify('简历')).path, '諮詢文書／履歷求職'); assert.strictEqual(C.catOf(C.classify('照相')).path, '手作創作／攝影');
-  var s = base(); C.addResource(s, J2, { name: '幫你剪頭髮', kind: 'thing', price: pts(50), keepDays: 1 }, T0); C.addResource(s, J3, { name: '修腳踏車', kind: 'thing', price: pts(50), keepDays: 1 }, T0);
+  var s = base(); C.addResource(s, J2, { name: '幫你剪頭髮', kind: 'thing', eUse: 10, price: pts(50), keepDays: 1 }, T0); C.addResource(s, J3, { name: '修腳踏車', kind: 'thing', eUse: 10, price: pts(50), keepDays: 1 }, T0);
   var t = T0 + DAY; assert.ok(C.search(s, J1, '头发', t).resources.some(function (x) { return x.resource.name === '幫你剪頭髮' && x.match.level === 1; }), '「头发」找得到「頭髮」');
   var r = C.search(s, J1, '脚踏车', t); assert.ok(r.resources.some(function (x) { return x.resource.name === '修腳踏車' && x.match.how === '完全對上「脚踏车」'; }), '「脚踏车」找得到腳踏車，寫的是自己打的字');
   assert.strictEqual(C.search(s, J1, '简历', t).notices.length, 0); C.postNotice(s, J2, { need: '幫我看履歷', give: ['p'], cap: 2 }, t); assert.strictEqual(C.search(s, J1, { kw: '简历', mode: 'give' }, t).notices[0].match.how, '近似：简历 → 履歷', '简历 → 履歷（近似詞）');
@@ -1501,7 +1501,7 @@ ok('每人最多 5 張（補二十）：只算自己起頭的；接上去的、�
   assert.ok(C.fresh({ history: false }).notices.every(function (n) { return n.pinned || (n.untilDay != null && n.untilDay <= today + 30); }), '示範角色的公告都有 30 天內的期限（教學公告例外）');
 });
 ok('分支樹（補二十）：起頭在最上面、接上來的往下、岔路照順序；線上寫誰給誰什麼；狀態；接成一圈的、尾巴', function () {
-  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: {}, resources: [{ id: 'd', name: '一杯茶', kind: 'thing', price: pts(5), keepDays: 1, avail: 2 }] }, T0);
+  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: {}, resources: [{ id: 'd', name: '一杯茶', kind: 'thing', eUse: 10, price: pts(5), keepDays: 1, avail: 2 }] }, T0);
   var a = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0);
   var b = C.linkNotice(s, J2, a.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1), b2 = C.linkNotice(s, J4, a.id, { side: 'give', item: 'x', give: ['d'], need: '想喝茶' }, T0 + 2);
   var c = C.linkNotice(s, J3, b.notice.id, { side: 'need', give: ['q'], need: '畫一張圖' }, T0 + 3); C.setBg(s, J3, { bg: '書' }, T0 - DAY);
@@ -1522,7 +1522,7 @@ ok('分支樹（補二十）：起頭在最上面、接上來的往下、岔路�
 });
 ok('對方可換的食物（補二十一）：只算掛在食物大類的、只算可換（已保留不算）、0 點也算；那一微秒換光了就不通；預約時不通，原因「對方沒有可換的食物」加「他只跟有食物可換的人換」；預設沒有這個條件', function () {
   var s = base(), J4 = '00000000004', yi = s.roles[1];   // 乙：一首歌、空的，沒有食物（甲的一杯茶是飲料，算食物）
-  C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: { conditions: [{ field: 'food', op: '>=', value: 1 }] }, resources: [{ id: 'd1', name: '便當', kind: 'thing', price: pts(10), keepDays: 1, avail: 2 }, { id: 'e4', name: '空的', price: 0, avail: 3 }] }, T0); acceptAll(s);
+  C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: { conditions: [{ field: 'food', op: '>=', value: 1 }] }, resources: [{ id: 'd1', name: '便當', kind: 'thing', eUse: 10, price: pts(10), keepDays: 1, avail: 2 }, { id: 'e4', name: '空的', price: 0, avail: 3 }] }, T0); acceptAll(s);
   C.setRules(s, J2, { conditions: [{ field: 'dockCount', op: '>=', value: 1 }] }, T0 - DAY);   // 乙也有一條丁不通的條件（預約一方通，要兩邊都不通才約不到）   // 丁要兩方都通，不然乙自己沒條件就通了
   assert.strictEqual(C.foodAvail(yi, T0), 0, '乙沒有食物'); assert.strictEqual(C.foodAvail(s.roles[0], T0), 10, '甲的一杯茶是飲料，10 份'); assert.strictEqual(C.foodAvail(C.roleOf(s, J4), T0), 2, '丁的便當 2 份（空的不是食物）');
   var e = C.canBook(s, C.roleOf(s, J4), yi, T0); assert.ok(!e.ok && e.reason.indexOf('對方沒有可換的食物') >= 0 && e.reason.indexOf('他只跟有食物可換的人換') >= 0, '乙約丁：不通，原因對方沒有可換的食物（他只跟有食物可換的人換）：' + e.reason);
@@ -1546,8 +1546,8 @@ ok('食物的供需（補二十一）：需要＝掛在食物大類的公告（�
   var fs = C.foodSupply(s, T0); assert.deepStrictEqual([fs.need, fs.give, fs.short], [2, 1, true], '需要 2 張（起頭＋接上去的）、可以給 1 人 → 缺');
   var g = C.roleOf(s, C.GUIDE); cv(g, T0).resources.push({ id: 'gf', name: '一碗飯', cat: 'bento', tags: [], price: 0, keepDays: 1 }); C.firstChar(g).stock.gf = { avail: 5, reserved: 0 };
   assert.strictEqual(C.foodSupply(s, T0).give, 1, '引路人不算');
-  cv(s.roles[0], T0).resources.push({ id: 'mf', name: '炒麵', cat: 'bento', tags: [], kind: 'thing', price: pts(20), keepDays: 1 }); C.firstChar(s.roles[0]).stock.mf = { avail: 1, reserved: 0 };
-  cv(C.roleOf(s, J3), T0).resources.push({ id: 'lf', name: '青菜', cat: 'fresh', tags: [], kind: 'thing', price: pts(5), keepDays: 1 }); C.firstChar(C.roleOf(s, J3)).stock.lf = { avail: 0, reserved: 2 };
+  cv(s.roles[0], T0).resources.push({ id: 'mf', name: '炒麵', cat: 'bento', tags: [], kind: 'thing', eUse: 10, price: pts(20), keepDays: 1 }); C.firstChar(s.roles[0]).stock.mf = { avail: 1, reserved: 0 };
+  cv(C.roleOf(s, J3), T0).resources.push({ id: 'lf', name: '青菜', cat: 'fresh', tags: [], kind: 'thing', eUse: 10, price: pts(5), keepDays: 1 }); C.firstChar(C.roleOf(s, J3)).stock.lf = { avail: 0, reserved: 2 };
   fs = C.foodSupply(s, T0); assert.deepStrictEqual([fs.need, fs.give, fs.short], [2, 1, true], '我多一樣炒麵還是 1 人；小樂的青菜全保留了不算');
   C.firstChar(C.roleOf(s, J3)).stock.lf.avail = 1; assert.deepStrictEqual(C.foodSupply(s, T0).give, 2); C.postNotice(s, C.GUIDE, { need: '一碗飯', give: ['r4e'], cap: 2, pinned: true }, T0); assert.strictEqual(C.foodSupply(s, T0).need, 2, '教學公告不算');
 });
@@ -1568,7 +1568,7 @@ ok('括弧＝生產背景（第 12 輪）：名字後面寫那個角色的生產
   var g = C.fresh({ history: false }), me = C.createPlayer(g, { name: '小明', bg: '畫圖', nature: true }, T0); assert.strictEqual(C.nameWith(g, J1, T0), '小明（畫圖）', '剛創的當下生效'); assert.strictEqual(cv(me, T0).nature, true);
 });
 ok('分支樹（第 11 輪小修正）：接在起點「可以給」下面、把圈接回來的那張不另外畫成岔路，併進彎回起點的線；「第幾條」只數接在同一個需要下面的；卡片名字有括弧', function () {
-  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: {}, resources: [{ id: 'd', name: '一杯茶', kind: 'thing', price: pts(5), keepDays: 1, avail: 2 }] }, T0);
+  var s = base(), J4 = '00000000004'; C.createRole(s, { serial: J4, name: '丁', dailyPoints: pts(100), rules: {}, resources: [{ id: 'd', name: '一杯茶', kind: 'thing', eUse: 10, price: pts(5), keepDays: 1, avail: 2 }] }, T0);
   var a = C.postNotice(s, J1, { need: '一首歌', give: ['x'], cap: 4 }, T0);
   var b = C.linkNotice(s, J2, a.id, { side: 'need', give: ['p'], need: '借書' }, T0 + 1), b2 = C.linkNotice(s, J4, a.id, { side: 'give', item: 'x', give: ['d'], need: '想喝茶' }, T0 + 2), b3 = C.linkNotice(s, J3, a.id, { side: 'need', give: ['q'], need: '畫一張圖' }, T0 + 3);
   C.setBg(s, J1, { bg: '飲料' }, T0 - DAY);
@@ -1617,7 +1617,7 @@ ok('前情提要拿掉（2026-11-20）：沒有寫前情提要的功能；今天
 
 ok('交換關係（補二十二）：固定約、已約、在一圈裡、以前換過；好幾種時最近要發生的那一種；換過幾次、最近一次、你給他、他給你；不含教學、引路人', function () {
   var s = base(), G = C.GUIDE, J5 = '00000000005';
-  C.createRole(s, { serial: G, name: '引路人', dailyPoints: pts(100), rules: {}, resources: [{ id: 'g0', name: '空的', price: 0, avail: 9 }] }, T0); C.createRole(s, { serial: J5, name: '戊', dailyPoints: pts(100), rules: {}, resources: [{ id: 'w1', name: '一杯水', kind: 'thing', price: pts(1), keepDays: 1, avail: 9 }, { id: 'e5', name: '空的', price: 0, avail: 9 }] }, T0);
+  C.createRole(s, { serial: G, name: '引路人', dailyPoints: pts(100), rules: {}, resources: [{ id: 'g0', name: '空的', price: 0, avail: 9 }] }, T0); C.createRole(s, { serial: J5, name: '戊', dailyPoints: pts(100), rules: {}, resources: [{ id: 'w1', name: '一杯水', kind: 'thing', eUse: 10, price: pts(1), keepDays: 1, avail: 9 }, { id: 'e5', name: '空的', price: 0, avail: 9 }] }, T0);
   EMPTY[G] = 'g0'; EMPTY[J5] = 'e5'; acceptAll(s); C.setBg(s, J2, { bg: '寫歌' }, T0 - DAY);
   assert.deepStrictEqual(C.relations(s, J1, T0), [], '還沒換過：沒有');
   var at1 = T0 + 60e6; meet(s, J1, [J2, J3, J5, G], at1); C.judge(s, at1 + 1000);   // 跟乙、丙、戊、引路人各換一次（跟引路人的算教學）
@@ -1666,9 +1666,9 @@ ok('人和角色（第 12 輪）：一個人底下最多 5 個角色；角色編
 });
 ok('角色之間（第 12 輪）：每天的點照人算（兩個角色給出去的扣同一份）；對方可換的貨、對接過幾次照人算；時段跟著角色開、對接紀錄記兩邊的角色；同一個角色不能約自己、同一個時段不能用兩個角色；不能跟自己的角色配密鑰、不能接自己角色的公告', function () {
   var s = base(), c2 = C.openChar(s, J1, { bg: '相機' }, T0 - DAY);
-  var ph = C.addResource(s, c2.id, { name: '一張照片', kind: 'thing', price: pts(500) }, T0 - DAY); C.restock(s, c2.id, ph.id, 3);
+  var ph = C.addResource(s, c2.id, { name: '一張照片', kind: 'thing', eUse: 10, price: pts(500) }, T0 - DAY); C.restock(s, c2.id, ph.id, 3);
   assert.strictEqual(C.availTotal(s.roles[0], T0), 21 + 1 + 3, '對方可換的貨：兩個角色加起來（空的 1、照片 3）'); assert.strictEqual(C.COND_FIELDS.avail.get(s, s.roles[0], T0), 25);
-  var bento = C.addResource(s, c2.id, { name: '便當', kind: 'thing', price: pts(80) }, T0 - DAY); C.restock(s, c2.id, bento.id, 2);
+  var bento = C.addResource(s, c2.id, { name: '便當', kind: 'thing', eUse: 10, price: pts(80) }, T0 - DAY); C.restock(s, c2.id, bento.id, 2);
   assert.strictEqual(C.foodAvail(s.roles[0], T0), 10 + 2, '對方可換的食物照人算：第一個角色的茶 10 份、第二個角色的便當 2 份'); assert.strictEqual(C.foodSupply(s, T0).give, 1, '食物供需的「可以給 M 人」照人算：兩個角色都有食物還是 1 人');
   acceptAll(s);
   var a = C.addSlot(s, J1, T0 + 60e6, 5, null, T0), b = C.addSlot(s, J1, T0 + 120e6, 5, null, T0, false, c2.id);
@@ -1696,7 +1696,7 @@ ok('角色之間（第 12 輪）：每天的點照人算（兩個角色給出去
   throws(function () { C.postNotice(s, J1, { need: '第六張', give: [ph.id], cap: 3, role: c2.id }, T0); }, /你已經掛了 5 張/); throws(function () { C.postNotice(s, J1, { need: '第六張', give: ['y'], cap: 3 }, T0); }, /你已經掛了 5 張/);
 });
 ok('收掉角色（第 12 輪）：收著它東西的人要先兌現完或同意；收掉後它開的時段、約的、公告、密鑰、固定約都拿掉；舊紀錄留著（名字後面照紀錄裡那個角色的背景）', function () {
-  var s = base(), c2 = C.openChar(s, J1, { bg: '相機' }, T0 - DAY), ph = C.addResource(s, c2.id, { name: '一張照片', kind: 'thing', price: pts(100) }, T0 - DAY); C.restock(s, c2.id, ph.id, 3); acceptAll(s);
+  var s = base(), c2 = C.openChar(s, J1, { bg: '相機' }, T0 - DAY), ph = C.addResource(s, c2.id, { name: '一張照片', kind: 'thing', eUse: 10, price: pts(100) }, T0 - DAY); C.restock(s, c2.id, ph.id, 3); acceptAll(s);
   var b = C.addSlot(s, J1, T0 + 60e6, 5, null, T0, false, c2.id); C.book(s, J2, b.id, T0); C.setWants(s, b.id, J2, J1, [ph.id]); C.setWants(s, b.id, J1, J2, ['e2']); C.judge(s, T0 + 60e6);
   var h = s.holds[0]; assert.ok(h.issuerRole === c2.id && h.holder === J2 && h.status === 'held');
   throws(function () { C.closeChar(s, J1, c2.id, T0 + 61e6); }, /還有 1 筆這個角色的東西沒換/); assert.strictEqual(C.charBlockers(s, c2.id, T0 + 61e6).length, 1); assert.ok(C.charOf(s, c2.id), '擋下來就沒收');
@@ -1711,19 +1711,19 @@ ok('收掉角色（第 12 輪）：收著它東西的人要先兌現完或同意
   assert.strictEqual(C.nameWith(s, J1, T0 + 63e6, c2.id), '甲（相機）', '舊紀錄上還寫得出那個角色的背景'); assert.strictEqual(C.dayDetail(s, J1, J1, C.dayNum(T0)).entries[0].myBg, '相機');
   assert.strictEqual(C.nameWith(s, J1, T0 + 63e6), '甲'); assert.deepStrictEqual(C.charsOf(s.roles[0]).map(function (c) { return c.id; }), [J1 + '-1']);
   // 同意的話：沒換的作廢
-  var s2 = base(), d2 = C.openChar(s2, J1, { bg: '相機' }, T0 - DAY), p2 = C.addResource(s2, d2.id, { name: '一張照片', kind: 'thing', price: pts(100) }, T0 - DAY); C.restock(s2, d2.id, p2.id, 3); acceptAll(s2);
+  var s2 = base(), d2 = C.openChar(s2, J1, { bg: '相機' }, T0 - DAY), p2 = C.addResource(s2, d2.id, { name: '一張照片', kind: 'thing', eUse: 10, price: pts(100) }, T0 - DAY); C.restock(s2, d2.id, p2.id, 3); acceptAll(s2);
   var b2 = C.addSlot(s2, J1, T0 + 60e6, 5, null, T0, false, d2.id); C.book(s2, J2, b2.id, T0); C.setWants(s2, b2.id, J2, J1, [p2.id]); C.setWants(s2, b2.id, J1, J2, ['e2']); C.judge(s2, T0 + 60e6);
   assert.deepStrictEqual(C.closeChar(s2, J1, d2.id, T0 + 61e6, true), { quit: false, n: 1 }); assert.strictEqual(s2.holds[0].status, 'voided'); assert.strictEqual(C.roleOf(s2, J1).name, '甲', '人還在');
 });
 ok('舊存檔搬過去（第 12 輪）：一個人變成一個人加第一個角色 J1-1；生產背景用舊括弧字（不加「…」）、關掉的就空著；點數乘一次（有 model 記號就不再乘）；接受過的搬到第一個角色、算舊版；對接紀錄補上角色和主動方；背包裡舊的空物件當結束；沒寫交什麼的標「要寫交什麼」、別人選不到、已選的當下架處理', function () {
   var legacyRole = function (serial, name, daily, res, tag) { return { serial: serial, name: name, contact: '', slots: [], stock: {}, world: C.defaultWorld(serial), born: C.dayNum(T0) - 10, versions: [{ id: 'v' + serial, fromDay: C.dayNum(T0) - 10, dailyPoints: daily, rules: { uses: [], conditions: [{ field: 'myPoints', op: '>=', value: 5 }], village: '甲的家規', maxGiveDefault: 200 }, resources: res, tag: tag || { mode: 'auto', item: null, show: 'cat' } }] }; };
-  var A = legacyRole(J1, '甲', 1000, [{ id: 'x', name: '畫一張圖', price: 300, keepDays: 2 }, { id: 'y', name: '一杯茶', kind: 'thing', price: 50, keepDays: null }, { id: 'e1', name: '空的', price: 0, keepDays: null }]);   // 畫一張圖沒勾種類、沒寫交；一杯茶是物質
+  var A = legacyRole(J1, '甲', 1000, [{ id: 'x', name: '畫一張圖', price: 300, keepDays: 2 }, { id: 'y', name: '一杯茶', kind: 'thing', eUse: 10, price: 50, keepDays: null }, { id: 'e1', name: '空的', price: 0, keepDays: null }]);   // 畫一張圖沒勾種類、沒寫能量；一杯茶寫了能量
   A.stock = { x: { avail: 1, reserved: 0 }, y: { avail: 10, reserved: 1 }, e1: { avail: 9, reserved: 1 } };
-  var B = legacyRole(J2, '乙', 500, [{ id: 'p', name: '一首歌', price: 200, keepDays: 1 }, { id: 'e2', name: '空的', price: 0, keepDays: null }], { mode: 'off' }); B.stock = { p: { avail: 2, reserved: 0 }, e2: { avail: 10, reserved: 0 } };
-  var Cc = legacyRole(J3, '丙', 300, [{ id: 'q', name: '一樣很特別的東西', price: 10, keepDays: null }], { mode: 'pick', item: 'q', show: 'name' }); Cc.stock = { q: { avail: 5, reserved: 0 } };
+  var B = legacyRole(J2, '乙', 500, [{ id: 'p', name: '一首歌', eUse: 10, price: 200, keepDays: 1 }, { id: 'e2', name: '空的', price: 0, keepDays: null }], { mode: 'off' }); B.stock = { p: { avail: 2, reserved: 0 }, e2: { avail: 10, reserved: 0 } };
+  var Cc = legacyRole(J3, '丙', 300, [{ id: 'q', name: '一樣很特別的東西', eUse: 10, price: 10, keepDays: null }], { mode: 'pick', item: 'q', show: 'name' }); Cc.stock = { q: { avail: 5, reserved: 0 } };
   var at = T0 - 2 * DAY;
   var old = { v: 9, me: 0, roles: [A, B, Cc], holds: [{ id: 'h1', issuer: J1, holder: J2, resource: 'y', name: '一杯茶', kind: '', price: 50, docking: 'd1', atUs: at, untilDay: null, status: 'held' }, { id: 'h2', issuer: J1, holder: J2, resource: 'e1', name: '空的', kind: '', price: 0, docking: 'd1', atUs: at, untilDay: null, status: 'held' }],
-    dockings: [{ id: 'd1', slot: 'sl', atUs: at, a: J1, b: J2, tutorial: false, how: '兩方都通', ok: true, traded: true, reason: null, gaveA: 50, gaveB: 0, itemsA: [{ id: 'y', name: '一杯茶', kind: '', price: 50, keepDays: null }], itemsB: [{ id: 'e2', name: '空的', kind: '', price: 0, keepDays: null }], ruleUs: at, verA: 'v' + J1, verB: 'v' + J2 }],
+    dockings: [{ id: 'd1', slot: 'sl', atUs: at, a: J1, b: J2, tutorial: false, how: '兩方都通', ok: true, traded: true, reason: null, gaveA: 50, gaveB: 0, itemsA: [{ id: 'y', name: '一杯茶', kind: '', eUse: 10, price: 50, keepDays: null }], itemsB: [{ id: 'e2', name: '空的', kind: '', price: 0, keepDays: null }], ruleUs: at, verA: 'v' + J1, verB: 'v' + J2 }],
     redeems: [], acceptances: [{ who: J2, of: J1, village: '甲的家規', atUs: at, ver: 'v' + J1 }], records: [], notices: [], tutorial: { step: 'done' } };
   var store = {}, LS = { getItem: function (k) { return store[k] || null; }, setItem: function (k, v) { store[k] = v; }, removeItem: function (k) { delete store[k]; } };
   global.localStorage = LS; store['arrive-v9'] = JSON.stringify(old); var st = C.load();
@@ -1734,41 +1734,44 @@ ok('舊存檔搬過去（第 12 輪）：一個人變成一個人加第一個角
   assert.strictEqual(cv(ca, T0).bg, '飲料', '生產背景用舊括弧字：一杯茶（飲料）可換最多'); assert.strictEqual(cv(C.firstChar(st.roles[1]), T0).bg, '', '括弧關掉的就空著'); assert.strictEqual(cv(C.firstChar(st.roles[2]), T0).bg, '一樣很特別的', '挑名字的：截到 6 個字、不加「…」');
   assert.strictEqual(cv(ca, T0).rules.problem, C.PROBLEM_DEFAULT, '沒有出問題怎麼辦：放預設那一句'); assert.strictEqual(cv(ca, T0).rules.village, '甲的家規');
   assert.deepStrictEqual(ca.stock.y, { avail: 10, reserved: 1 }, '貨搬到角色');
-  var x = C.resourceOf(cv(ca, T0), 'x'); assert.ok(x.needsDeliver && x.deliver === '' && x.kind === '', '有價錢、沒寫交什麼：標要寫交什麼'); assert.strictEqual(C.deliverText(x), '（舊的，沒寫）'); assert.ok(!C.resourceOf(cv(ca, T0), 'y').needsDeliver, '物質不用寫交');
+  var x = C.resourceOf(cv(ca, T0), 'x'); assert.ok(x.needsEnergy && x.deliver === '' && x.kind === '', '有價錢、沒寫能量：標要寫能量'); assert.strictEqual(C.deliverText(x), '（還沒寫能量）'); assert.ok(!C.resourceOf(cv(ca, T0), 'y').needsEnergy, '寫了能量的照舊');
   assert.ok(C.isEmptyItem(C.resourceOf(cv(ca, T0), 'e1')), '0 點沒種類沒寫交：空物件');
   assert.strictEqual(st.acceptances[0].of, J1 + '-1', '接受過的搬到第一個角色'); assert.strictEqual(st.acceptances[0].problem, ''); assert.strictEqual(C.acceptState(st, J2, J1 + '-1', T0), 'old', '內容沒有出問題怎麼辦：算舊版，要重新接受');
   var d = st.dockings[0]; assert.deepStrictEqual([d.ra, d.rb, d.lead, d.leadRole, d.leadWhy, d.gaveA, d.leadVer, d.fail], [J1 + '-1', J2 + '-1', J1, J1 + '-1', '給得多', pts(50), null, null], '對接紀錄補上角色和主動方');
   var h1 = st.holds.find(function (h) { return h.id === 'h1'; }), h2 = st.holds.find(function (h) { return h.id === 'h2'; });
   assert.ok(h1.status === 'held' && h1.price === pts(50) && h1.issuerRole === J1 + '-1' && h1.deliver === '' && h1.problem === '', '茶還在背包'); assert.ok(h2.status === 'redeemed' && h2.empty, '舊的空物件當結束'); assert.deepStrictEqual(ca.stock.e1, { avail: 9, reserved: 0 }, '空物件的保留退掉');
   assert.strictEqual(C.dayDetail(st, J1, J1, C.dayNum(at)).entries[0].lead.name, '甲（飲料）', '舊紀錄的明細也寫主動方');
-  assert.ok(C.save(st)); var st2 = C.load(); assert.strictEqual(C.dailyPoints(st2.roles[0], T0), pts(1000), '存回去再讀：有 model 記號就不再乘'); assert.strictEqual(C.resourceOf(cv(C.firstChar(st2.roles[0]), T0), 'x').price, pts(300)); assert.ok(C.resourceOf(cv(C.firstChar(st2.roles[0]), T0), 'x').needsDeliver, '還沒補交什麼的記號留著');
+  assert.ok(C.save(st)); var st2 = C.load(); assert.strictEqual(C.dailyPoints(st2.roles[0], T0), pts(1000), '存回去再讀：有 model 記號就不再乘'); assert.strictEqual(C.resourceOf(cv(C.firstChar(st2.roles[0]), T0), 'x').price, pts(300)); assert.ok(C.resourceOf(cv(C.firstChar(st2.roles[0]), T0), 'x').needsEnergy, '還沒補交什麼的記號留著');
   delete global.localStorage;
   acceptAll(st); var sl = C.addSlot(st, J1, T0 + 60e6, 5, null, T0); C.book(st, J2, sl.id, T0); C.setWants(st, sl.id, J2, J1, ['x', 'y']); C.setWants(st, sl.id, J1, J2, ['e2']);
-  assert.deepStrictEqual(C.wantsValid(st, sl, J2, J1), ['y'], '沒寫交什麼的不算'); assert.strictEqual(C.goneText(st, sl, J2, J1), '選的「畫一張圖」還沒寫交什麼，不算');
-  C.judge(st, T0 + 60e6); var dk = st.dockings[st.dockings.length - 1]; assert.ok(dk.traded && dk.gaveA === pts(50) && dk.noteA === '選的「畫一張圖」還沒寫交什麼，沒換到', dk.reason || dk.noteA);
-  C.setResource(st, J1, 'y', { name: '改名' }, T0); assert.ok(C.resourceOf(cp(a, T0), 'x').needsDeliver, '改別的欄位先不擋');
-  C.setResource(st, J1, 'x', { deliver: '一張圖' }, T0); assert.ok(!C.resourceOf(cp(a, T0), 'x').needsDeliver, '補了交什麼就綁好了');
-  throws(function () { C.setResource(st, J1, 'x', { deliver: '' }, T0); }, /要綁一樣實體/, '補過以後不能再清掉');
-  C.setResource(st, J1, 'x', { kind: 'thing', deliver: '' }, T0); assert.strictEqual(C.resourceOf(cp(a, T0), 'x').kind, 'thing', '勾成物質也算綁好');
+  assert.deepStrictEqual(C.wantsValid(st, sl, J2, J1), ['y'], '沒寫交什麼的不算'); assert.strictEqual(C.goneText(st, sl, J2, J1), '選的「畫一張圖」還沒寫能量，不算');
+  C.judge(st, T0 + 60e6); var dk = st.dockings[st.dockings.length - 1]; assert.ok(dk.traded && dk.gaveA === pts(50) && dk.noteA === '選的「畫一張圖」還沒寫能量，沒換到', dk.reason || dk.noteA);
+  C.setResource(st, J1, 'y', { name: '改名' }, T0); assert.ok(C.resourceOf(cp(a, T0), 'x').needsEnergy, '改別的欄位先不擋');
+  C.setResource(st, J1, 'x', { eUse: 50 }, T0); assert.ok(!C.resourceOf(cp(a, T0), 'x').needsEnergy, '補了能量就寫好了');
+  throws(function () { C.setResource(st, J1, 'x', { eUse: '' }, T0); }, /要寫能量/, '補過以後不能再清掉');
+  C.setResource(st, J1, 'x', { eUse: '', eBring: 30 }, T0); assert.strictEqual(C.kcalOf(C.resourceOf(cp(a, T0), 'x')), 30, '只寫拿過來也算寫了');
 });
-ok('東西一定是實體（第 12 輪）：物質＝本身（不用寫交）；行為、訊息要寫交什麼（最多 30 字）；0 點、沒勾種類、沒寫交的是空物件；空物件成交只是可換 −1、不進背包；0 點但勾了種類或寫了交的是試用品，要進背包', function () {
+ok('東西一定是能量實體（2026-11-25）：有價錢的、試用品都要寫能量（用上＋拿過來，大卡，0 以上的整數，最多 1000 萬）；物質也要寫；0 點、沒勾種類、沒寫能量的是空物件；空物件成交只是可換 −1、不進背包；紀錄、背包、明細記「約 X 大卡」', function () {
   var s = base();
-  throws(function () { C.addResource(s, J1, { name: '唱一首', kind: 'act', price: pts(5) }, T0); }, /要綁一樣實體/);
-  throws(function () { C.addResource(s, J1, { name: '唱一首', price: pts(5) }, T0); }, /要綁一樣實體/, '沒勾種類但有價錢也要綁');
-  throws(function () { C.addResource(s, J1, { name: '唱一首', kind: 'act', price: 0 }, T0); }, /要綁一樣實體/, '0 點的試用品勾了行為也要綁');
-  throws(function () { C.addResource(s, J1, { name: '唱一首', kind: 'act', deliver: '一'.repeat(31), price: pts(5) }, T0); }, /最多 30 個字/);
-  var t = C.addResource(s, J1, { name: '一顆蘋果', kind: 'thing', deliver: '寫了也不算', price: pts(5) }, T0 - DAY); assert.strictEqual(t.deliver, '', '物質就是本身'); assert.strictEqual(C.deliverText(t), '本身');
-  var a = C.addResource(s, J1, { name: '唱一首', kind: 'act', deliver: ' 一張歌單 ', price: pts(5) }, T0 - DAY); assert.strictEqual(a.deliver, '一張歌單'); assert.strictEqual(C.deliverText(a), '一張歌單');
+  throws(function () { C.addResource(s, J1, { name: '唱一首', kind: 'act', price: pts(5) }, T0); }, /要寫能量/);
+  throws(function () { C.addResource(s, J1, { name: '唱一首', price: pts(5) }, T0); }, /要寫能量/, '沒勾種類但有價錢也要寫');
+  throws(function () { C.addResource(s, J1, { name: '唱一首', kind: 'act', price: 0 }, T0); }, /要寫能量/, '0 點的試用品勾了行為也要寫');
+  throws(function () { C.addResource(s, J1, { name: '一顆蘋果', kind: 'thing', price: pts(5) }, T0); }, /要寫能量/, '物質也要寫');
+  throws(function () { C.addResource(s, J1, { name: '唱一首', kind: 'act', eUse: -1, price: pts(5) }, T0); }, /0 以上/);
+  throws(function () { C.addResource(s, J1, { name: '唱一首', kind: 'act', eUse: '很多', price: pts(5) }, T0); }, /0 以上/);
+  throws(function () { C.addResource(s, J1, { name: '唱一首', kind: 'act', eBring: 2e7, price: pts(5) }, T0); }, /1000 萬/);
+  var t = C.addResource(s, J1, { name: '一顆蘋果', kind: 'thing', eUse: '1,000', price: pts(5) }, T0 - DAY); assert.deepStrictEqual([t.eUse, t.eBring, C.kcalOf(t), C.deliverText(t)], [1000, null, 1000, '約 1,000 大卡'], '寫逗號也行；只寫用上也算');
+  var a = C.addResource(s, J1, { name: '唱一首', kind: 'act', eUse: 20, eBring: 30.4, price: pts(5) }, T0 - DAY); assert.deepStrictEqual([C.deliverText(a), C.energyDetail(a)], ['約 50 大卡', '用上 20＋拿過來 30'], '四捨五入到整數');
   var e = C.addResource(s, J1, { name: '空空', price: 0 }, T0 - DAY); assert.ok(C.isEmptyItem(e)); assert.strictEqual(C.deliverText(e), '不用交'); assert.strictEqual(C.emptyOf(ch(s, J1), T0).id, 'e1', '資源表上第一個空物件');
-  var tr = C.addResource(s, J1, { name: '試用', deliver: '一張試用卡', price: 0 }, T0 - DAY); assert.ok(!C.isEmptyItem(tr), '0 點但寫了交：試用品，不是空物件');
+  var tr = C.addResource(s, J1, { name: '試用', eUse: 5, price: 0 }, T0 - DAY); assert.ok(!C.isEmptyItem(tr), '0 點但寫了能量：試用品，不是空物件');
   C.restock(s, J1, e.id, 3); C.restock(s, J1, tr.id, 3); C.restock(s, J1, a.id, 3);
   var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, [e.id, tr.id, a.id]); C.setWants(s, slot.id, J1, J2, ['e2']);
   var d = C.judge(s, T0 + 60e6)[0].docking; assert.ok(d.traded, d.reason);
-  assert.deepStrictEqual(d.itemsA.map(function (it) { return [it.name, it.deliver, it.empty]; }), [['空空', '不用交', true], ['試用', '一張試用卡', false], ['唱一首', '一張歌單', false]], '紀錄裡記交什麼、是不是空物件');
-  assert.deepStrictEqual(s.holds.map(function (h) { return [h.name, h.deliver, h.holder, h.issuerRole]; }), [['試用', '一張試用卡', J2, J1 + '-1'], ['唱一首', '一張歌單', J2, J1 + '-1']], '空物件不進背包（兩邊的空的都不進）；背包記交什麼和角色');
+  assert.deepStrictEqual(d.itemsA.map(function (it) { return [it.name, it.energy, it.empty]; }), [['空空', '', true], ['試用', '約 5 大卡', false], ['唱一首', '約 50 大卡', false]], '紀錄裡記能量、是不是空物件');
+  assert.deepStrictEqual(s.holds.map(function (h) { return [h.name, h.energy, h.holder, h.issuerRole]; }), [['試用', '約 5 大卡', J2, J1 + '-1'], ['唱一首', '約 50 大卡', J2, J1 + '-1']], '空物件不進背包（兩邊的空的都不進）；背包記能量和角色');
   assert.deepStrictEqual([C.stockOf(ch(s, J1), e.id), C.stockOf(ch(s, J1), tr.id), C.stockOf(ch(s, J2), 'e2')], [{ avail: 2, reserved: 0 }, { avail: 2, reserved: 1 }, { avail: 9, reserved: 0 }], '空物件只是可換 −1');
   assert.strictEqual(C.remainingToday(s, s.roles[0], T0 + 61e6), pts(995));
-  var det = C.dayDetail(s, J1, J1, C.dayNum(T0)); assert.deepStrictEqual(det.entries[0].gave.map(function (x) { return [x.name, x.deliver, x.state]; }), [['空空', '不用交', undefined], ['試用', '一張試用卡', '保留中'], ['唱一首', '一張歌單', '保留中']], '明細寫交什麼；空物件沒有狀態'); assert.strictEqual(det.resources.find(function (x) { return x.name === '一杯茶'; }).deliver, '本身');
+  var det = C.dayDetail(s, J1, J1, C.dayNum(T0)); assert.deepStrictEqual(det.entries[0].gave.map(function (x) { return [x.name, x.energy, x.state]; }), [['空空', '', undefined], ['試用', '約 5 大卡', '保留中'], ['唱一首', '約 50 大卡', '保留中']], '明細寫能量；空物件沒有狀態'); assert.strictEqual(det.resources.find(function (x) { return x.name === '一杯茶'; }).deliver, '約 10 大卡');
 });
 ok('誰是主動方（第 12 輪）：給得多的；一樣多：來約的人、兩個來約的人比較早約的、密鑰先輸入的、固定約來約的人；pairLead 給畫面用（那一微秒前就看得到）；對接紀錄記主動方、為什麼、版本、怎麼成的', function () {
   var s = base(), slot = C.addSlot(s, J1, T0 + 60e6, 5, null, T0);
@@ -1857,7 +1860,7 @@ ok('點數到小數點後 6 位（第 12 輪）：整數存（1 點 = 1000000）
   var s = base();
   C.setDailyPoints(s, J1, '0.5', T0); assert.strictEqual(C.dailyPoints(s.roles[0], T0 + DAY), 500000); throws(function () { C.setDailyPoints(s, J1, '0', T0); }, /要大於 0/); throws(function () { C.setDailyPoints(s, J1, '1000000001', T0); }, /最多 10 億/); throws(function () { C.setDailyPoints(s, J1, '0.0000001', T0); }, /最多到小數點後 6 位/);
   assert.strictEqual(C.setDailyPoints(s, J1, '1000000000', T0), C.MAX_POINTS, '剛好 10 億可以'); throws(function () { C.createRole(s, { name: 'x', dailyPoints: '0' }, T0); }, /要大於 0/); throws(function () { C.createRole(s, { name: 'x', dailyPoints: '1.2345678' }, T0); }, /最多到小數點後 6 位/);
-  var r = C.addResource(s, J1, { name: '一口', kind: 'thing', price: '0.000001' }, T0 - DAY); assert.strictEqual(r.price, 1); C.restock(s, J1, r.id, 5); throws(function () { C.addResource(s, J1, { name: 'x', kind: 'thing', price: '1.2345678' }, T0); }, /最多到小數點後 6 位/); throws(function () { C.addResource(s, J1, { name: 'x', kind: 'thing', price: '-1' }, T0); }, /0 以上/);
+  var r = C.addResource(s, J1, { name: '一口', kind: 'thing', eUse: 10, price: '0.000001' }, T0 - DAY); assert.strictEqual(r.price, 1); C.restock(s, J1, r.id, 5); throws(function () { C.addResource(s, J1, { name: 'x', kind: 'thing', eUse: 10, price: '1.2345678' }, T0); }, /最多到小數點後 6 位/); throws(function () { C.addResource(s, J1, { name: 'x', kind: 'thing', eUse: 10, price: '-1' }, T0); }, /0 以上/);
   C.setResource(s, J1, 'y', { price: '50.5' }, T0 - DAY); assert.strictEqual(C.resourceOf(cv(s.roles[0], T0), 'y').price, 50500000);
   var slot = meet(s, J1, [J2]); C.setWants(s, slot.id, J2, J1, ['y', r.id, r.id]); var d = C.judge(s, T0 + 60e6)[0].docking;
   assert.strictEqual(d.gaveA, 50500002, '50.5 + 0.000001 × 2'); assert.strictEqual(C.fmtPoints(d.gaveA), '50.500002'); assert.strictEqual(d.how, '主動：甲・給 50.500002 點');
@@ -1868,14 +1871,14 @@ ok('點數到小數點後 6 位（第 12 輪）：整數存（1 點 = 1000000）
 });
 ok('示範角色（第 12、13 輪）：阿澄、小樂兩個角色，其他人一個，每個角色都有生產背景；東西都綁了實體；出問題怎麼辦都有；阿澄和小樂一開始就接受了對方的規則；過去的紀錄都有主動方；背包每一筆都寫交什麼', function () {
   var s = C.fresh(), now = C.nowUs();
-  s.roles.forEach(function (r) { assert.strictEqual(C.charsOf(r).length, r.serial === '00000000002' || r.serial === '00000000003' ? 2 : 1, r.name + ' 幾個角色（第 13 輪：阿澄、小樂兩個）'); C.charsOf(r).forEach(function (c) { assert.ok(cv(c, now).bg, r.name + ' 有生產背景'); assert.ok(cv(c, now).rules.problem, r.name + ' 有出問題怎麼辦'); cv(c, now).resources.forEach(function (x) { assert.ok(!x.needsDeliver && (C.isEmptyItem(x) || x.kind === 'thing' || x.deliver), r.name + ' 的「' + x.name + '」沒綁實體'); }); }); });
+  s.roles.forEach(function (r) { assert.strictEqual(C.charsOf(r).length, r.serial === '00000000002' || r.serial === '00000000003' ? 2 : 1, r.name + ' 幾個角色（第 13 輪：阿澄、小樂兩個）'); C.charsOf(r).forEach(function (c) { assert.ok(cv(c, now).bg, r.name + ' 有生產背景'); assert.ok(cv(c, now).rules.problem, r.name + ' 有出問題怎麼辦'); cv(c, now).resources.forEach(function (x) { assert.ok(!x.needsEnergy && (C.isEmptyItem(x) || C.hasEnergy(x)), r.name + ' 的「' + x.name + '」沒寫能量'); }); }); });
   assert.strictEqual(C.nameWith(s, '00000000002', now, '00000000002-2'), '阿澄（廚房）'); assert.strictEqual(C.nameWith(s, '00000000003', now, '00000000003-2'), '小樂（後山）'); assert.strictEqual(cv(C.charOf(s, '00000000003-2').char, now).nature, true, '後山勾了自然');
   assert.strictEqual(C.acceptState(s, '00000000002', '00000000003-2', now), 'current'); assert.strictEqual(C.acceptState(s, '00000000003', '00000000002-2', now), 'current');
   assert.strictEqual(C.acceptState(s, '00000000002', '00000000003-1', now), 'current'); assert.strictEqual(C.acceptState(s, '00000000003', '00000000002-1', now), 'current');
   var tr = s.dockings.filter(function (d) { return d.traded; }); assert.ok(tr.length > 20 && tr.every(function (d) { return d.lead && d.leadRole && d.leadWhy && d.leadVer && /^主動：/.test(d.how); }), '過去的紀錄都有主動方');
-  assert.ok(s.holds.every(function (h) { return h.deliver && h.issuerRole; }), '背包每一筆都寫交什麼和角色');
+  assert.ok(s.holds.every(function (h) { return h.energy && h.issuerRole; }), '背包每一筆都寫能量和角色');
   assert.ok(s.entries.every(function (e) { return e.roles && e.roles[e.a] && e.roles[e.b]; }), '每一筆都記兩邊的角色');
-  var c = C.fresh({ history: false }); C.demoMe(c, T0); assert.strictEqual(cv(ch(c, J1), T0).bg, '便當熟食'); assert.ok(cv(ch(c, J1), T0).resources.every(function (x) { return x.kind === 'thing' || x.deliver; }));
+  var c = C.fresh({ history: false }); C.demoMe(c, T0); assert.strictEqual(cv(ch(c, J1), T0).bg, '便當熟食'); assert.ok(cv(ch(c, J1), T0).resources.every(function (x) { return C.hasEnergy(x); }));
 });
 ok('固定約之後（第 12 輪）：主動方改了規則、或價錢改了換人主動，被動方沒接受的那天不成交、事件簿最上面提醒（標每天）；接受了隔天照常', function () {
   var s = houseBase();
@@ -1894,7 +1897,7 @@ ok('固定約之後（第 12 輪）：主動方改了規則、或價錢改了換
   var s3 = slotOn(3); assert.strictEqual(C.acceptReminders(s, J2, tick(3)).length, 0); C.judge(s, s3.atUs + 1); assert.ok(dockOf(s3).traded, '接受了：隔天照常成交');
   // 價錢改了換人主動：乙把「空的」改成 80 點的物質（第 4 天起），乙給得比甲多，變成乙主動；甲沒接受過乙的規則
   s.acceptances = s.acceptances.filter(function (x) { return !(x.who === J1 && x.of === J2 + '-1'); });
-  C.setResource(s, J2, 'e2', { price: '80', kind: 'thing' }, tick(3));
+  C.setResource(s, J2, 'e2', { price: '80', kind: 'thing', eUse: 70 }, tick(3));
   var s4 = slotOn(4), L4 = C.pairLead(s, s4, J1, J2, tick(4)); assert.deepStrictEqual([L4.lead, L4.why], [J2, '給得多'], '第 4 天：乙給 80、甲給 50，換乙主動');
   var rem4 = C.acceptReminders(s, J1, tick(4)); assert.strictEqual(rem4.length, 1); assert.deepStrictEqual([rem4[0].other, rem4[0].daily, rem4[0].state], [J2, true, 'none'], '換甲要先接受乙的規則'); assert.strictEqual(C.acceptReminders(s, J2, tick(4)).length, 0);
   C.judge(s, s4.atUs + 1); var d4 = dockOf(s4); assert.ok(!d4.traded && d4.fail === 'accept' && d4.lead === J2); assert.strictEqual(C.reasonFor(s, d4, J1), '你還沒接受 乙 的規則');
@@ -1921,20 +1924,20 @@ ok('舊存檔裡的示範角色（第 12 輪）：照新的示範資料補上生
     var m = C.roleOf(st, r.serial), vf = C.version(C.firstChar(r), T0), vm = C.version(C.firstChar(m), T0);
     assert.strictEqual(vm.bg, vf.bg, r.name + ' 的生產背景'); assert.strictEqual(vm.rules.problem, vf.rules.problem, r.name + ' 的出問題怎麼辦'); assert.strictEqual(vm.rules.village, vf.rules.village);
     assert.deepStrictEqual(vm.resources.map(function (x) { return x.id; }).sort(), vf.resources.map(function (x) { return x.id; }).sort(), r.name + ' 的東西一樣多');
-    vf.resources.forEach(function (x) { var y = C.resourceOf(vm, x.id); assert.deepStrictEqual([y.kind, y.deliver, !!y.needsDeliver, y.price, C.isEmptyItem(y)], [x.kind, x.deliver, false, x.price, C.isEmptyItem(x)], r.name + ' 的「' + x.name + '」照新的示範資料補上種類和交'); });
+    vf.resources.forEach(function (x) { var y = C.resourceOf(vm, x.id); assert.deepStrictEqual([y.kind, y.deliver, y.eUse, y.eBring, !!y.needsEnergy, y.price, C.isEmptyItem(y)], [x.kind, x.deliver, x.eUse, x.eBring, false, x.price, C.isEmptyItem(x)], r.name + ' 的「' + x.name + '」照新的示範資料補上種類和能量'); });
     assert.strictEqual(C.dailyPoints(m, T0), C.dailyPoints(r, T0));
   });
   assert.deepStrictEqual(C.firstChar(C.roleOf(st, J2)).stock.r2e, { avail: 10, reserved: 0 }, '阿澄補的那行空的有 10 份'); assert.strictEqual(C.emptyOf(C.firstChar(C.roleOf(st, J2)), T0).id, 'r2e');
   assert.strictEqual(C.nameWith(st, C.GUIDE, T0), '引路人（教學）'); assert.strictEqual(C.nameWith(st, J2, T0), '阿澄（聊天傾聽）');
   assert.strictEqual(C.acceptState(st, J2, J3 + '-1', T0), 'current', '阿澄和小樂互相接受過'); assert.strictEqual(C.acceptState(st, J3, J2 + '-1', T0), 'current'); assert.strictEqual(C.acceptState(st, J1, J2 + '-1', T0), 'none', '玩家沒有替他接受');
-  var vme = C.version(C.firstChar(C.roleOf(st, J1)), T0); assert.ok(C.resourceOf(vme, 'm1').needsDeliver, '玩家自己沒寫交的東西不補，照樣標要寫交什麼'); assert.ok(C.isEmptyItem(C.resourceOf(vme, 'm0'))); assert.strictEqual(vme.rules.problem, C.PROBLEM_DEFAULT); assert.strictEqual(vme.bg, '腳踏車機車', '玩家的生產背景照舊：用原本算出來的括弧字（修腳踏車的小類）');
+  var vme = C.version(C.firstChar(C.roleOf(st, J1)), T0); assert.ok(C.resourceOf(vme, 'm1').needsEnergy, '玩家自己沒寫能量的東西不補，照樣標要寫能量'); assert.ok(C.isEmptyItem(C.resourceOf(vme, 'm0'))); assert.strictEqual(vme.rules.problem, C.PROBLEM_DEFAULT); assert.strictEqual(vme.bg, '腳踏車機車', '玩家的生產背景照舊：用原本算出來的括弧字（修腳踏車的小類）');
   var dT = st.dockings[0], hT = st.holds[0]; assert.ok(dT.itemsA[0].empty && dT.itemsB[0].empty, '舊紀錄裡 0 點、沒種類、沒寫交的就是空物件'); assert.ok(hT.status === 'redeemed' && hT.empty, '教學那一筆收到的空的：當作結束');
   assert.deepStrictEqual(C.dayDetail(st, J1, J1, C.dayNum(at)).entries[0].got.map(function (x) { return [x.name, x.price, x.deliver]; }), [['空的', 0, '']], '那天的明細：空的（畫面寫不用交）');
   assert.ok(C.save(st)); var st2 = C.load();
   assert.strictEqual(st2.holds[0].empty, true, '存回去再讀：空的記號還在'); assert.strictEqual(C.nameWith(st2, C.GUIDE, T0), '引路人（教學）'); assert.strictEqual(C.version(C.firstChar(C.roleOf(st2, J2)), T0).resources.filter(function (x) { return x.id === 'r2e'; }).length, 1, '不會再補一行'); assert.strictEqual(st2.acceptances.length, st.acceptances.length, '不會再記一次接受');
   // 序號一樣、名字不一樣（不是示範角色）：不補
   var other = down(f.roles[0]); other.name = '路人甲'; store['arrive-v9'] = JSON.stringify({ v: 9, me: 0, roles: [other], holds: [], dockings: [], redeems: [], acceptances: [], records: [], notices: [], tutorial: { step: 'done' } });
-  var st3 = C.load(), v3 = C.version(C.firstChar(st3.roles[0]), T0); assert.ok(C.resourceOf(v3, 'r2a').needsDeliver && !C.resourceOf(v3, 'r2e') && v3.rules.problem === C.PROBLEM_DEFAULT, '名字對不上就當一般人，照舊存檔的規矩');
+  var st3 = C.load(), v3 = C.version(C.firstChar(st3.roles[0]), T0); assert.ok(C.resourceOf(v3, 'r2a').needsEnergy && !C.resourceOf(v3, 'r2e') && v3.rules.problem === C.PROBLEM_DEFAULT, '名字對不上就當一般人，照舊存檔的規矩');
   delete global.localStorage;
 });
 ok('現在用的角色（第 13 輪）：沒設就是第一個；換了記在人身上；收掉了退回第一個；存檔讀檔留著；不是自己的、收掉的角色換不過去', function () {
@@ -1951,7 +1954,7 @@ ok('現在用的角色（第 13 輪）：沒設就是第一個；換了記在人
 });
 ok('現在用的角色（第 13 輪）：約他、開時段、掛公告、接上去、設密鑰都可以指定用哪個角色；通不通照現在用的角色的條件算；條件、對接次數、點數照人算', function () {
   var s = base(), t = T0;
-  var c2 = C.openChar(s, J1, { bg: '廚房', resources: [{ id: 'k1', name: '便當', kind: 'thing', price: pts(80), keepDays: 1, avail: 3 }, { id: 'k0', name: '空的', price: 0, keepDays: null, avail: 5 }] }, t); acceptAll(s, t - DAY);
+  var c2 = C.openChar(s, J1, { bg: '廚房', resources: [{ id: 'k1', name: '便當', kind: 'thing', eUse: 10, price: pts(80), keepDays: 1, avail: 3 }, { id: 'k0', name: '空的', price: 0, keepDays: null, avail: 5 }] }, t); acceptAll(s, t - DAY);
   // 乙的條件：對方可換的貨 ≥ 100（甲不通）；甲（J1-1）的條件：對方對接過 ≥ 5 次（乙不通）；甲（J1-2 廚房）沒有條件
   C.version(ch(s, J2), t).rules.conditions = [{ field: 'avail', op: '>=', value: 100 }];
   C.version(ch(s, J1), t).rules.conditions = [{ field: 'dockCount', op: '>=', value: 5 }];
@@ -1997,7 +2000,7 @@ ok('兩個角色的示範人物（第 13 輪）：阿澄（廚房）、小樂（
 });
 ok('自己的角色之間也能換（2026-11-21）：開時段的角色和另一個角色約、選、那一微秒判主動方、自動算接受；點從同一份扣；背包、對接過幾次、換點比例、關係圖、磚都算；同一個角色不能約自己；一個時段只用一個角色來約；跟別人不重複配；存檔讀得回來', function () {
   var s = base(), J12 = J1 + '-2', c2 = C.openChar(s, J1, { bg: '相機' }, T0 - DAY), r = s.roles[0];
-  var ph = C.addResource(s, c2.id, { name: '一張照片', kind: 'thing', price: pts(100), keepDays: 3 }, T0 - DAY); C.restock(s, c2.id, ph.id, 3);
+  var ph = C.addResource(s, c2.id, { name: '一張照片', kind: 'thing', eUse: 10, price: pts(100), keepDays: 3 }, T0 - DAY); C.restock(s, c2.id, ph.id, 3);
   var slot = C.addSlot(s, J1, T0 + 60e6, 3, null, T0, false, J1 + '-1');
   throws(function () { C.book(s, J1, slot.id, T0, true, false, J1 + '-1'); }, /同一個角色不能約自己開的時段/);
   C.book(s, J1, slot.id, T0, true, false, c2.id);
@@ -2028,7 +2031,7 @@ ok('自己的角色之間也能換（2026-11-21）：開時段的角色和另一
   assert.ok(self && self.status === 'traded' && self.other.role === J12 && self.myRole === J1 + '-1', '那天的明細：跟自己的 J1-2 成交');
   var h = s.holds.find(function (x) { return x.docking === d.id && x.name === '一張照片'; }); C.redeem(s, J1, h.id, T0 + 63e6); assert.strictEqual(h.status, 'redeemed', '自己兌現');
   // 點不夠：兩邊加起來超過今天剩下的就不成交
-  var s2 = base(), c22 = C.openChar(s2, J1, { bg: '相機' }, T0 - DAY), big = C.addResource(s2, c22.id, { name: '大照片', kind: 'thing', price: pts(980) }, T0 - DAY); C.restock(s2, c22.id, big.id, 1);
+  var s2 = base(), c22 = C.openChar(s2, J1, { bg: '相機' }, T0 - DAY), big = C.addResource(s2, c22.id, { name: '大照片', kind: 'thing', eUse: 10, price: pts(980) }, T0 - DAY); C.restock(s2, c22.id, big.id, 1);
   var sl2 = C.addSlot(s2, J1, T0 + 60e6, 1, null, T0); C.book(s2, J1, sl2.id, T0, true, false, c22.id); C.setWants(s2, sl2.id, J1, J12, [big.id]); C.setWants(s2, sl2.id, J12, J1, ['y']); C.judge(s2, T0 + 61e6);
   var d2 = s2.dockings[s2.dockings.length - 1]; assert.ok(!d2.traded && /兩個角色加起來要給 1030 點/.test(d2.reason), '點不夠：' + d2.reason);
   // 存檔讀得回來
